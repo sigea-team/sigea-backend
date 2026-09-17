@@ -127,7 +127,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `contrasena_hash` | `VARCHAR(255)` | `String` | NO |  | - | - |
 | `correo_verificado` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'activo'` | CHECK `estado IN ('activo','bloqueado','inactivo'` |
-| `fecha_registro` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Relaciones Foráneas Salientes**:
 - Columna `persona_id` -> [`personas.persona_id`](#personas) `DEFERRABLE INITIALLY IMMEDIATE`
@@ -190,7 +190,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
 | `usuario_id` | `INT` | `Integer` | NO | PK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
 | `rol_id` | `INT` | `Integer` | NO | PK | - | FK -> [`roles.rol_id`](#roles) |
-| `fecha_asignacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_asignacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Relaciones Foráneas Salientes**:
 - Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -210,8 +210,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `usuario_id` | `INT` | `Integer` | NO | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
 | `token` | `VARCHAR(255)` | `String` | NO |  | - | **UNIQUE** |
 | `tipo` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo IN ('verificacion','recuperacion'` |
-| `fecha_generacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
-| `fecha_expiracion` | `TIME` | `LocalTime` | NO |  | - | - |
+| `fecha_generacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_expiracion` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 | `usado` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
 
 **Relaciones Foráneas Salientes**:
@@ -232,7 +232,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `accion` | `VARCHAR(100)` | `String` | NO |  | - | - |
 | `entidad` | `VARCHAR(100)` | `String` | NO |  | - | - |
 | `entidad_id` | `INT` | `Integer` | SÍ |  | - | - |
-| `fecha_hora` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_hora` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `detalle` | `TEXT` | `String` | SÍ |  | - | - |
 
 **Relaciones Foráneas Salientes**:
@@ -285,7 +285,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `rol_comite` | `VARCHAR(50)` | `String` | NO |  | - | - |
-| `fecha_asignacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_asignacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `activo` | `BOOLEAN` | `Boolean` | NO |  | `true` | - |
 
 **Índices Definidos**:
@@ -376,7 +376,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `evento_id` | `INT` | `Integer` | NO | FK | - | **UNIQUE**, FK -> [`eventos.evento_id`](#eventos) |
 | `valor_total_aprobado` | `NUMERIC(14,2)` | `BigDecimal` | NO |  | - | CHECK `valor_total_aprobado >= 0` |
 | `evidencia_url` | `VARCHAR(255)` | `String` | NO |  | - | - |
-| `fecha_aprobacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_aprobacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `aprobado_por` | `INT` | `Integer` | NO | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'aprobado'` | - |
 
@@ -423,8 +423,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `titulo` | `VARCHAR(150)` | `String` | NO |  | - | - |
 | `descripcion` | `TEXT` | `String` | SÍ |  | - | - |
 | `requisitos` | `TEXT` | `String` | SÍ |  | - | - |
-| `fecha_apertura` | `TIME` | `LocalTime` | NO |  | - | - |
-| `fecha_cierre` | `TIME` | `LocalTime` | NO |  | - | - |
+| `fecha_apertura` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `fecha_cierre` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'borrador'` | CHECK `estado IN ('borrador','publicada','cerrada'` |
 
 **Restricciones de Tabla (CHECK)**:
@@ -448,7 +448,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `tipo_participacion` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo_participacion IN ('conferencista','ponente'` |
 | `tema` | `VARCHAR(200)` | `String` | SÍ |  | - | - |
-| `fecha_registro` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `participaciones_conferencista_persona_id_evento_id_tipo_participacion_tema_idx` sobre (`persona_id`, `evento_id`, `tipo_participacion`, `tema`)
@@ -475,7 +475,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `palabras_clave` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'recibida'` | CHECK `estado IN ('recibida','en_evaluacion','aprobada','ajustes','rechazada'` |
-| `fecha_envio` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_envio` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Relaciones Foráneas Salientes**:
 - Columna `convocatoria_id` -> [`convocatorias.convocatoria_id`](#convocatorias) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -514,7 +514,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `numero_version` | `INT` | `Integer` | NO |  | - | - |
 | `documento_url` | `VARCHAR(255)` | `String` | NO |  | - | - |
 | `observaciones` | `TEXT` | `String` | SÍ |  | - | - |
-| `fecha_creacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_creacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `versiones_propuesta_propuesta_id_numero_version_idx` sobre (`propuesta_id`, `numero_version`)
@@ -595,7 +595,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `asignacion_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `propuesta_id` | `INT` | `Integer` | NO | FK | - | FK -> [`propuestas.propuesta_id`](#propuestas) |
 | `comite_evaluador_id` | `INT` | `Integer` | NO | FK | - | FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) |
-| `fecha_asignacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_asignacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'pendiente'` | CHECK `estado IN ('pendiente','en_proceso','completada'` |
 
 **Índices Definidos**:
@@ -620,7 +620,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `criterio_id` | `INT` | `Integer` | NO | FK | - | FK -> [`criterios_rubrica.criterio_id`](#criterios_rubrica) |
 | `calificacion` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | - | - |
 | `observaciones` | `TEXT` | `String` | SÍ |  | - | - |
-| `fecha_evaluacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_evaluacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `evaluaciones_asignacion_id_criterio_id_idx` sobre (`asignacion_id`, `criterio_id`)
@@ -643,7 +643,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `propuesta_id` | `INT` | `Integer` | NO | FK | - | **UNIQUE**, FK -> [`propuestas.propuesta_id`](#propuestas) |
 | `puntuacion_ponderada` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | - | - |
 | `clasificacion` | `VARCHAR(30)` | `String` | NO |  | - | CHECK `clasificacion IN ('aprobada','aprobada_con_ajustes','rechazada'` |
-| `fecha_calculo` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_calculo` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -662,7 +662,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `version_id` | `INT` | `Integer` | NO | FK | - | FK -> [`versiones_propuesta.version_id`](#versiones_propuesta) |
 | `comite_evaluador_id` | `INT` | `Integer` | NO | FK | - | FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) |
 | `descripcion` | `TEXT` | `String` | NO |  | - | - |
-| `fecha` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `resuelto` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
 
 **Relaciones Foráneas Salientes**:
@@ -707,8 +707,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `disponibilidad_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `sala_id` | `INT` | `Integer` | NO | FK | - | FK -> [`salas.sala_id`](#salas) |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
-| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
@@ -730,8 +730,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
-| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
@@ -759,8 +759,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `nombre` | `VARCHAR(200)` | `String` | NO |  | - | - |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
-| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 | `sala_id` | `INT` | `Integer` | NO | FK | - | FK -> [`salas.sala_id`](#salas) |
 | `ponente_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `modalidad` | `VARCHAR(20)` | `String` | SÍ |  | - | CHECK `modalidad IN ('presencial','virtual','hibrida'` |
@@ -819,7 +819,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `categoria_participante` | `VARCHAR(30)` | `String` | NO |  | - | CHECK `categoria_participante IN ('estudiante','egresado','docente','particular'` |
-| `fecha_inscripcion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_inscripcion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `inscripciones_evento_persona_id_evento_id_idx` sobre (`persona_id`, `evento_id`)
@@ -842,7 +842,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `inscripcion_actividad_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `inscripcion_id` | `INT` | `Integer` | NO | FK | - | FK -> [`inscripciones_evento.inscripcion_id`](#inscripciones_evento) |
 | `actividad_id` | `INT` | `Integer` | NO | FK | - | FK -> [`actividades.actividad_id`](#actividades) |
-| `fecha_inscripcion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_inscripcion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `inscripciones_actividad_inscripcion_id_actividad_id_idx` sobre (`inscripcion_id`, `actividad_id`)
@@ -864,7 +864,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `qr_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `inscripcion_id` | `INT` | `Integer` | NO | FK | - | **UNIQUE**, FK -> [`inscripciones_evento.inscripcion_id`](#inscripciones_evento) |
 | `codigo` | `VARCHAR(100)` | `String` | NO |  | - | **UNIQUE** |
-| `fecha_generacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_generacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `vigente` | `BOOLEAN` | `Boolean` | NO |  | `true` | - |
 
 **Relaciones Foráneas Salientes**:
@@ -883,7 +883,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `asistencia_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `inscripcion_id` | `INT` | `Integer` | NO | FK | - | FK -> [`inscripciones_evento.inscripcion_id`](#inscripciones_evento) |
 | `actividad_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`actividades.actividad_id`](#actividades) |
-| `fecha_hora_registro` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_hora_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `metodo_registro` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `metodo_registro IN ('qr','manual'` |
 
 **Índices Definidos**:
@@ -948,7 +948,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `pregunta_id` | `INT` | `Integer` | NO | FK | - | FK -> [`preguntas_encuesta.pregunta_id`](#preguntas_encuesta) |
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `respuesta` | `TEXT` | `String` | SÍ |  | - | - |
-| `fecha_respuesta` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_respuesta` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
 - UNIQUE Índice `respuestas_encuesta_pregunta_id_persona_id_idx` sobre (`pregunta_id`, `persona_id`)
@@ -973,7 +973,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `actividad_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`actividades.actividad_id`](#actividades) |
 | `tipo_certificado` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo_certificado IN ('asistente','ponente','evaluador','organizador'` |
 | `porcentaje_asistencia` | `NUMERIC(5,2)` | `BigDecimal` | SÍ |  | - | - |
-| `fecha_generacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_generacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `archivo_url` | `VARCHAR(255)` | `String` | NO |  | - | - |
 
 **Relaciones Foráneas Salientes**:
@@ -996,7 +996,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `nombre` | `VARCHAR(100)` | `String` | NO |  | - | - |
 | `valor` | `NUMERIC(14,2)` | `BigDecimal` | NO |  | - | - |
 | `unidad` | `VARCHAR(20)` | `String` | SÍ |  | - | - |
-| `fecha_calculo` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_calculo` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1013,7 +1013,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
 | `memoria_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | **UNIQUE**, FK -> [`eventos.evento_id`](#eventos) |
-| `fecha_consolidacion` | `TIME` | `LocalTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `fecha_consolidacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `archivo_url` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
 | `resumen` | `TEXT` | `String` | SÍ |  | - | - |
 
