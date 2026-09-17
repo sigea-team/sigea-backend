@@ -1,0 +1,4310 @@
+{
+  "version": "1.0",
+  "database": "demosigea_backend",
+  "engine": "PostgreSQL",
+  "modules": {
+    "1. Seguridad, Usuarios y Control de Acceso": [
+      "personas",
+      "usuarios",
+      "roles",
+      "permisos",
+      "roles_permisos",
+      "usuarios_roles",
+      "tokens_recuperacion",
+      "auditoria"
+    ],
+    "2. Gestión de Eventos y Organización": [
+      "eventos",
+      "comite_organizador",
+      "tipos_actividad",
+      "lineas_tematicas"
+    ],
+    "3. Presupuesto y Finanzas": [
+      "rubros_presupuestales",
+      "presupuestos_aprobados",
+      "gastos_ejecutados"
+    ],
+    "4. Convocatorias, Ponentes y Propuestas": [
+      "convocatorias",
+      "participaciones_conferencista",
+      "propuestas",
+      "propuestas_autores",
+      "versiones_propuesta"
+    ],
+    "5. Sistema de Evaluación por Pares": [
+      "rubricas_evaluacion",
+      "criterios_rubrica",
+      "comites_evaluadores",
+      "asignaciones_evaluacion",
+      "evaluaciones",
+      "resultados_evaluacion",
+      "observaciones_propuesta"
+    ],
+    "6. Espacios Físicos, Virtuales y Disponibilidad": [
+      "salas",
+      "disponibilidad_salas",
+      "disponibilidad_ponentes"
+    ],
+    "7. Programación y Agenda del Evento": [
+      "actividades",
+      "agendas_publicadas"
+    ],
+    "8. Inscripciones, Acreditación y Asistencia": [
+      "inscripciones_evento",
+      "inscripciones_actividad",
+      "codigos_qr",
+      "asistencias"
+    ],
+    "9. Encuestas, Certificados, Métricas y Memorias": [
+      "encuestas",
+      "preguntas_encuesta",
+      "respuestas_encuesta",
+      "certificados",
+      "indicadores",
+      "memorias_historicas"
+    ]
+  },
+  "tables": {
+    "personas": {
+      "name": "personas",
+      "description": "Información básica y de contacto de personas naturales asociadas al sistema (asistentes, ponentes, evaluadores, organizadores).",
+      "primary_key": [
+        "persona_id"
+      ],
+      "columns": [
+        {
+          "name": "persona_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"persona_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "tipo_documento",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"tipo_documento\" VARCHAR(20) NOT NULL"
+        },
+        {
+          "name": "numero_documento",
+          "type": "VARCHAR(30)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"numero_documento\" VARCHAR(30) UNIQUE NOT NULL"
+        },
+        {
+          "name": "nombres",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombres\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "apellidos",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"apellidos\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "correo",
+          "type": "VARCHAR(150)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"correo\" VARCHAR(150) UNIQUE NOT NULL"
+        },
+        {
+          "name": "telefono",
+          "type": "VARCHAR(30)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"telefono\" VARCHAR(30)"
+        },
+        {
+          "name": "afiliacion_institucional",
+          "type": "VARCHAR(150)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"afiliacion_institucional\" VARCHAR(150)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [],
+      "indexes": [],
+      "java_entity": "Persona"
+    },
+    "usuarios": {
+      "name": "usuarios",
+      "description": "Cuentas de usuario para autenticación en la plataforma, vinculadas a un registro de persona.",
+      "primary_key": [
+        "usuario_id"
+      ],
+      "columns": [
+        {
+          "name": "usuario_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"usuario_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT UNIQUE NOT NULL"
+        },
+        {
+          "name": "nombre_usuario",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre_usuario\" VARCHAR(50) UNIQUE NOT NULL"
+        },
+        {
+          "name": "contrasena_hash",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"contrasena_hash\" VARCHAR(255) NOT NULL"
+        },
+        {
+          "name": "correo_verificado",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "false",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"correo_verificado\" BOOLEAN NOT NULL DEFAULT false"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'activo'",
+          "check": "estado IN ('activo','bloqueado','inactivo'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL CHECK (estado IN ('activo','bloqueado','inactivo')) DEFAULT 'activo'"
+        },
+        {
+          "name": "fecha_registro",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_registro\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Usuario"
+    },
+    "roles": {
+      "name": "roles",
+      "description": "Roles de seguridad del sistema para control de acceso basado en roles (RBAC).",
+      "primary_key": [
+        "rol_id"
+      ],
+      "columns": [
+        {
+          "name": "rol_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"rol_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(50) UNIQUE NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [],
+      "indexes": [],
+      "java_entity": "Rol"
+    },
+    "permisos": {
+      "name": "permisos",
+      "description": "Permisos atómicos o privilegios funcionales asignables a roles.",
+      "primary_key": [
+        "permiso_id"
+      ],
+      "columns": [
+        {
+          "name": "permiso_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"permiso_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "codigo",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"codigo\" VARCHAR(50) UNIQUE NOT NULL"
+        },
+        {
+          "name": "modulo",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"modulo\" VARCHAR(50) NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [],
+      "indexes": [],
+      "java_entity": "Permiso"
+    },
+    "roles_permisos": {
+      "name": "roles_permisos",
+      "description": "Tabla intermedia para relación muchos a muchos entre roles y permisos.",
+      "primary_key": [
+        "rol_id",
+        "permiso_id"
+      ],
+      "columns": [
+        {
+          "name": "rol_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "roles.rol_id",
+          "raw_definition": "\"rol_id\" INT NOT NULL"
+        },
+        {
+          "name": "permiso_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "permisos.permiso_id",
+          "raw_definition": "\"permiso_id\" INT NOT NULL"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "rol_id",
+          "references_table": "roles",
+          "references_column": "rol_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "permiso_id",
+          "references_table": "permisos",
+          "references_column": "permiso_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "RolPermiso"
+    },
+    "usuarios_roles": {
+      "name": "usuarios_roles",
+      "description": "Asignación de roles a usuarios con registro de fecha.",
+      "primary_key": [
+        "usuario_id",
+        "rol_id"
+      ],
+      "columns": [
+        {
+          "name": "usuario_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "usuarios.usuario_id",
+          "raw_definition": "\"usuario_id\" INT NOT NULL"
+        },
+        {
+          "name": "rol_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "roles.rol_id",
+          "raw_definition": "\"rol_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha_asignacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_asignacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "usuario_id",
+          "references_table": "usuarios",
+          "references_column": "usuario_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "rol_id",
+          "references_table": "roles",
+          "references_column": "rol_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "UsuarioRol"
+    },
+    "tokens_recuperacion": {
+      "name": "tokens_recuperacion",
+      "description": "Tokens temporales para verificación de correo electrónico o recuperación de credenciales.",
+      "primary_key": [
+        "token_id"
+      ],
+      "columns": [
+        {
+          "name": "token_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"token_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "usuarios.usuario_id",
+          "raw_definition": "\"usuario_id\" INT NOT NULL"
+        },
+        {
+          "name": "token",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"token\" VARCHAR(255) UNIQUE NOT NULL"
+        },
+        {
+          "name": "tipo",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "tipo IN ('verificacion','recuperacion'",
+          "foreign_key": null,
+          "raw_definition": "\"tipo\" VARCHAR(20) NOT NULL CHECK (tipo IN ('verificacion','recuperacion'))"
+        },
+        {
+          "name": "fecha_generacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_generacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "fecha_expiracion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_expiracion\" TIMESTAMP NOT NULL"
+        },
+        {
+          "name": "usado",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "false",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"usado\" BOOLEAN NOT NULL DEFAULT false"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "usuario_id",
+          "references_table": "usuarios",
+          "references_column": "usuario_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "TokenRecuperacion"
+    },
+    "auditoria": {
+      "name": "auditoria",
+      "description": "Registro de eventos, trazabilidad y acciones críticas realizadas por los usuarios en el sistema.",
+      "primary_key": [
+        "auditoria_id"
+      ],
+      "columns": [
+        {
+          "name": "auditoria_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"auditoria_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "usuarios.usuario_id",
+          "raw_definition": "\"usuario_id\" INT"
+        },
+        {
+          "name": "accion",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"accion\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "entidad",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"entidad\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "entidad_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"entidad_id\" INT"
+        },
+        {
+          "name": "fecha_hora",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_hora\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "detalle",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"detalle\" TEXT"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "usuario_id",
+          "references_table": "usuarios",
+          "references_column": "usuario_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Auditoria"
+    },
+    "eventos": {
+      "name": "eventos",
+      "description": "Entidad principal que almacena los eventos académicos organizados por la institución.",
+      "primary_key": [
+        "evento_id"
+      ],
+      "columns": [
+        {
+          "name": "evento_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"evento_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(200)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(200) NOT NULL"
+        },
+        {
+          "name": "objetivo",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"objetivo\" TEXT"
+        },
+        {
+          "name": "descripcion",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" TEXT"
+        },
+        {
+          "name": "tipo",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"tipo\" VARCHAR(50)"
+        },
+        {
+          "name": "modalidad",
+          "type": "VARCHAR(20)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "modalidad IN ('presencial','virtual','hibrida'",
+          "foreign_key": null,
+          "raw_definition": "\"modalidad\" VARCHAR(20) CHECK (modalidad IN ('presencial','virtual','hibrida'))"
+        },
+        {
+          "name": "fecha_inicio",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_inicio\" DATE NOT NULL"
+        },
+        {
+          "name": "fecha_fin",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_fin\" DATE NOT NULL"
+        },
+        {
+          "name": "semestre",
+          "type": "VARCHAR(10)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"semestre\" VARCHAR(10)"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(30)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'en_configuracion'",
+          "check": "estado IN ('en_configuracion','habilitado','en_ejecucion','cerrado'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(30) NOT NULL CHECK (estado IN ('en_configuracion','habilitado','en_ejecucion','cerrado')) DEFAULT 'en_configuracion'"
+        },
+        {
+          "name": "evento_base_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_base_id\" INT"
+        }
+      ],
+      "table_checks": [
+        "CHECK (fecha_fin >= fecha_inicio)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "evento_base_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_eventos_semestre",
+          "unique": false,
+          "columns": [
+            "semestre"
+          ]
+        }
+      ],
+      "java_entity": "Evento"
+    },
+    "comite_organizador": {
+      "name": "comite_organizador",
+      "description": "Integrantes del comité organizador asignados a un evento específico con sus respectivos roles.",
+      "primary_key": [
+        "comite_id"
+      ],
+      "columns": [
+        {
+          "name": "comite_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"comite_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "rol_comite",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"rol_comite\" VARCHAR(50) NOT NULL"
+        },
+        {
+          "name": "fecha_asignacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_asignacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "activo",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "true",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"activo\" BOOLEAN NOT NULL DEFAULT true"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "comite_organizador_evento_id_persona_id_rol_comite_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "persona_id",
+            "rol_comite"
+          ]
+        }
+      ],
+      "java_entity": "ComiteOrganizador"
+    },
+    "tipos_actividad": {
+      "name": "tipos_actividad",
+      "description": "Tipologías de actividades académicas configuradas para un evento (ej. Conferencia, Taller, Panel, Póster).",
+      "primary_key": [
+        "tipo_actividad_id"
+      ],
+      "columns": [
+        {
+          "name": "tipo_actividad_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"tipo_actividad_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(80) NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "tipos_actividad_evento_id_nombre_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "nombre"
+          ]
+        }
+      ],
+      "java_entity": "TipoActividad"
+    },
+    "lineas_tematicas": {
+      "name": "lineas_tematicas",
+      "description": "Ejes temáticos o áreas disciplinares en las que se enmarcan las actividades y propuestas del evento.",
+      "primary_key": [
+        "linea_tematica_id"
+      ],
+      "columns": [
+        {
+          "name": "linea_tematica_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"linea_tematica_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(120)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(120) NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "lineas_tematicas_evento_id_nombre_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "nombre"
+          ]
+        }
+      ],
+      "java_entity": "LineaTematica"
+    },
+    "rubros_presupuestales": {
+      "name": "rubros_presupuestales",
+      "description": "Proyección y planificación de rubros presupuestales estimados para la ejecución del evento.",
+      "primary_key": [
+        "rubro_id"
+      ],
+      "columns": [
+        {
+          "name": "rubro_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"rubro_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "cantidad",
+          "type": "NUMERIC(10,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "cantidad >= 0",
+          "foreign_key": null,
+          "raw_definition": "\"cantidad\" NUMERIC(10,2) NOT NULL CHECK (cantidad >= 0)"
+        },
+        {
+          "name": "valor_unitario_proyectado",
+          "type": "NUMERIC(14,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "valor_unitario_proyectado >= 0",
+          "foreign_key": null,
+          "raw_definition": "\"valor_unitario_proyectado\" NUMERIC(14,2) NOT NULL CHECK (valor_unitario_proyectado >= 0)"
+        },
+        {
+          "name": "activo",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "true",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"activo\" BOOLEAN NOT NULL DEFAULT true"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "rubros_presupuestales_evento_id_nombre_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "nombre"
+          ]
+        }
+      ],
+      "java_entity": "RubroPresupuestal"
+    },
+    "presupuestos_aprobados": {
+      "name": "presupuestos_aprobados",
+      "description": "Registro formal de aprobación del presupuesto general asignado al evento con evidencia documental.",
+      "primary_key": [
+        "aprobacion_id"
+      ],
+      "columns": [
+        {
+          "name": "aprobacion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"aprobacion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT UNIQUE NOT NULL"
+        },
+        {
+          "name": "valor_total_aprobado",
+          "type": "NUMERIC(14,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "valor_total_aprobado >= 0",
+          "foreign_key": null,
+          "raw_definition": "\"valor_total_aprobado\" NUMERIC(14,2) NOT NULL CHECK (valor_total_aprobado >= 0)"
+        },
+        {
+          "name": "evidencia_url",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"evidencia_url\" VARCHAR(255) NOT NULL"
+        },
+        {
+          "name": "fecha_aprobacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_aprobacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "aprobado_por",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "usuarios.usuario_id",
+          "raw_definition": "\"aprobado_por\" INT NOT NULL"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'aprobado'",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL DEFAULT 'aprobado'"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "aprobado_por",
+          "references_table": "usuarios",
+          "references_column": "usuario_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "PresupuestoAprobado"
+    },
+    "gastos_ejecutados": {
+      "name": "gastos_ejecutados",
+      "description": "Registro contable de gastos reales ejecutados con soporte contra rubros presupuestales.",
+      "primary_key": [
+        "gasto_id"
+      ],
+      "columns": [
+        {
+          "name": "gasto_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"gasto_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "rubro_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "rubros_presupuestales.rubro_id",
+          "raw_definition": "\"rubro_id\" INT NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        },
+        {
+          "name": "valor",
+          "type": "NUMERIC(14,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "valor >= 0",
+          "foreign_key": null,
+          "raw_definition": "\"valor\" NUMERIC(14,2) NOT NULL CHECK (valor >= 0)"
+        },
+        {
+          "name": "fecha_gasto",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_gasto\" DATE NOT NULL"
+        },
+        {
+          "name": "soporte_url",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"soporte_url\" VARCHAR(255)"
+        },
+        {
+          "name": "registrado_por",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "usuarios.usuario_id",
+          "raw_definition": "\"registrado_por\" INT NOT NULL"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "rubro_id",
+          "references_table": "rubros_presupuestales",
+          "references_column": "rubro_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "registrado_por",
+          "references_table": "usuarios",
+          "references_column": "usuario_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "GastoEjecutado"
+    },
+    "convocatorias": {
+      "name": "convocatorias",
+      "description": "Llamados públicos a presentación de propuestas académicas asociadas a un evento.",
+      "primary_key": [
+        "convocatoria_id"
+      ],
+      "columns": [
+        {
+          "name": "convocatoria_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"convocatoria_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "titulo",
+          "type": "VARCHAR(150)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"titulo\" VARCHAR(150) NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" TEXT"
+        },
+        {
+          "name": "requisitos",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"requisitos\" TEXT"
+        },
+        {
+          "name": "fecha_apertura",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_apertura\" TIMESTAMP NOT NULL"
+        },
+        {
+          "name": "fecha_cierre",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_cierre\" TIMESTAMP NOT NULL"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'borrador'",
+          "check": "estado IN ('borrador','publicada','cerrada'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL CHECK (estado IN ('borrador','publicada','cerrada')) DEFAULT 'borrador'"
+        }
+      ],
+      "table_checks": [
+        "CHECK (fecha_cierre > fecha_apertura)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Convocatoria"
+    },
+    "participaciones_conferencista": {
+      "name": "participaciones_conferencista",
+      "description": "Registro formal de conferencistas magistrales o ponentes invitados al evento.",
+      "primary_key": [
+        "participacion_id"
+      ],
+      "columns": [
+        {
+          "name": "participacion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"participacion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "tipo_participacion",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "tipo_participacion IN ('conferencista','ponente'",
+          "foreign_key": null,
+          "raw_definition": "\"tipo_participacion\" VARCHAR(20) NOT NULL CHECK (tipo_participacion IN ('conferencista','ponente'))"
+        },
+        {
+          "name": "tema",
+          "type": "VARCHAR(200)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"tema\" VARCHAR(200)"
+        },
+        {
+          "name": "fecha_registro",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_registro\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "participaciones_conferencista_persona_id_evento_id_tipo_participacion_tema_idx",
+          "unique": true,
+          "columns": [
+            "persona_id",
+            "evento_id",
+            "tipo_participacion",
+            "tema"
+          ]
+        },
+        {
+          "name": "idx_participaciones_persona",
+          "unique": false,
+          "columns": [
+            "persona_id"
+          ]
+        }
+      ],
+      "java_entity": "ParticipacionConferencista"
+    },
+    "propuestas": {
+      "name": "propuestas",
+      "description": "Trabajos, ponencias o artículos académicos postulados por autores a una convocatoria.",
+      "primary_key": [
+        "propuesta_id"
+      ],
+      "columns": [
+        {
+          "name": "propuesta_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"propuesta_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "convocatoria_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "convocatorias.convocatoria_id",
+          "raw_definition": "\"convocatoria_id\" INT NOT NULL"
+        },
+        {
+          "name": "titulo",
+          "type": "VARCHAR(200)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"titulo\" VARCHAR(200) NOT NULL"
+        },
+        {
+          "name": "resumen",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"resumen\" TEXT"
+        },
+        {
+          "name": "palabras_clave",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"palabras_clave\" VARCHAR(255)"
+        },
+        {
+          "name": "linea_tematica_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "lineas_tematicas.linea_tematica_id",
+          "raw_definition": "\"linea_tematica_id\" INT"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'recibida'",
+          "check": "estado IN ('recibida','en_evaluacion','aprobada','ajustes','rechazada'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL CHECK (estado IN ('recibida','en_evaluacion','aprobada','ajustes','rechazada')) DEFAULT 'recibida'"
+        },
+        {
+          "name": "fecha_envio",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_envio\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "convocatoria_id",
+          "references_table": "convocatorias",
+          "references_column": "convocatoria_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "linea_tematica_id",
+          "references_table": "lineas_tematicas",
+          "references_column": "linea_tematica_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Propuesta"
+    },
+    "propuestas_autores": {
+      "name": "propuestas_autores",
+      "description": "Autores y coautores vinculados a una propuesta académica con orden de autoría.",
+      "primary_key": [
+        "propuesta_id",
+        "persona_id"
+      ],
+      "columns": [
+        {
+          "name": "propuesta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "propuestas.propuesta_id",
+          "raw_definition": "\"propuesta_id\" INT NOT NULL"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "orden",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "1",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"orden\" INT NOT NULL DEFAULT 1"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "propuesta_id",
+          "references_table": "propuestas",
+          "references_column": "propuesta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "PropuestaAutor"
+    },
+    "versiones_propuesta": {
+      "name": "versiones_propuesta",
+      "description": "Historial de versiones y archivos adjuntos (PDF/documentos) de una propuesta a lo largo del proceso de revisión.",
+      "primary_key": [
+        "version_id"
+      ],
+      "columns": [
+        {
+          "name": "version_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"version_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "propuesta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "propuestas.propuesta_id",
+          "raw_definition": "\"propuesta_id\" INT NOT NULL"
+        },
+        {
+          "name": "numero_version",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"numero_version\" INT NOT NULL"
+        },
+        {
+          "name": "documento_url",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"documento_url\" VARCHAR(255) NOT NULL"
+        },
+        {
+          "name": "observaciones",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"observaciones\" TEXT"
+        },
+        {
+          "name": "fecha_creacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_creacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "propuesta_id",
+          "references_table": "propuestas",
+          "references_column": "propuesta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "versiones_propuesta_propuesta_id_numero_version_idx",
+          "unique": true,
+          "columns": [
+            "propuesta_id",
+            "numero_version"
+          ]
+        }
+      ],
+      "java_entity": "VersionPropuesta"
+    },
+    "rubricas_evaluacion": {
+      "name": "rubricas_evaluacion",
+      "description": "Instrumentos o rúbricas de evaluación configuradas para calificar propuestas en una convocatoria.",
+      "primary_key": [
+        "rubrica_id"
+      ],
+      "columns": [
+        {
+          "name": "rubrica_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"rubrica_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "convocatoria_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "convocatorias.convocatoria_id",
+          "raw_definition": "\"convocatoria_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "activo",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "true",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"activo\" BOOLEAN NOT NULL DEFAULT true"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "convocatoria_id",
+          "references_table": "convocatorias",
+          "references_column": "convocatoria_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "RubricaEvaluacion"
+    },
+    "criterios_rubrica": {
+      "name": "criterios_rubrica",
+      "description": "Criterios individuales de evaluación con sus respectivos pesos porcentuales.",
+      "primary_key": [
+        "criterio_id"
+      ],
+      "columns": [
+        {
+          "name": "criterio_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"criterio_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "rubrica_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "rubricas_evaluacion.rubrica_id",
+          "raw_definition": "\"rubrica_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "peso_porcentual",
+          "type": "NUMERIC(5,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "peso_porcentual > 0 AND peso_porcentual <= 100",
+          "foreign_key": null,
+          "raw_definition": "\"peso_porcentual\" NUMERIC(5,2) NOT NULL CHECK (peso_porcentual > 0 AND peso_porcentual <= 100)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "rubrica_id",
+          "references_table": "rubricas_evaluacion",
+          "references_column": "rubrica_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "CriterioRubrica"
+    },
+    "comites_evaluadores": {
+      "name": "comites_evaluadores",
+      "description": "Pares académicos o evaluadores designados para una convocatoria específica.",
+      "primary_key": [
+        "comite_evaluador_id"
+      ],
+      "columns": [
+        {
+          "name": "comite_evaluador_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"comite_evaluador_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "convocatoria_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "convocatorias.convocatoria_id",
+          "raw_definition": "\"convocatoria_id\" INT NOT NULL"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "area_experticia",
+          "type": "VARCHAR(150)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"area_experticia\" VARCHAR(150)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "convocatoria_id",
+          "references_table": "convocatorias",
+          "references_column": "convocatoria_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "comites_evaluadores_convocatoria_id_persona_id_idx",
+          "unique": true,
+          "columns": [
+            "convocatoria_id",
+            "persona_id"
+          ]
+        }
+      ],
+      "java_entity": "ComiteEvaluador"
+    },
+    "asignaciones_evaluacion": {
+      "name": "asignaciones_evaluacion",
+      "description": "Asignación de una propuesta académica a un evaluador del comité.",
+      "primary_key": [
+        "asignacion_id"
+      ],
+      "columns": [
+        {
+          "name": "asignacion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"asignacion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "propuesta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "propuestas.propuesta_id",
+          "raw_definition": "\"propuesta_id\" INT NOT NULL"
+        },
+        {
+          "name": "comite_evaluador_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "comites_evaluadores.comite_evaluador_id",
+          "raw_definition": "\"comite_evaluador_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha_asignacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_asignacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'pendiente'",
+          "check": "estado IN ('pendiente','en_proceso','completada'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL CHECK (estado IN ('pendiente','en_proceso','completada')) DEFAULT 'pendiente'"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "propuesta_id",
+          "references_table": "propuestas",
+          "references_column": "propuesta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "comite_evaluador_id",
+          "references_table": "comites_evaluadores",
+          "references_column": "comite_evaluador_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "asignaciones_evaluacion_propuesta_id_comite_evaluador_id_idx",
+          "unique": true,
+          "columns": [
+            "propuesta_id",
+            "comite_evaluador_id"
+          ]
+        }
+      ],
+      "java_entity": "AsignacionEvaluacion"
+    },
+    "evaluaciones": {
+      "name": "evaluaciones",
+      "description": "Calificaciones otorgadas por el evaluador a cada criterio de la rúbrica.",
+      "primary_key": [
+        "evaluacion_id"
+      ],
+      "columns": [
+        {
+          "name": "evaluacion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"evaluacion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "asignacion_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "asignaciones_evaluacion.asignacion_id",
+          "raw_definition": "\"asignacion_id\" INT NOT NULL"
+        },
+        {
+          "name": "criterio_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "criterios_rubrica.criterio_id",
+          "raw_definition": "\"criterio_id\" INT NOT NULL"
+        },
+        {
+          "name": "calificacion",
+          "type": "NUMERIC(5,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"calificacion\" NUMERIC(5,2) NOT NULL"
+        },
+        {
+          "name": "observaciones",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"observaciones\" TEXT"
+        },
+        {
+          "name": "fecha_evaluacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_evaluacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "asignacion_id",
+          "references_table": "asignaciones_evaluacion",
+          "references_column": "asignacion_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "criterio_id",
+          "references_table": "criterios_rubrica",
+          "references_column": "criterio_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "evaluaciones_asignacion_id_criterio_id_idx",
+          "unique": true,
+          "columns": [
+            "asignacion_id",
+            "criterio_id"
+          ]
+        }
+      ],
+      "java_entity": "Evaluacion"
+    },
+    "resultados_evaluacion": {
+      "name": "resultados_evaluacion",
+      "description": "Consolidado final de evaluación de una propuesta con puntuación ponderada y clasificación final.",
+      "primary_key": [
+        "resultado_id"
+      ],
+      "columns": [
+        {
+          "name": "resultado_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"resultado_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "propuesta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": "propuestas.propuesta_id",
+          "raw_definition": "\"propuesta_id\" INT UNIQUE NOT NULL"
+        },
+        {
+          "name": "puntuacion_ponderada",
+          "type": "NUMERIC(5,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"puntuacion_ponderada\" NUMERIC(5,2) NOT NULL"
+        },
+        {
+          "name": "clasificacion",
+          "type": "VARCHAR(30)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "clasificacion IN ('aprobada','aprobada_con_ajustes','rechazada'",
+          "foreign_key": null,
+          "raw_definition": "\"clasificacion\" VARCHAR(30) NOT NULL CHECK (clasificacion IN ('aprobada','aprobada_con_ajustes','rechazada'))"
+        },
+        {
+          "name": "fecha_calculo",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_calculo\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "propuesta_id",
+          "references_table": "propuestas",
+          "references_column": "propuesta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "ResultadoEvaluacion"
+    },
+    "observaciones_propuesta": {
+      "name": "observaciones_propuesta",
+      "description": "Observaciones, correcciones y retroalimentación de evaluadores dirigidas a una versión de la propuesta.",
+      "primary_key": [
+        "observacion_id"
+      ],
+      "columns": [
+        {
+          "name": "observacion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"observacion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "version_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "versiones_propuesta.version_id",
+          "raw_definition": "\"version_id\" INT NOT NULL"
+        },
+        {
+          "name": "comite_evaluador_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "comites_evaluadores.comite_evaluador_id",
+          "raw_definition": "\"comite_evaluador_id\" INT NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" TEXT NOT NULL"
+        },
+        {
+          "name": "fecha",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "resuelto",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "false",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"resuelto\" BOOLEAN NOT NULL DEFAULT false"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "version_id",
+          "references_table": "versiones_propuesta",
+          "references_column": "version_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "comite_evaluador_id",
+          "references_table": "comites_evaluadores",
+          "references_column": "comite_evaluador_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "ObservacionPropuesta"
+    },
+    "salas": {
+      "name": "salas",
+      "description": "Espacios físicos (aulas, auditorios) o virtuales (plataformas de videoconferencia) asignados al evento.",
+      "primary_key": [
+        "sala_id"
+      ],
+      "columns": [
+        {
+          "name": "sala_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"sala_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "ubicacion",
+          "type": "VARCHAR(150)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"ubicacion\" VARCHAR(150)"
+        },
+        {
+          "name": "tipo",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "tipo IN ('fisica','virtual'",
+          "foreign_key": null,
+          "raw_definition": "\"tipo\" VARCHAR(20) NOT NULL CHECK (tipo IN ('fisica','virtual'))"
+        },
+        {
+          "name": "aforo_maximo",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "aforo_maximo > 0",
+          "foreign_key": null,
+          "raw_definition": "\"aforo_maximo\" INT NOT NULL CHECK (aforo_maximo > 0)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "salas_evento_id_nombre_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "nombre"
+          ]
+        }
+      ],
+      "java_entity": "Sala"
+    },
+    "disponibilidad_salas": {
+      "name": "disponibilidad_salas",
+      "description": "Franjas horarias y fechas de disponibilidad programada para cada sala.",
+      "primary_key": [
+        "disponibilidad_id"
+      ],
+      "columns": [
+        {
+          "name": "disponibilidad_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"disponibilidad_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "sala_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "salas.sala_id",
+          "raw_definition": "\"sala_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha\" DATE NOT NULL"
+        },
+        {
+          "name": "hora_inicio",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_inicio\" TIME NOT NULL"
+        },
+        {
+          "name": "hora_fin",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_fin\" TIME NOT NULL"
+        }
+      ],
+      "table_checks": [
+        "CHECK (hora_fin > hora_inicio)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "sala_id",
+          "references_table": "salas",
+          "references_column": "sala_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "DisponibilidadSala"
+    },
+    "disponibilidad_ponentes": {
+      "name": "disponibilidad_ponentes",
+      "description": "Disponibilidad de horario reportada por ponentes para facilitar la programación de sus actividades.",
+      "primary_key": [
+        "disponibilidad_id"
+      ],
+      "columns": [
+        {
+          "name": "disponibilidad_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"disponibilidad_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha\" DATE NOT NULL"
+        },
+        {
+          "name": "hora_inicio",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_inicio\" TIME NOT NULL"
+        },
+        {
+          "name": "hora_fin",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_fin\" TIME NOT NULL"
+        }
+      ],
+      "table_checks": [
+        "CHECK (hora_fin > hora_inicio)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "DisponibilidadPonente"
+    },
+    "actividades": {
+      "name": "actividades",
+      "description": "Programación concreta de actividades dentro de la agenda del evento (horarios, salas, ponentes).",
+      "primary_key": [
+        "actividad_id"
+      ],
+      "columns": [
+        {
+          "name": "actividad_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"actividad_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "propuesta_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "propuestas.propuesta_id",
+          "raw_definition": "\"propuesta_id\" INT"
+        },
+        {
+          "name": "tipo_actividad_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "tipos_actividad.tipo_actividad_id",
+          "raw_definition": "\"tipo_actividad_id\" INT NOT NULL"
+        },
+        {
+          "name": "linea_tematica_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "lineas_tematicas.linea_tematica_id",
+          "raw_definition": "\"linea_tematica_id\" INT"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(200)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(200) NOT NULL"
+        },
+        {
+          "name": "fecha",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha\" DATE NOT NULL"
+        },
+        {
+          "name": "hora_inicio",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_inicio\" TIME NOT NULL"
+        },
+        {
+          "name": "hora_fin",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"hora_fin\" TIME NOT NULL"
+        },
+        {
+          "name": "sala_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "salas.sala_id",
+          "raw_definition": "\"sala_id\" INT NOT NULL"
+        },
+        {
+          "name": "ponente_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"ponente_id\" INT"
+        },
+        {
+          "name": "modalidad",
+          "type": "VARCHAR(20)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "modalidad IN ('presencial','virtual','hibrida'",
+          "foreign_key": null,
+          "raw_definition": "\"modalidad\" VARCHAR(20) CHECK (modalidad IN ('presencial','virtual','hibrida'))"
+        },
+        {
+          "name": "permite_simultaneidad",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "false",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"permite_simultaneidad\" BOOLEAN NOT NULL DEFAULT false"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'programada'",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL DEFAULT 'programada'"
+        }
+      ],
+      "table_checks": [
+        "CHECK (hora_fin > hora_inicio)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "propuesta_id",
+          "references_table": "propuestas",
+          "references_column": "propuesta_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "tipo_actividad_id",
+          "references_table": "tipos_actividad",
+          "references_column": "tipo_actividad_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "linea_tematica_id",
+          "references_table": "lineas_tematicas",
+          "references_column": "linea_tematica_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "sala_id",
+          "references_table": "salas",
+          "references_column": "sala_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "ponente_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_actividades_evento",
+          "unique": false,
+          "columns": [
+            "evento_id",
+            "fecha"
+          ]
+        }
+      ],
+      "java_entity": "Actividad"
+    },
+    "agendas_publicadas": {
+      "name": "agendas_publicadas",
+      "description": "Control de publicación y visibilidad de la programación diaria del evento hacia el público.",
+      "primary_key": [
+        "agenda_id"
+      ],
+      "columns": [
+        {
+          "name": "agenda_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"agenda_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha_dia",
+          "type": "DATE",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_dia\" DATE NOT NULL"
+        },
+        {
+          "name": "fecha_publicacion",
+          "type": "TIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_publicacion\" TIMESTAMP"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'no_publicada'",
+          "check": "estado IN ('no_publicada','publicada'",
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL CHECK (estado IN ('no_publicada','publicada')) DEFAULT 'no_publicada'"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "agendas_publicadas_evento_id_fecha_dia_idx",
+          "unique": true,
+          "columns": [
+            "evento_id",
+            "fecha_dia"
+          ]
+        }
+      ],
+      "java_entity": "AgendaPublicada"
+    },
+    "inscripciones_evento": {
+      "name": "inscripciones_evento",
+      "description": "Registro de inscripción de participantes y asistentes a un evento según categoría.",
+      "primary_key": [
+        "inscripcion_id"
+      ],
+      "columns": [
+        {
+          "name": "inscripcion_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"inscripcion_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "categoria_participante",
+          "type": "VARCHAR(30)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "categoria_participante IN ('estudiante','egresado','docente','particular'",
+          "foreign_key": null,
+          "raw_definition": "\"categoria_participante\" VARCHAR(30) NOT NULL CHECK (categoria_participante IN ('estudiante','egresado','docente','particular'))"
+        },
+        {
+          "name": "fecha_inscripcion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_inscripcion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "inscripciones_evento_persona_id_evento_id_idx",
+          "unique": true,
+          "columns": [
+            "persona_id",
+            "evento_id"
+          ]
+        },
+        {
+          "name": "idx_inscripciones_evento",
+          "unique": false,
+          "columns": [
+            "evento_id"
+          ]
+        }
+      ],
+      "java_entity": "InscripcionEvento"
+    },
+    "inscripciones_actividad": {
+      "name": "inscripciones_actividad",
+      "description": "Inscripción específica de asistentes a actividades particulares con control de aforo.",
+      "primary_key": [
+        "inscripcion_actividad_id"
+      ],
+      "columns": [
+        {
+          "name": "inscripcion_actividad_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"inscripcion_actividad_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "inscripcion_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "inscripciones_evento.inscripcion_id",
+          "raw_definition": "\"inscripcion_id\" INT NOT NULL"
+        },
+        {
+          "name": "actividad_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "actividades.actividad_id",
+          "raw_definition": "\"actividad_id\" INT NOT NULL"
+        },
+        {
+          "name": "fecha_inscripcion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_inscripcion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "inscripcion_id",
+          "references_table": "inscripciones_evento",
+          "references_column": "inscripcion_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "actividad_id",
+          "references_table": "actividades",
+          "references_column": "actividad_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "inscripciones_actividad_inscripcion_id_actividad_id_idx",
+          "unique": true,
+          "columns": [
+            "inscripcion_id",
+            "actividad_id"
+          ]
+        }
+      ],
+      "java_entity": "InscripcionActividad"
+    },
+    "codigos_qr": {
+      "name": "codigos_qr",
+      "description": "Códigos QR únicos generados para acreditación y control de acceso por inscripción.",
+      "primary_key": [
+        "qr_id"
+      ],
+      "columns": [
+        {
+          "name": "qr_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"qr_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "inscripcion_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": "inscripciones_evento.inscripcion_id",
+          "raw_definition": "\"inscripcion_id\" INT UNIQUE NOT NULL"
+        },
+        {
+          "name": "codigo",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"codigo\" VARCHAR(100) UNIQUE NOT NULL"
+        },
+        {
+          "name": "fecha_generacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_generacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "vigente",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "true",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"vigente\" BOOLEAN NOT NULL DEFAULT true"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "inscripcion_id",
+          "references_table": "inscripciones_evento",
+          "references_column": "inscripcion_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "CodigoQr"
+    },
+    "asistencias": {
+      "name": "asistencias",
+      "description": "Registro en tiempo real de asistencia a actividades o al evento mediante QR o registro manual.",
+      "primary_key": [
+        "asistencia_id"
+      ],
+      "columns": [
+        {
+          "name": "asistencia_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"asistencia_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "inscripcion_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "inscripciones_evento.inscripcion_id",
+          "raw_definition": "\"inscripcion_id\" INT NOT NULL"
+        },
+        {
+          "name": "actividad_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "actividades.actividad_id",
+          "raw_definition": "\"actividad_id\" INT"
+        },
+        {
+          "name": "fecha_hora_registro",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_hora_registro\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "metodo_registro",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "metodo_registro IN ('qr','manual'",
+          "foreign_key": null,
+          "raw_definition": "\"metodo_registro\" VARCHAR(20) NOT NULL CHECK (metodo_registro IN ('qr','manual'))"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "inscripcion_id",
+          "references_table": "inscripciones_evento",
+          "references_column": "inscripcion_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "actividad_id",
+          "references_table": "actividades",
+          "references_column": "actividad_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "asistencias_inscripcion_id_actividad_id_idx",
+          "unique": true,
+          "columns": [
+            "inscripcion_id",
+            "actividad_id"
+          ]
+        }
+      ],
+      "java_entity": "Asistencia"
+    },
+    "encuestas": {
+      "name": "encuestas",
+      "description": "Instrumentos de retroalimentación y encuestas de satisfacción para eventos o actividades.",
+      "primary_key": [
+        "encuesta_id"
+      ],
+      "columns": [
+        {
+          "name": "encuesta_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"encuesta_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "actividad_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "actividades.actividad_id",
+          "raw_definition": "\"actividad_id\" INT"
+        },
+        {
+          "name": "titulo",
+          "type": "VARCHAR(150)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"titulo\" VARCHAR(150) NOT NULL"
+        },
+        {
+          "name": "estado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'activa'",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"estado\" VARCHAR(20) NOT NULL DEFAULT 'activa'"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "actividad_id",
+          "references_table": "actividades",
+          "references_column": "actividad_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Encuesta"
+    },
+    "preguntas_encuesta": {
+      "name": "preguntas_encuesta",
+      "description": "Preguntas individuales configuradas dentro de una encuesta.",
+      "primary_key": [
+        "pregunta_id"
+      ],
+      "columns": [
+        {
+          "name": "pregunta_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"pregunta_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "encuesta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "encuestas.encuesta_id",
+          "raw_definition": "\"encuesta_id\" INT NOT NULL"
+        },
+        {
+          "name": "texto",
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"texto\" TEXT NOT NULL"
+        },
+        {
+          "name": "tipo_respuesta",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "tipo_respuesta IN ('escala','texto','opcion'",
+          "foreign_key": null,
+          "raw_definition": "\"tipo_respuesta\" VARCHAR(20) NOT NULL CHECK (tipo_respuesta IN ('escala','texto','opcion'))"
+        },
+        {
+          "name": "orden",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "1",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"orden\" INT NOT NULL DEFAULT 1"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "encuesta_id",
+          "references_table": "encuestas",
+          "references_column": "encuesta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "PreguntaEncuesta"
+    },
+    "respuestas_encuesta": {
+      "name": "respuestas_encuesta",
+      "description": "Respuestas recopiladas de los participantes a las preguntas de una encuesta.",
+      "primary_key": [
+        "respuesta_id"
+      ],
+      "columns": [
+        {
+          "name": "respuesta_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"respuesta_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "pregunta_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "preguntas_encuesta.pregunta_id",
+          "raw_definition": "\"pregunta_id\" INT NOT NULL"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "respuesta",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"respuesta\" TEXT"
+        },
+        {
+          "name": "fecha_respuesta",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_respuesta\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "pregunta_id",
+          "references_table": "preguntas_encuesta",
+          "references_column": "pregunta_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "respuestas_encuesta_pregunta_id_persona_id_idx",
+          "unique": true,
+          "columns": [
+            "pregunta_id",
+            "persona_id"
+          ]
+        }
+      ],
+      "java_entity": "RespuestaEncuesta"
+    },
+    "certificados": {
+      "name": "certificados",
+      "description": "Certificados digitales generados para participantes, ponentes, evaluadores y organizadores.",
+      "primary_key": [
+        "certificado_id"
+      ],
+      "columns": [
+        {
+          "name": "certificado_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"certificado_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "persona_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "personas.persona_id",
+          "raw_definition": "\"persona_id\" INT NOT NULL"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "actividad_id",
+          "type": "INT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "actividades.actividad_id",
+          "raw_definition": "\"actividad_id\" INT"
+        },
+        {
+          "name": "tipo_certificado",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": "tipo_certificado IN ('asistente','ponente','evaluador','organizador'",
+          "foreign_key": null,
+          "raw_definition": "\"tipo_certificado\" VARCHAR(20) NOT NULL CHECK (tipo_certificado IN ('asistente','ponente','evaluador','organizador'))"
+        },
+        {
+          "name": "porcentaje_asistencia",
+          "type": "NUMERIC(5,2)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"porcentaje_asistencia\" NUMERIC(5,2)"
+        },
+        {
+          "name": "fecha_generacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_generacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "archivo_url",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"archivo_url\" VARCHAR(255) NOT NULL"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "persona_id",
+          "references_table": "personas",
+          "references_column": "persona_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "actividad_id",
+          "references_table": "actividades",
+          "references_column": "actividad_id",
+          "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Certificado"
+    },
+    "indicadores": {
+      "name": "indicadores",
+      "description": "Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento.",
+      "primary_key": [
+        "indicador_id"
+      ],
+      "columns": [
+        {
+          "name": "indicador_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"indicador_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT NOT NULL"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(100) NOT NULL"
+        },
+        {
+          "name": "valor",
+          "type": "NUMERIC(14,2)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"valor\" NUMERIC(14,2) NOT NULL"
+        },
+        {
+          "name": "unidad",
+          "type": "VARCHAR(20)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"unidad\" VARCHAR(20)"
+        },
+        {
+          "name": "fecha_calculo",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_calculo\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "Indicador"
+    },
+    "memorias_historicas": {
+      "name": "memorias_historicas",
+      "description": "Consolidación final de memorias, relatorías y documentos históricos del evento cerrado.",
+      "primary_key": [
+        "memoria_id"
+      ],
+      "columns": [
+        {
+          "name": "memoria_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"memoria_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "evento_id",
+          "type": "INT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "default": null,
+          "check": null,
+          "foreign_key": "eventos.evento_id",
+          "raw_definition": "\"evento_id\" INT UNIQUE NOT NULL"
+        },
+        {
+          "name": "fecha_consolidacion",
+          "type": "TIME",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "(CURRENT_TIMESTAMP)",
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"fecha_consolidacion\" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+        },
+        {
+          "name": "archivo_url",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"archivo_url\" VARCHAR(255)"
+        },
+        {
+          "name": "resumen",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"resumen\" TEXT"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [
+        {
+          "column": "evento_id",
+          "references_table": "eventos",
+          "references_column": "evento_id",
+          "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+        }
+      ],
+      "indexes": [],
+      "java_entity": "MemoriaHistorica"
+    }
+  },
+  "foreign_keys": [
+    {
+      "from_table": "usuarios",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "roles_permisos",
+      "from_column": "rol_id",
+      "to_table": "roles",
+      "to_column": "rol_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "roles_permisos",
+      "from_column": "permiso_id",
+      "to_table": "permisos",
+      "to_column": "permiso_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "usuarios_roles",
+      "from_column": "usuario_id",
+      "to_table": "usuarios",
+      "to_column": "usuario_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "usuarios_roles",
+      "from_column": "rol_id",
+      "to_table": "roles",
+      "to_column": "rol_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "tokens_recuperacion",
+      "from_column": "usuario_id",
+      "to_table": "usuarios",
+      "to_column": "usuario_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "auditoria",
+      "from_column": "usuario_id",
+      "to_table": "usuarios",
+      "to_column": "usuario_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "eventos",
+      "from_column": "evento_base_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "comite_organizador",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "comite_organizador",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "tipos_actividad",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "lineas_tematicas",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "rubros_presupuestales",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "presupuestos_aprobados",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "presupuestos_aprobados",
+      "from_column": "aprobado_por",
+      "to_table": "usuarios",
+      "to_column": "usuario_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "gastos_ejecutados",
+      "from_column": "rubro_id",
+      "to_table": "rubros_presupuestales",
+      "to_column": "rubro_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "gastos_ejecutados",
+      "from_column": "registrado_por",
+      "to_table": "usuarios",
+      "to_column": "usuario_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "convocatorias",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "participaciones_conferencista",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "participaciones_conferencista",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "propuestas",
+      "from_column": "convocatoria_id",
+      "to_table": "convocatorias",
+      "to_column": "convocatoria_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "propuestas",
+      "from_column": "linea_tematica_id",
+      "to_table": "lineas_tematicas",
+      "to_column": "linea_tematica_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "propuestas_autores",
+      "from_column": "propuesta_id",
+      "to_table": "propuestas",
+      "to_column": "propuesta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "propuestas_autores",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "versiones_propuesta",
+      "from_column": "propuesta_id",
+      "to_table": "propuestas",
+      "to_column": "propuesta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "rubricas_evaluacion",
+      "from_column": "convocatoria_id",
+      "to_table": "convocatorias",
+      "to_column": "convocatoria_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "criterios_rubrica",
+      "from_column": "rubrica_id",
+      "to_table": "rubricas_evaluacion",
+      "to_column": "rubrica_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "comites_evaluadores",
+      "from_column": "convocatoria_id",
+      "to_table": "convocatorias",
+      "to_column": "convocatoria_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "comites_evaluadores",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "asignaciones_evaluacion",
+      "from_column": "propuesta_id",
+      "to_table": "propuestas",
+      "to_column": "propuesta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "asignaciones_evaluacion",
+      "from_column": "comite_evaluador_id",
+      "to_table": "comites_evaluadores",
+      "to_column": "comite_evaluador_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "evaluaciones",
+      "from_column": "asignacion_id",
+      "to_table": "asignaciones_evaluacion",
+      "to_column": "asignacion_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "evaluaciones",
+      "from_column": "criterio_id",
+      "to_table": "criterios_rubrica",
+      "to_column": "criterio_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "resultados_evaluacion",
+      "from_column": "propuesta_id",
+      "to_table": "propuestas",
+      "to_column": "propuesta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "observaciones_propuesta",
+      "from_column": "version_id",
+      "to_table": "versiones_propuesta",
+      "to_column": "version_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "observaciones_propuesta",
+      "from_column": "comite_evaluador_id",
+      "to_table": "comites_evaluadores",
+      "to_column": "comite_evaluador_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "salas",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "disponibilidad_salas",
+      "from_column": "sala_id",
+      "to_table": "salas",
+      "to_column": "sala_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "disponibilidad_ponentes",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "disponibilidad_ponentes",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "propuesta_id",
+      "to_table": "propuestas",
+      "to_column": "propuesta_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "tipo_actividad_id",
+      "to_table": "tipos_actividad",
+      "to_column": "tipo_actividad_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "linea_tematica_id",
+      "to_table": "lineas_tematicas",
+      "to_column": "linea_tematica_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "sala_id",
+      "to_table": "salas",
+      "to_column": "sala_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "actividades",
+      "from_column": "ponente_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "agendas_publicadas",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "inscripciones_evento",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "inscripciones_evento",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "inscripciones_actividad",
+      "from_column": "inscripcion_id",
+      "to_table": "inscripciones_evento",
+      "to_column": "inscripcion_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "inscripciones_actividad",
+      "from_column": "actividad_id",
+      "to_table": "actividades",
+      "to_column": "actividad_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "codigos_qr",
+      "from_column": "inscripcion_id",
+      "to_table": "inscripciones_evento",
+      "to_column": "inscripcion_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "asistencias",
+      "from_column": "inscripcion_id",
+      "to_table": "inscripciones_evento",
+      "to_column": "inscripcion_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "asistencias",
+      "from_column": "actividad_id",
+      "to_table": "actividades",
+      "to_column": "actividad_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "encuestas",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "encuestas",
+      "from_column": "actividad_id",
+      "to_table": "actividades",
+      "to_column": "actividad_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "preguntas_encuesta",
+      "from_column": "encuesta_id",
+      "to_table": "encuestas",
+      "to_column": "encuesta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "respuestas_encuesta",
+      "from_column": "pregunta_id",
+      "to_table": "preguntas_encuesta",
+      "to_column": "pregunta_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "respuestas_encuesta",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "certificados",
+      "from_column": "persona_id",
+      "to_table": "personas",
+      "to_column": "persona_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "certificados",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "certificados",
+      "from_column": "actividad_id",
+      "to_table": "actividades",
+      "to_column": "actividad_id",
+      "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "indicadores",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "memorias_historicas",
+      "from_column": "evento_id",
+      "to_table": "eventos",
+      "to_column": "evento_id",
+      "options": "ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE"
+    }
+  ]
+}
