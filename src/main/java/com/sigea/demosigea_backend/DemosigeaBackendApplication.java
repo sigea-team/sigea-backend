@@ -9,5 +9,4 @@ public class DemosigeaBackendApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(DemosigeaBackendApplication.class, args);
 	}
-
 }
