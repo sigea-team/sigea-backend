@@ -23,6 +23,17 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Entidad JPA que representa a los usuarios autenticables dentro del sistema SIGEA.
+ * <p>
+ * Mapea la tabla {@code usuarios} y vincula la información de acceso (credenciales,
+ * estado de la cuenta y roles) con los datos personales representados por la entidad {@link Persona}.
+ * </p>
+ *
+ * @author SIGEA Development Team
+ * @version 1.0
+ * @since 2026
+ */
 @Entity
 @Table(name = "usuarios")
 @Getter
@@ -32,34 +43,60 @@ import java.util.Set;
 @Builder
 public class Usuario {
 
+    /**
+     * Identificador único del usuario en la base de datos (Clave Primaria Autoincremental).
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "usuario_id")
     private Long id;
 
+    /**
+     * Información personal asociada a la cuenta de usuario.
+     * Relación uno a uno obligatoria con la entidad {@link Persona}.
+     */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "persona_id", referencedColumnName = "persona_id", nullable = false, unique = true)
     private Persona persona;
 
+    /**
+     * Nombre de usuario único utilizado para el inicio de sesión en la plataforma.
+     */
     @Column(name = "nombre_usuario", length = 50, nullable = false, unique = true)
     private String nombreUsuario;
 
+    /**
+     * Contraseña del usuario cifrada mediante un algoritmo de hashing seguro (ej. BCrypt).
+     */
     @Column(name = "contrasena_hash", length = 255, nullable = false)
     private String contrasenaHash;
 
+    /**
+     * Bandera que indica si el usuario ha confirmado su dirección de correo electrónico.
+     */
     @Builder.Default
     @Column(name = "correo_verificado", nullable = false)
     private Boolean correoVerificado = false;
 
+    /**
+     * Estado operativo de la cuenta de usuario (ej. activo, inactivo, bloqueado).
+     */
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "estado", length = 20, nullable = false)
     private EstadoUsuario estado = EstadoUsuario.activo;
 
+    /**
+     * Fecha y hora exactas en las que se creó la cuenta en la plataforma.
+     */
     @Builder.Default
     @Column(name = "fecha_registro", nullable = false)
     private LocalDateTime fechaRegistro = LocalDateTime.now();
 
+    /**
+     * Conjunto de roles asignados al usuario que determinan sus permisos dentro de SIGEA.
+     * Carga de tipo {@link FetchType#EAGER} para disponer de las autoridades durante la autenticación.
+     */
     @Builder.Default
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
