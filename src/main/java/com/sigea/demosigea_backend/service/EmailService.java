@@ -9,26 +9,67 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio encargado de la gestión y envío de correos electrónicos en la plataforma SIGEA.
+ * <p>
+ * Proporciona mecanismos para notificaciones transaccionales como la verificación de cuenta
+ * mediante plantillas HTML. Incluye un mecanismo de tolerancia a fallos (*fallback*)
+ * registrando los datos en los logs del sistema si el servidor SMTP no está disponible.
+ * </p>
+ *
+ * @author SIGEA Development Team
+ * @version 1.0
+ * @since 2026
+ */
 @Slf4j
 @Service
 public class EmailService {
 
+    /**
+     * Emisor de mensajes de correo electrónico mediante el protocolo SMTP.
+     * Configurado como opcional para permitir la ejecución de la aplicación sin un servidor de correo.
+     */
     private final JavaMailSender mailSender;
 
+    /**
+     * Dirección de correo electrónico utilizada como remitente en las notificaciones enviadas.
+     */
     @Value("${app.mail.from:no-reply@sigea.com}")
     private String remitente;
 
+    /**
+     * URL base del cliente o servidor utilizada para construir enlaces dentro de los correos.
+     */
     @Value("${app.mail.frontend-url:http://localhost:8080}")
     private String baseUrl;
 
+    /**
+     * Ruta del *endpoint* para la verificación de correo electrónico.
+     */
     @Value("${app.mail.verification-path:/api/v1/auth/verify-email}")
     private String verificationPath;
 
+    /**
+     * Construye una nueva instancia del servicio inyectando opcionalmente el cliente SMTP.
+     *
+     * @param mailSender Instancia de {@link JavaMailSender} para la gestión SMTP, puede ser {@code null}.
+     */
     @Autowired
     public EmailService(@Autowired(required = false) JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
 
+    /**
+     * Envía un correo electrónico con formato HTML para la activación de la cuenta de un nuevo usuario.
+     * <p>
+     * Construye la URL de confirmación adjuntando el token generado y despacha el mensaje.
+     * En caso de fallo o ausencia de configuración SMTP, el enlace se imprime en los logs.
+     * </p>
+     *
+     * @param destinatario Dirección de correo electrónico del usuario.
+     * @param nombre       Nombre del destinatario para personalizar el mensaje.
+     * @param token        Token único asociado al proceso de verificación.
+     */
     public void enviarCorreoVerificacion(String destinatario, String nombre, String token) {
         String enlaceVerificacion = baseUrl + verificationPath + "?token=" + token;
 
