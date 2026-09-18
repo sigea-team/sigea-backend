@@ -1,4 +1,4 @@
-package com.sigea.demosigea_backend.dto;
+package com.sigea.demosigea_backend.dto.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -6,6 +6,30 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Objeto de Transferencia de Datos (DTO) para la captura y validación de datos
+ * en el proceso de registro de nuevos usuarios en la plataforma SIGEA.
+ * <p>
+ * Agrupa los datos personales primarios de la entidad {@code Persona} junto con las
+ * credenciales de acceso iniciales para la creación del {@code Usuario}. Incorpora
+ * restricciones Bean Validation para garantizar la integridad de los datos antes de
+ * ser procesados por la capa de servicio.
+ * </p>
+ *
+ * @param nombres Nombres de la persona. Obligatorio, máx. 100 caracteres.
+ * @param apellidos Apellidos de la persona. Obligatorio, máx. 100 caracteres.
+ * @param tipoDocumento Tipo de documento de identidad (ej. CC, TI, CE, PASAPORTE). Obligatorio, máx. 20 caracteres.
+ * @param numeroDocumento Identificador numérico o alfanumérico único del documento. Obligatorio, máx. 30 caracteres.
+ * @param correo Dirección de correo electrónico principal para autenticación y notificaciones. Obligatorio, debe ser un email válido, máx. 150 caracteres.
+ * @param contrasena Clave de acceso en texto plano. Debe cumplir con la política estricta de complejidad: 8 a 64 caracteres, al menos una mayúscula, una minúscula, un número y un carácter especial.
+ * @param nombreUsuario Identificador único de usuario deseado (opcional). Si no se proporciona, la lógica de negocio generará uno basado en el correo. Máx. 50 caracteres.
+ * @param telefono Número telefónico o móvil de contacto (opcional). Máx. 30 caracteres.
+ * @param afiliacionInstitucional Entidad, empresa o universidad de procedencia (opcional). Máx. 150 caracteres.
+ *
+ * @author SIGEA Development Team
+ * @version 1.0
+ * @since 2026
+ */
 @Schema(description = "Petición de registro de nuevo usuario en la plataforma")
 public record RegistroRequest(
 

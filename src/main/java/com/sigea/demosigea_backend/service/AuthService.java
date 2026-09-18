@@ -1,12 +1,12 @@
 package com.sigea.demosigea_backend.service;
 
-import com.sigea.demosigea_backend.dto.LoginRequest;
-import com.sigea.demosigea_backend.dto.LoginResponse;
-import com.sigea.demosigea_backend.dto.ReenviarVerificacionRequest;
-import com.sigea.demosigea_backend.dto.ReenviarVerificacionResponse;
-import com.sigea.demosigea_backend.dto.RegistroRequest;
-import com.sigea.demosigea_backend.dto.RegistroResponse;
-import com.sigea.demosigea_backend.dto.VerificarCorreoResponse;
+import com.sigea.demosigea_backend.dto.auth.LoginRequest;
+import com.sigea.demosigea_backend.dto.auth.LoginResponse;
+import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
+import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionResponse;
+import com.sigea.demosigea_backend.dto.auth.RegistroRequest;
+import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
+import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
@@ -37,22 +37,60 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Servicio de autenticación y registro de usuarios del sistema SIGEA.
+ * <p>
+ * Contiene la lógica de negocio para el registro de personas y cuentas de usuario,
+ * el inicio de sesión con validación de credenciales y estado de verificación,
+ * la verificación de correo electrónico mediante tokens UUID y el reenvío
+ * de enlaces de verificación.
+ * </p>
+ * <p>
+ * Todas las operaciones de escritura están gestionadas con {@code @Transactional}
+ * para garantizar la consistencia de datos entre las tablas {@code personas},
+ * {@code usuarios} y {@code tokens_recuperacion}.
+ * </p>
+ *
+ * @author SIGEA Team
+ * @version 1.0
+ * @see AuthController
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** Repositorio de acceso a datos de personas. */
     private final PersonaRepository personaRepository;
+    /** Repositorio de acceso a datos de usuarios. */
     private final UsuarioRepository usuarioRepository;
+    /** Repositorio de acceso a datos de roles. */
     private final RolRepository rolRepository;
+    /** Repositorio de acceso a datos de tokens de recuperación/verificación. */
     private final TokenRecuperacionRepository tokenRecuperacionRepository;
+    /** Codificador de contraseñas (BCrypt). */
     private final PasswordEncoder passwordEncoder;
+    /** Proveedor de tokens JWT para la generación y validación. */
     private final JwtTokenProvider jwtTokenProvider;
+    /** Servicio de envío de correos electrónicos. */
     private final EmailService emailService;
 
+    /** Nombre del rol inicial asignado a los nuevos usuarios (configurable vía {@code app.roles.default-initial}). */
     @Value("${app.roles.default-initial:PARTICIPANTE}")
     private String defaultRoleName;
 
+    /**
+     * Registra un nuevo usuario en el sistema SIGEA.
+     * <p>
+     * Valida la unicidad del correo electrónico y número de documento, crea los registros
+     * de {@link Persona} y {@link Usuario}, asigna el rol inicial por defecto, genera un
+     * token de verificación de correo y envía el enlace de verificación por email.
+     * </p>
+     *
+     * @param request datos del formulario de registro con validaciones Bean Validation
+     * @return {@link RegistroResponse} con el ID de usuario, nombre de usuario, correo y mensaje informativo
+     * @throws RecursoDuplicadoException si el correo, documento o nombre de usuario ya existen en el sistema
+     */
     @Transactional
     public RegistroResponse registrar(RegistroRequest request) {
         String correoNormalizado = request.correo().trim().toLowerCase();
@@ -139,6 +177,18 @@ public class AuthService {
         );
     }
 
+    /**
+     * Verifica el correo electrónico de un usuario mediante un token UUID.
+     * <p>
+     * Busca el token de tipo {@code verificacion} en la base de datos, valida que no haya sido
+     * usado previamente ni esté expirado, lo marca como utilizado y actualiza el campo
+     * {@code correo_verificado} del usuario a {@code true}.
+     * </p>
+     *
+     * @param tokenString cadena UUID del token de verificación recibido por correo
+     * @return {@link VerificarCorreoResponse} con mensaje de éxito e indicador de verificación
+     * @throws TokenInvalidoException si el token es vacío, no existe, ya fue usado o ha expirado
+     */
     @Transactional
     public VerificarCorreoResponse verificarCorreo(String tokenString) {
         if (!StringUtils.hasText(tokenString)) {
@@ -169,6 +219,19 @@ public class AuthService {
         );
     }
 
+    /**
+     * Autentica un usuario en el sistema mediante su identificador y contraseña.
+     * <p>
+     * Busca al usuario por correo electrónico o nombre de usuario, valida la contraseña
+     * contra el hash almacenado, verifica que el correo esté confirmado y que la cuenta
+     * esté activa. Si todo es correcto, genera y retorna un token JWT Bearer.
+     * </p>
+     *
+     * @param request credenciales de inicio de sesión (identificador + contraseña)
+     * @return {@link LoginResponse} con token JWT, datos del usuario y lista de roles
+     * @throws CredencialesInvalidasException si el usuario no existe, la contraseña no coincide o la cuenta no está activa
+     * @throws CorreoNoVerificadoException si el correo electrónico del usuario aún no ha sido verificado
+     */
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
         String identificador = request.identificador().trim();
@@ -216,6 +279,18 @@ public class AuthService {
         );
     }
 
+    /**
+     * Reenvía el enlace de verificación de correo electrónico a un usuario.
+     * <p>
+     * Busca al usuario por identificador, invalida todos los tokens de verificación previos
+     * que no hayan sido usados, genera un nuevo token con vigencia de 24 horas y envía
+     * el correo de verificación. Si la cuenta ya está verificada, retorna un mensaje informativo.
+     * </p>
+     *
+     * @param request datos con el identificador (correo o nombre de usuario) de la cuenta
+     * @return {@link ReenviarVerificacionResponse} con mensaje de confirmación y correo destinatario
+     * @throws RecursoNoEncontradoException si no se encuentra un usuario con el identificador proporcionado
+     */
     @Transactional
     public ReenviarVerificacionResponse reenviarVerificacion(ReenviarVerificacionRequest request) {
         String identificador = request.identificador().trim();
@@ -262,6 +337,18 @@ public class AuthService {
         );
     }
 
+    /**
+     * Resuelve el nombre de usuario a utilizar para la nueva cuenta.
+     * <p>
+     * Si el usuario proporcionó un nombre de usuario, lo normaliza en minúsculas.
+     * De lo contrario, genera uno automáticamente a partir de la parte local del correo electrónico,
+     * eliminando caracteres especiales y truncando a un máximo de 50 caracteres.
+     * </p>
+     *
+     * @param nombreUsuarioPropuesto nombre de usuario propuesto por el usuario (puede ser {@code null} o vacío)
+     * @param correo correo electrónico del usuario, usado como base para generar el nombre de usuario
+     * @return nombre de usuario normalizado en minúsculas
+     */
     private String resolverNombreUsuario(String nombreUsuarioPropuesto, String correo) {
         if (StringUtils.hasText(nombreUsuarioPropuesto)) {
             return nombreUsuarioPropuesto.trim().toLowerCase();

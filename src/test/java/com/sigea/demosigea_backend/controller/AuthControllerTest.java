@@ -1,14 +1,14 @@
 package com.sigea.demosigea_backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sigea.demosigea_backend.dto.LoginRequest;
-import com.sigea.demosigea_backend.dto.LoginResponse;
-import com.sigea.demosigea_backend.dto.ReenviarVerificacionRequest;
-import com.sigea.demosigea_backend.dto.ReenviarVerificacionResponse;
-import com.sigea.demosigea_backend.dto.RegistroRequest;
-import com.sigea.demosigea_backend.dto.RegistroResponse;
-import com.sigea.demosigea_backend.dto.VerificarCorreoRequest;
-import com.sigea.demosigea_backend.dto.VerificarCorreoResponse;
+import com.sigea.demosigea_backend.dto.auth.LoginRequest;
+import com.sigea.demosigea_backend.dto.auth.LoginResponse;
+import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
+import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionResponse;
+import com.sigea.demosigea_backend.dto.auth.RegistroRequest;
+import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
+import com.sigea.demosigea_backend.dto.auth.VerificarCorreoRequest;
+import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.GlobalExceptionHandler;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
