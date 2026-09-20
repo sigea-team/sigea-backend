@@ -353,8 +353,10 @@ public class AuthService {
         if (StringUtils.hasText(nombreUsuarioPropuesto)) {
             return nombreUsuarioPropuesto.trim().toLowerCase();
         }
-        String base = correo.split("@")[0].replaceAll("[^a-zA-Z0-9_.]", "");
-        if (base.length() > 50) {
+        String base = correo.split("@")[0].replaceAll("[^a-zA-Z0-9._-]", "");
+        if (base.length() < 3) {
+            base = String.format("%-3s", base).replace(' ', 'u');
+        } else if (base.length() > 50) {
             base = base.substring(0, 50);
         }
         return base.toLowerCase();

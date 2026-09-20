@@ -53,6 +53,20 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    @SuppressWarnings("unchecked")
+    public List<String> getRolesFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        List<?> rolesRaw = claims.get("roles", List.class);
+        if (rolesRaw == null) {
+            return java.util.Collections.emptyList();
+        }
+        return rolesRaw.stream().map(Object::toString).toList();
+    }
+
     public boolean validateToken(String token) {
         try {
             Jwts.parser()

@@ -2,8 +2,6 @@ package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -48,16 +46,25 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByPersona_CorreoIgnoreCase(String correo);
 
     /**
-     * Busca un usuario que coincida con el identificador proporcionado, evaluándolo tanto
-     * contra el nombre de usuario como contra el correo electrónico asociado.
+     * Busca un usuario que coincida con el identificador proporcionado.
      * <p>
-     * Utilizado principalmente en el flujo de inicio de sesión para permitir el acceso con
-     * cualquiera de las dos credenciales.
+     * Como defensa en profundidad: si el identificador contiene '@', busca por correo electrónico;
+     * si no contiene '@', busca por nombre de usuario. Esto evita la ambigüedad y previene
+     * errores de consulta múltiple cuando un nombre de usuario pueda coincidir con el correo de otra persona.
      * </p>
      *
      * @param identificador Nombre de usuario o dirección de correo electrónico ingresada.
-     * @return Un {@link Optional} con el {@link Usuario} encontrado, o vacío si no coincide con ningún registro.
+     * @return Un {@link Optional} con el {@link Usuario} encontrado, o vacío si no coincide ningún registro.
      */
-    @Query("SELECT u FROM Usuario u JOIN u.persona p WHERE LOWER(u.nombreUsuario) = LOWER(:identificador) OR LOWER(p.correo) = LOWER(:identificador)")
-    Optional<Usuario> findByIdentificador(@Param("identificador") String identificador);
+    default Optional<Usuario> findByIdentificador(String identificador) {
+        if (identificador == null || identificador.isBlank()) {
+            return Optional.empty();
+        }
+        String idTrim = identificador.trim();
+        if (idTrim.contains("@")) {
+            return findByPersona_CorreoIgnoreCase(idTrim);
+        } else {
+            return findByNombreUsuarioIgnoreCase(idTrim);
+        }
+    }
 }

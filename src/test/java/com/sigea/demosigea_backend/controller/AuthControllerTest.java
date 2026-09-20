@@ -119,6 +119,23 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("Nombre de usuario con arroba '@' o espacios es rechazado con 400 Bad Request")
+    void registrar_NombreUsuarioConArrobaOEspacios_Retorna400() throws Exception {
+        RegistroRequest requestConArroba = new RegistroRequest(
+                "Carlos", "Gómez", "CC", "12345678",
+                "carlos@correo.com", "Password123*", "usuario@correo.com", null, null
+        );
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestConArroba)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.erroresValidacion.nombreUsuario").exists());
+    }
+
+    @Test
     @DisplayName("Criterio 4: Login de usuario no verificado es impedido con 403 Forbidden y código CORREO_NO_VERIFICADO")
     void login_CorreoNoVerificado_Retorna403() throws Exception {
         LoginRequest request = new LoginRequest("carlos@correo.com", "Password123*");
