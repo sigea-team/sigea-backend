@@ -39,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  *
  * @author SIGEA Team
- * @version 1.0
+ * @version 1.1
  * @see AuthService
  */
 @RestController
@@ -80,13 +80,13 @@ public class AuthController {
     }
 
     /**
-     * Autentica un usuario en la plataforma mediante correo/nombre de usuario y contraseña.
+     * Autentica un usuario en la plataforma mediante correo electrónico y contraseña.
      * <p>
      * Valida las credenciales, verifica que el correo esté confirmado y que la cuenta esté activa.
      * Si la autenticación es exitosa, genera y retorna un token JWT Bearer.
      * </p>
      *
-     * @param request credenciales de inicio de sesión (identificador + contraseña)
+     * @param request credenciales de inicio de sesión (correo + contraseña)
      * @return {@link LoginResponse} con el token JWT y datos del usuario autenticado (HTTP 200)
      */
     @Operation(
@@ -166,7 +166,7 @@ public class AuthController {
      * con vigencia de 24 horas y envía el correo electrónico correspondiente.
      * </p>
      *
-     * @param request datos con el identificador (correo o nombre de usuario) de la cuenta
+     * @param request datos con el correo de la cuenta
      * @return {@link ReenviarVerificacionResponse} con mensaje de confirmación y correo destino (HTTP 200)
      */
     @Operation(

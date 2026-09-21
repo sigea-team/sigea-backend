@@ -14,6 +14,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Componente encargo de la generación, decodificación y validación de tokens JWT.
+ * <p>
+ * El Subject del token es el correo electrónico del usuario ya que la columna
+ * {@code nombre_usuario} fue eliminada del esquema de la base de datos.
+ * </p>
+ *
+ * @author SIGEA Development Team
+ * @version 1.1
+ * @since 2026
+ */
 @Slf4j
 @Component
 public class JwtTokenProvider {
@@ -29,12 +40,12 @@ public class JwtTokenProvider {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(Long userId, String username, String email, List<String> roles) {
+    public String generateToken(Long userId, String email, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
-                .subject(username)
+                .subject(email)
                 .claim("userId", userId)
                 .claim("email", email)
                 .claim("roles", roles)
@@ -44,13 +55,17 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public String getUsernameFromToken(String token) {
+    public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
         return claims.getSubject();
+    }
+
+    public String getUsernameFromToken(String token) {
+        return getEmailFromToken(token);
     }
 
     @SuppressWarnings("unchecked")

@@ -60,12 +60,6 @@ public class Usuario {
     private Persona persona;
 
     /**
-     * Nombre de usuario único utilizado para el inicio de sesión en la plataforma.
-     */
-    @Column(name = "nombre_usuario", length = 50, nullable = false, unique = true)
-    private String nombreUsuario;
-
-    /**
      * Contraseña del usuario cifrada mediante un algoritmo de hashing seguro (ej. BCrypt).
      */
     @Column(name = "contrasena_hash", length = 255, nullable = false)

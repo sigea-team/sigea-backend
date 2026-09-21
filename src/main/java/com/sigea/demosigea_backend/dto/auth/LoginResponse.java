@@ -15,13 +15,12 @@ import java.util.List;
  * @param token Cadena compacta firmada en formato JWT (Json Web Token) otorgada para autorizar peticiones HTTP.
  * @param tipoToken Esquema de autorización HTTP utilizado para el envío del token (por defecto {@code "Bearer"}).
  * @param usuarioId Identificador único de la entidad {@code Usuario} en la base de datos.
- * @param nombreUsuario Nombre de usuario (username) único registrado en el sistema.
  * @param correo Dirección de correo electrónico institucional o personal asociada a la cuenta.
  * @param nombreCompleto Nombres y apellidos concatenados de la persona asociada al usuario.
  * @param roles Lista de roles de seguridad otorgados al usuario (ej. {@code "ADMIN"}, {@code "PARTICIPANTE"}).
  *
  * @author SIGEA Development Team
- * @version 1.0
+ * @version 1.1
  * @since 2026
  */
 @Schema(description = "Respuesta de autenticación exitosa con token JWT")
@@ -34,9 +33,6 @@ public record LoginResponse(
 
         @Schema(description = "Identificador del usuario", example = "1")
         Long usuarioId,
-
-        @Schema(description = "Nombre de usuario autenticado", example = "cgomez")
-        String nombreUsuario,
 
         @Schema(description = "Correo electrónico del usuario autenticado", example = "carlos.gomez@universidad.edu.co")
         String correo,

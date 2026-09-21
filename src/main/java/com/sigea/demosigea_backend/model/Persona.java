@@ -2,9 +2,12 @@ package com.sigea.demosigea_backend.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,9 +21,9 @@ import lombok.Setter;
  * Mapea la tabla {@code personas} y almacena los datos personales, de contacto e identificación
  * de todos los actores del sistema (participantes, ponentes, organizadores, evaluadores, etc.).
  * </p>
- * 
+ *
  * @author SIGEA Team
- * @version 1.0
+ * @version 1.1
  */
 @Entity
 @Table(name = "personas")
@@ -76,8 +79,10 @@ public class Persona {
     private String telefono;
 
     /**
-     * Nombre de la institución, empresa o universidad a la que pertenece la persona (opcional).
+     * Afiliación institucional de la persona (opcional).
+     * Relación N:1 con la entidad {@link Afiliacion} del catálogo {@code afiliaciones}.
      */
-    @Column(name = "afiliacion_institucional", length = 150)
-    private String afiliacionInstitucional;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "afiliacion_id")
+    private Afiliacion afiliacion;
 }

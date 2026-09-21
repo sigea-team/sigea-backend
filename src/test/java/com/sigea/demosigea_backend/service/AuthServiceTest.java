@@ -11,12 +11,14 @@ import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
+import com.sigea.demosigea_backend.model.Afiliacion;
 import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Rol;
 import com.sigea.demosigea_backend.model.TipoToken;
 import com.sigea.demosigea_backend.model.TokenRecuperacion;
 import com.sigea.demosigea_backend.model.Usuario;
+import com.sigea.demosigea_backend.repository.AfiliacionRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.RolRepository;
 import com.sigea.demosigea_backend.repository.TokenRecuperacionRepository;
@@ -26,7 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -40,7 +41,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -62,6 +62,9 @@ class AuthServiceTest {
 
     @Mock
     private RolRepository rolRepository;
+
+    @Mock
+    private AfiliacionRepository afiliacionRepository;
 
     @Mock
     private TokenRecuperacionRepository tokenRecuperacionRepository;
@@ -88,24 +91,25 @@ class AuthServiceTest {
     void registrar_Exitoso() {
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", null, null, null
+                "carlos@correo.com", "Password123*", null, 1L
         );
 
         when(personaRepository.existsByCorreoIgnoreCase("carlos@correo.com")).thenReturn(false);
         when(personaRepository.existsByNumeroDocumento("12345678")).thenReturn(false);
-        when(usuarioRepository.existsByNombreUsuarioIgnoreCase("carlos")).thenReturn(false);
+
+        Afiliacion afiliacion = Afiliacion.builder().id(1L).nombreAfiliacion("Estudiante UFPS").build();
+        when(afiliacionRepository.findById(1L)).thenReturn(Optional.of(afiliacion));
 
         Rol rol = Rol.builder().id(1L).nombre("PARTICIPANTE").build();
         when(rolRepository.findByNombreIgnoreCase("PARTICIPANTE")).thenReturn(Optional.of(rol));
         when(passwordEncoder.encode("Password123*")).thenReturn("hash_123");
 
-        Persona personaGuardada = Persona.builder().id(10L).correo("carlos@correo.com").nombres("Carlos").build();
+        Persona personaGuardada = Persona.builder().id(10L).correo("carlos@correo.com").nombres("Carlos").afiliacion(afiliacion).build();
         when(personaRepository.save(any(Persona.class))).thenReturn(personaGuardada);
 
         Usuario usuarioGuardado = Usuario.builder()
                 .id(20L)
                 .persona(personaGuardada)
-                .nombreUsuario("carlos")
                 .correoVerificado(false)
                 .build();
         when(usuarioRepository.save(any(Usuario.class))).thenReturn(usuarioGuardado);
@@ -114,7 +118,6 @@ class AuthServiceTest {
 
         assertNotNull(response);
         assertEquals(20L, response.usuarioId());
-        assertEquals("carlos", response.nombreUsuario());
         assertEquals("carlos@correo.com", response.correo());
         assertTrue(response.requiereVerificacion());
 
@@ -127,7 +130,7 @@ class AuthServiceTest {
     void registrar_CorreoDuplicado_LanzaExcepcion() {
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", null, null, null
+                "carlos@correo.com", "Password123*", null, null
         );
 
         when(personaRepository.existsByCorreoIgnoreCase("carlos@correo.com")).thenReturn(true);
@@ -144,7 +147,7 @@ class AuthServiceTest {
     void registrar_DocumentoDuplicado_LanzaExcepcion() {
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", null, null, null
+                "carlos@correo.com", "Password123*", null, null
         );
 
         when(personaRepository.existsByCorreoIgnoreCase("carlos@correo.com")).thenReturn(false);
@@ -166,13 +169,12 @@ class AuthServiceTest {
         Usuario usuario = Usuario.builder()
                 .id(1L)
                 .persona(persona)
-                .nombreUsuario("carlos")
                 .contrasenaHash("hash_pass")
                 .correoVerificado(false)
                 .estado(EstadoUsuario.activo)
                 .build();
 
-        when(usuarioRepository.findByIdentificador("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("Password123*", "hash_pass")).thenReturn(true);
 
         CorreoNoVerificadoException ex = assertThrows(CorreoNoVerificadoException.class, () -> authService.login(request));
@@ -190,23 +192,22 @@ class AuthServiceTest {
         Usuario usuario = Usuario.builder()
                 .id(1L)
                 .persona(persona)
-                .nombreUsuario("carlos")
                 .contrasenaHash("hash_pass")
                 .correoVerificado(true)
                 .estado(EstadoUsuario.activo)
                 .roles(new HashSet<>(Set.of(rol)))
                 .build();
 
-        when(usuarioRepository.findByIdentificador("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("Password123*", "hash_pass")).thenReturn(true);
-        when(jwtTokenProvider.generateToken(eq(1L), eq("carlos"), eq("carlos@correo.com"), any())).thenReturn("jwt_token_sample");
+        when(jwtTokenProvider.generateToken(eq(1L), eq("carlos@correo.com"), any())).thenReturn("jwt_token_sample");
 
         LoginResponse response = authService.login(request);
 
         assertNotNull(response);
         assertEquals("jwt_token_sample", response.token());
         assertEquals("Bearer", response.tipoToken());
-        assertEquals("carlos", response.nombreUsuario());
+        assertEquals("carlos@correo.com", response.correo());
     }
 
     @Test
@@ -241,7 +242,7 @@ class AuthServiceTest {
         Persona persona = Persona.builder().id(1L).correo("carlos@correo.com").nombres("Carlos").build();
         Usuario usuario = Usuario.builder().id(1L).persona(persona).correoVerificado(false).build();
 
-        when(usuarioRepository.findByIdentificador("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
         when(tokenRecuperacionRepository.findByUsuarioAndTipoAndUsadoFalse(usuario, TipoToken.verificacion))
                 .thenReturn(Collections.emptyList());
 
