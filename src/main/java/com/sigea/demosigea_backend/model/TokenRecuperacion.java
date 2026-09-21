@@ -20,10 +20,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Entitas JPA yang merepresentasikan token verifikasi dan pemulihan akun di platform SIGEA.
+ * Entidad JPA que representa los tokens de verificación y recuperación de cuenta en la plataforma SIGEA.
  * <p>
- * Memetakan tabel {@code tokens_recuperacion} dan mengelola siklus hidup token sementara
- * yang digunakan untuk verifikasi email saat pendaftaran atau pemulihan kata sandi.
+ * Mapea la tabla {@code tokens_recuperacion} y gestiona el ciclo de vida de los tokens temporales
+ * utilizados para la verificación de correo electrónico durante el registro o la recuperación de contraseña.
  * </p>
  *
  * @author SIGEA Development Team
@@ -40,7 +40,7 @@ import java.time.LocalDateTime;
 public class TokenRecuperacion {
 
     /**
-     * Identifikator unik untuk token di basis data (Primary Key Autoincrement).
+     * Identificador único para el token en la base de datos (Clave Primaria Autoincrementable).
      */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,43 +48,43 @@ public class TokenRecuperacion {
     private Long id;
 
     /**
-     * Pengguna yang terhubung dengan token ini.
-     * Menggunakan relasi {@link FetchType#LAZY} untuk optimasi performa query.
+     * Usuario asociado a este token.
+     * Utiliza una relación de carga perezosa {@link FetchType#LAZY} para la optimización del rendimiento de las consultas.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
     /**
-     * Kode unik token (UUID atau string acak) yang dikirimkan ke email pengguna.
+     * Código único del token (UUID o cadena aleatoria) enviado al correo electrónico del usuario.
      */
     @Column(name = "token", length = 255, nullable = false, unique = true)
     private String token;
 
     /**
-     * Jenis token yang menentukan tujuan penggunaannya (misalnya: VERIFICACION_CORREO, RECUPERACION_PASSWORD).
+     * Tipo de token que determina su propósito de uso (por ejemplo: VERIFICACION_CORREO, RECUPERACION_PASSWORD).
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", length = 20, nullable = false)
     private TipoToken tipo;
 
     /**
-     * Tanggal dan waktu saat token ini dibuat.
-     * Secara default diisi dengan waktu sistem saat ini.
+     * Fecha y hora en la que se generó este token.
+     * Por defecto se inicializa con la fecha y hora actual del sistema.
      */
     @Builder.Default
     @Column(name = "fecha_generacion", nullable = false)
     private LocalDateTime fechaGeneracion = LocalDateTime.now();
 
     /**
-     * Tanggal dan waktu batas kedaluwarsa token.
+     * Fecha y hora límite para la expiración del token.
      */
     @Column(name = "fecha_expiracion", nullable = false)
     private LocalDateTime fechaExpiracion;
 
     /**
-     * Status penggunaan token. Value {@code true} menandakan token telah digunakan
-     * dan tidak dapat dipakai kembali.
+     * Estado de uso del token. El valor {@code true} indica que el token ya ha sido utilizado
+     * y no se puede volver a emplear.
      */
     @Builder.Default
     @Column(name = "usado", nullable = false)

@@ -1,5 +1,9 @@
 package com.sigea.demosigea_backend.security;
 
+import com.sigea.demosigea_backend.model.EstadoUsuario;
+import com.sigea.demosigea_backend.model.Rol;
+import com.sigea.demosigea_backend.model.Usuario;
+import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,13 +17,15 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(
@@ -31,12 +37,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
             String username = tokenProvider.getUsernameFromToken(token);
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    username,
-                    null,
-                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-            );
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            Optional<Usuario> usuarioOpt = usuarioRepository.findByNombreUsuarioIgnoreCase(username);
+            if (usuarioOpt.isPresent()) {
+                Usuario usuario = usuarioOpt.get();
+                // Revalidar que la cuenta siga activa y el correo verificado durante la vigencia del token
+                if (usuario.getEstado() == EstadoUsuario.activo && Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
+                    List<String> tokenRoles = tokenProvider.getRolesFromToken(token);
+                    List<String> rolesToUse = (tokenRoles != null && !tokenRoles.isEmpty())
+                            ? tokenRoles
+                            : usuario.getRoles().stream().map(Rol::getNombre).toList();
+
+                    // Aplicar convención única: asegurar prefijo "ROLE_"
+                    List<SimpleGrantedAuthority> authorities = rolesToUse.stream()
+                            .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                            .map(SimpleGrantedAuthority::new)
+                            .toList();
+
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            username,
+                            null,
+                            authorities
+                    );
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            }
         }
 
         filterChain.doFilter(request, response);

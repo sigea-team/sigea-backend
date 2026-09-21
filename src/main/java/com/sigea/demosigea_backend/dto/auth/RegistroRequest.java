@@ -71,6 +71,10 @@ public record RegistroRequest(
         String contrasena,
 
         @Schema(description = "Nombre de usuario opcional (si se omite, se generará a partir del correo)", example = "cgomez")
+        @Pattern(
+                regexp = "^[a-zA-Z0-9._-]{3,50}$",
+                message = "El nombre de usuario solo puede contener letras, números, puntos, guiones y guiones bajos (sin '@' ni espacios), y debe tener entre 3 y 50 caracteres"
+        )
         @Size(max = 50, message = "El nombre de usuario no puede exceder 50 caracteres")
         String nombreUsuario,
 
