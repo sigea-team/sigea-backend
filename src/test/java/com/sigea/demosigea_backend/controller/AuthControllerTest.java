@@ -7,7 +7,6 @@ import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
 import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionResponse;
 import com.sigea.demosigea_backend.dto.auth.RegistroRequest;
 import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
-import com.sigea.demosigea_backend.dto.auth.VerificarCorreoRequest;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.GlobalExceptionHandler;
@@ -59,11 +58,11 @@ class AuthControllerTest {
     void registrar_Exitoso_Retorna201() throws Exception {
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", "cgomez", null, null
+                "carlos@correo.com", "Password123*", null, 1L
         );
 
         RegistroResponse response = new RegistroResponse(
-                1L, "cgomez", "carlos@correo.com",
+                1L, "carlos@correo.com",
                 "Cuenta creada exitosamente. Se ha enviado un enlace de verificación a su correo electrónico.",
                 true
         );
@@ -75,7 +74,6 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.usuarioId").value(1))
-                .andExpect(jsonPath("$.nombreUsuario").value("cgomez"))
                 .andExpect(jsonPath("$.correo").value("carlos@correo.com"))
                 .andExpect(jsonPath("$.requiereVerificacion").value(true));
     }
@@ -85,7 +83,7 @@ class AuthControllerTest {
     void registrar_Duplicado_Retorna409() throws Exception {
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", null, null, null
+                "carlos@correo.com", "Password123*", null, null
         );
 
         when(authService.registrar(any(RegistroRequest.class)))
@@ -106,7 +104,7 @@ class AuthControllerTest {
         // Contraseña débil (sin mayúscula, sin carácter especial, menor a 8)
         RegistroRequest request = new RegistroRequest(
                 "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "12345", null, null, null
+                "carlos@correo.com", "12345", null, null
         );
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -116,23 +114,6 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
                 .andExpect(jsonPath("$.erroresValidacion.contrasena").exists());
-    }
-
-    @Test
-    @DisplayName("Nombre de usuario con arroba '@' o espacios es rechazado con 400 Bad Request")
-    void registrar_NombreUsuarioConArrobaOEspacios_Retorna400() throws Exception {
-        RegistroRequest requestConArroba = new RegistroRequest(
-                "Carlos", "Gómez", "CC", "12345678",
-                "carlos@correo.com", "Password123*", "usuario@correo.com", null, null
-        );
-
-        mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestConArroba)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
-                .andExpect(jsonPath("$.erroresValidacion.nombreUsuario").exists());
     }
 
     @Test
@@ -161,7 +142,7 @@ class AuthControllerTest {
     void login_Exitoso_Retorna200YToken() throws Exception {
         LoginRequest request = new LoginRequest("carlos@correo.com", "Password123*");
         LoginResponse response = new LoginResponse(
-                "jwt.sample.token", "Bearer", 1L, "cgomez",
+                "jwt.sample.token", "Bearer", 1L,
                 "carlos@correo.com", "Carlos Gómez", List.of("PARTICIPANTE")
         );
 
@@ -173,7 +154,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("jwt.sample.token"))
                 .andExpect(jsonPath("$.tipoToken").value("Bearer"))
-                .andExpect(jsonPath("$.nombreUsuario").value("cgomez"));
+                .andExpect(jsonPath("$.correo").value("carlos@correo.com"));
     }
 
     @Test

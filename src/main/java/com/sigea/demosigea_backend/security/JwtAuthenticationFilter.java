@@ -36,9 +36,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = obtenerTokenDeRequest(request);
 
         if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
-            String username = tokenProvider.getUsernameFromToken(token);
+            String email = tokenProvider.getEmailFromToken(token);
 
-            Optional<Usuario> usuarioOpt = usuarioRepository.findByNombreUsuarioIgnoreCase(username);
+            Optional<Usuario> usuarioOpt = usuarioRepository.findByPersona_CorreoIgnoreCase(email);
             if (usuarioOpt.isPresent()) {
                 Usuario usuario = usuarioOpt.get();
                 // Revalidar que la cuenta siga activa y el correo verificado durante la vigencia del token
@@ -55,7 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .toList();
 
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            username,
+                            email,
                             null,
                             authorities
                     );

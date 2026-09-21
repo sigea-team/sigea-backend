@@ -12,12 +12,14 @@ import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
+import com.sigea.demosigea_backend.model.Afiliacion;
 import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Rol;
 import com.sigea.demosigea_backend.model.TipoToken;
 import com.sigea.demosigea_backend.model.TokenRecuperacion;
 import com.sigea.demosigea_backend.model.Usuario;
+import com.sigea.demosigea_backend.repository.AfiliacionRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.RolRepository;
 import com.sigea.demosigea_backend.repository.TokenRecuperacionRepository;
@@ -45,15 +47,10 @@ import java.util.UUID;
  * la verificación de correo electrónico mediante tokens UUID y el reenvío
  * de enlaces de verificación.
  * </p>
- * <p>
- * Todas las operaciones de escritura están gestionadas con {@code @Transactional}
- * para garantizar la consistencia de datos entre las tablas {@code personas},
- * {@code usuarios} y {@code tokens_recuperacion}.
- * </p>
  *
  * @author SIGEA Team
- * @version 1.0
- * @see AuthController
+ * @version 1.1
+ * @see com.sigea.demosigea_backend.controller.AuthController
  */
 @Slf4j
 @Service
@@ -66,6 +63,8 @@ public class AuthService {
     private final UsuarioRepository usuarioRepository;
     /** Repositorio de acceso a datos de roles. */
     private final RolRepository rolRepository;
+    /** Repositorio de acceso a datos de afiliaciones. */
+    private final AfiliacionRepository afiliacionRepository;
     /** Repositorio de acceso a datos de tokens de recuperación/verificación. */
     private final TokenRecuperacionRepository tokenRecuperacionRepository;
     /** Codificador de contraseñas (BCrypt). */
@@ -83,20 +82,22 @@ public class AuthService {
      * Registra un nuevo usuario en el sistema SIGEA.
      * <p>
      * Valida la unicidad del correo electrónico y número de documento, crea los registros
-     * de {@link Persona} y {@link Usuario}, asigna el rol inicial por defecto, genera un
-     * token de verificación de correo y envía el enlace de verificación por email.
+     * de {@link Persona} y {@link Usuario}, asigna la afiliación institucional opcional,
+     * asigna el rol inicial por defecto, genera un token de verificación de correo y envía
+     * el enlace por email.
      * </p>
-     *
+
      * @param request datos del formulario de registro con validaciones Bean Validation
-     * @return {@link RegistroResponse} con el ID de usuario, nombre de usuario, correo y mensaje informativo
-     * @throws RecursoDuplicadoException si el correo, documento o nombre de usuario ya existen en el sistema
+     * @return {@link RegistroResponse} con el ID de usuario, correo y mensaje informativo
+     * @throws RecursoDuplicadoException si el correo o documento ya existen en el sistema
+     * @throws RecursoNoEncontradoException si el ID de afiliación especificado no existe
      */
     @Transactional
     public RegistroResponse registrar(RegistroRequest request) {
         String correoNormalizado = request.correo().trim().toLowerCase();
         String numeroDocNormalizado = request.numeroDocumento().trim();
 
-        // Criterio 2: Validación de existencia previa de correo o documento
+        // Validación de existencia previa de correo o documento
         if (personaRepository.existsByCorreoIgnoreCase(correoNormalizado)) {
             throw new RecursoDuplicadoException("Ya existe una cuenta registrada con el correo electrónico ingresado.");
         }
@@ -105,10 +106,12 @@ public class AuthService {
             throw new RecursoDuplicadoException("Ya existe una cuenta registrada con el número de documento ingresado.");
         }
 
-        // Determinar y validar nombre de usuario
-        String nombreUsuario = resolverNombreUsuario(request.nombreUsuario(), correoNormalizado);
-        if (usuarioRepository.existsByNombreUsuarioIgnoreCase(nombreUsuario)) {
-            throw new RecursoDuplicadoException("El nombre de usuario '" + nombreUsuario + "' ya se encuentra en uso.");
+        // Buscar afiliación institucional si fue enviada
+        Afiliacion afiliacion = null;
+        if (request.afiliacionId() != null) {
+            afiliacion = afiliacionRepository.findById(request.afiliacionId())
+                    .orElseThrow(() -> new RecursoNoEncontradoException(
+                            "No se encontró la afiliación institucional seleccionada con ID: " + request.afiliacionId()));
         }
 
         // Obtener o crear el rol inicial
@@ -130,7 +133,7 @@ public class AuthService {
                 .apellidos(request.apellidos().trim())
                 .correo(correoNormalizado)
                 .telefono(StringUtils.hasText(request.telefono()) ? request.telefono().trim() : null)
-                .afiliacionInstitucional(StringUtils.hasText(request.afiliacionInstitucional()) ? request.afiliacionInstitucional().trim() : null)
+                .afiliacion(afiliacion)
                 .build();
         Persona personaGuardada = personaRepository.save(persona);
 
@@ -140,7 +143,6 @@ public class AuthService {
 
         Usuario usuario = Usuario.builder()
                 .persona(personaGuardada)
-                .nombreUsuario(nombreUsuario)
                 .contrasenaHash(passwordEncoder.encode(request.contrasena()))
                 .correoVerificado(false)
                 .estado(EstadoUsuario.activo)
@@ -170,7 +172,6 @@ public class AuthService {
 
         return new RegistroResponse(
                 usuarioGuardado.getId(),
-                usuarioGuardado.getNombreUsuario(),
                 personaGuardada.getCorreo(),
                 "Cuenta creada exitosamente. Se ha enviado un enlace de verificación a su correo electrónico. Por favor confírmelo para habilitar el acceso a la plataforma.",
                 true
@@ -179,11 +180,6 @@ public class AuthService {
 
     /**
      * Verifica el correo electrónico de un usuario mediante un token UUID.
-     * <p>
-     * Busca el token de tipo {@code verificacion} en la base de datos, valida que no haya sido
-     * usado previamente ni esté expirado, lo marca como utilizado y actualiza el campo
-     * {@code correo_verificado} del usuario a {@code true}.
-     * </p>
      *
      * @param tokenString cadena UUID del token de verificación recibido por correo
      * @return {@link VerificarCorreoResponse} con mensaje de éxito e indicador de verificación
@@ -220,30 +216,24 @@ public class AuthService {
     }
 
     /**
-     * Autentica un usuario en el sistema mediante su identificador y contraseña.
-     * <p>
-     * Busca al usuario por correo electrónico o nombre de usuario, valida la contraseña
-     * contra el hash almacenado, verifica que el correo esté confirmado y que la cuenta
-     * esté activa. Si todo es correcto, genera y retorna un token JWT Bearer.
-     * </p>
+     * Autentica un usuario en el sistema mediante su correo electrónico y contraseña.
      *
-     * @param request credenciales de inicio de sesión (identificador + contraseña)
+     * @param request credenciales de inicio de sesión (correo + contraseña)
      * @return {@link LoginResponse} con token JWT, datos del usuario y lista de roles
      * @throws CredencialesInvalidasException si el usuario no existe, la contraseña no coincide o la cuenta no está activa
      * @throws CorreoNoVerificadoException si el correo electrónico del usuario aún no ha sido verificado
      */
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
-        String identificador = request.identificador().trim();
+        String correoNormalizado = request.correo().trim().toLowerCase();
 
-        Usuario usuario = usuarioRepository.findByIdentificador(identificador)
-                .orElseThrow(() -> new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo/usuario y contraseña."));
+        Usuario usuario = usuarioRepository.findByPersona_CorreoIgnoreCase(correoNormalizado)
+                .orElseThrow(() -> new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña."));
 
         if (!passwordEncoder.matches(request.contrasena(), usuario.getContrasenaHash())) {
-            throw new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo/usuario y contraseña.");
+            throw new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña.");
         }
 
-        // Criterio 4: Verificar si el correo ya fue confirmado
         if (!Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             throw new CorreoNoVerificadoException(
                     "No se puede iniciar sesión: Su correo electrónico aún no ha sido verificado. Por favor revise su bandeja de entrada o solicite el reenvío del enlace de verificación.",
@@ -261,7 +251,6 @@ public class AuthService {
 
         String tokenJwt = jwtTokenProvider.generateToken(
                 usuario.getId(),
-                usuario.getNombreUsuario(),
                 usuario.getPersona().getCorreo(),
                 rolesNombres
         );
@@ -272,7 +261,6 @@ public class AuthService {
                 tokenJwt,
                 "Bearer",
                 usuario.getId(),
-                usuario.getNombreUsuario(),
                 usuario.getPersona().getCorreo(),
                 nombreCompleto,
                 rolesNombres
@@ -281,22 +269,17 @@ public class AuthService {
 
     /**
      * Reenvía el enlace de verificación de correo electrónico a un usuario.
-     * <p>
-     * Busca al usuario por identificador, invalida todos los tokens de verificación previos
-     * que no hayan sido usados, genera un nuevo token con vigencia de 24 horas y envía
-     * el correo de verificación. Si la cuenta ya está verificada, retorna un mensaje informativo.
-     * </p>
      *
-     * @param request datos con el identificador (correo o nombre de usuario) de la cuenta
+     * @param request datos con el correo de la cuenta
      * @return {@link ReenviarVerificacionResponse} con mensaje de confirmación y correo destinatario
-     * @throws RecursoNoEncontradoException si no se encuentra un usuario con el identificador proporcionado
+     * @throws RecursoNoEncontradoException si no se encuentra un usuario con el correo proporcionado
      */
     @Transactional
     public ReenviarVerificacionResponse reenviarVerificacion(ReenviarVerificacionRequest request) {
-        String identificador = request.identificador().trim();
+        String correoNormalizado = request.correo().trim().toLowerCase();
 
-        Usuario usuario = usuarioRepository.findByIdentificador(identificador)
-                .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró ningún usuario con el correo o nombre de usuario proporcionado."));
+        Usuario usuario = usuarioRepository.findByPersona_CorreoIgnoreCase(correoNormalizado)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró ningún usuario registrado con el correo electrónico proporcionado."));
 
         if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             return new ReenviarVerificacionResponse(
@@ -335,30 +318,5 @@ public class AuthService {
                 "Se ha enviado un nuevo enlace de verificación a su correo electrónico.",
                 usuario.getPersona().getCorreo()
         );
-    }
-
-    /**
-     * Resuelve el nombre de usuario a utilizar para la nueva cuenta.
-     * <p>
-     * Si el usuario proporcionó un nombre de usuario, lo normaliza en minúsculas.
-     * De lo contrario, genera uno automáticamente a partir de la parte local del correo electrónico,
-     * eliminando caracteres especiales y truncando a un máximo de 50 caracteres.
-     * </p>
-     *
-     * @param nombreUsuarioPropuesto nombre de usuario propuesto por el usuario (puede ser {@code null} o vacío)
-     * @param correo correo electrónico del usuario, usado como base para generar el nombre de usuario
-     * @return nombre de usuario normalizado en minúsculas
-     */
-    private String resolverNombreUsuario(String nombreUsuarioPropuesto, String correo) {
-        if (StringUtils.hasText(nombreUsuarioPropuesto)) {
-            return nombreUsuarioPropuesto.trim().toLowerCase();
-        }
-        String base = correo.split("@")[0].replaceAll("[^a-zA-Z0-9._-]", "");
-        if (base.length() < 3) {
-            base = String.format("%-3s", base).replace(' ', 'u');
-        } else if (base.length() > 50) {
-            base = base.substring(0, 50);
-        }
-        return base.toLowerCase();
     }
 }

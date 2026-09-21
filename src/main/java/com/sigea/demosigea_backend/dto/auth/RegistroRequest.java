@@ -16,18 +16,17 @@ import jakarta.validation.constraints.Size;
  * ser procesados por la capa de servicio.
  * </p>
  *
- * @param nombres Nombres de la persona. Obligatorio, máx. 100 caracteres.
- * @param apellidos Apellidos de la persona. Obligatorio, máx. 100 caracteres.
- * @param tipoDocumento Tipo de documento de identidad (ej. CC, TI, CE, PASAPORTE). Obligatorio, máx. 20 caracteres.
+ * @param nombres        Nombres de la persona. Obligatorio, máx. 100 caracteres.
+ * @param apellidos      Apellidos de la persona. Obligatorio, máx. 100 caracteres.
+ * @param tipoDocumento  Tipo de documento de identidad (ej. CC, TI, CE, PASAPORTE). Obligatorio, máx. 20 caracteres.
  * @param numeroDocumento Identificador numérico o alfanumérico único del documento. Obligatorio, máx. 30 caracteres.
- * @param correo Dirección de correo electrónico principal para autenticación y notificaciones. Obligatorio, debe ser un email válido, máx. 150 caracteres.
- * @param contrasena Clave de acceso en texto plano. Debe cumplir con la política estricta de complejidad: 8 a 64 caracteres, al menos una mayúscula, una minúscula, un número y un carácter especial.
- * @param nombreUsuario Identificador único de usuario deseado (opcional). Si no se proporciona, la lógica de negocio generará uno basado en el correo. Máx. 50 caracteres.
- * @param telefono Número telefónico o móvil de contacto (opcional). Máx. 30 caracteres.
- * @param afiliacionInstitucional Entidad, empresa o universidad de procedencia (opcional). Máx. 150 caracteres.
+ * @param correo         Dirección de correo electrónico principal para autenticación y notificaciones. Obligatorio, debe ser un email válido, máx. 150 caracteres.
+ * @param contrasena     Clave de acceso en texto plano. Debe cumplir con la política estricta de complejidad: 8 a 64 caracteres, al menos una mayúscula, una minúscula, un número y un carácter especial.
+ * @param telefono       Número telefónico o móvil de contacto (opcional). Máx. 30 caracteres.
+ * @param afiliacionId   Identificador de la afiliación institucional seleccionada del catálogo {@code afiliaciones} (opcional).
  *
  * @author SIGEA Development Team
- * @version 1.0
+ * @version 1.1
  * @since 2026
  */
 @Schema(description = "Petición de registro de nuevo usuario en la plataforma")
@@ -70,20 +69,11 @@ public record RegistroRequest(
         )
         String contrasena,
 
-        @Schema(description = "Nombre de usuario opcional (si se omite, se generará a partir del correo)", example = "cgomez")
-        @Pattern(
-                regexp = "^[a-zA-Z0-9._-]{3,50}$",
-                message = "El nombre de usuario solo puede contener letras, números, puntos, guiones y guiones bajos (sin '@' ni espacios), y debe tener entre 3 y 50 caracteres"
-        )
-        @Size(max = 50, message = "El nombre de usuario no puede exceder 50 caracteres")
-        String nombreUsuario,
-
         @Schema(description = "Número de teléfono de contacto (opcional)", example = "+573001234567")
         @Size(max = 30, message = "El teléfono no puede exceder 30 caracteres")
         String telefono,
 
-        @Schema(description = "Institución u organización a la que pertenece (opcional)", example = "Universidad Nacional")
-        @Size(max = 150, message = "La afiliación institucional no puede exceder 150 caracteres")
-        String afiliacionInstitucional
+        @Schema(description = "ID de la afiliación institucional del catálogo (opcional)", example = "1")
+        Long afiliacionId
 ) {
 }

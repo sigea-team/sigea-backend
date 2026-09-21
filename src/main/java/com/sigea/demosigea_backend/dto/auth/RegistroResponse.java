@@ -10,24 +10,20 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * e indica el estado del flujo de verificación por correo electrónico para guiarlo hacia
  * el siguiente paso de autenticación.
  * </p>
-
+ *
  * @param usuarioId Identificador único asignado al usuario recién creado en la base de datos.
- * @param nombreUsuario Nombre de usuario definitivo asignado en el sistema (ya sea el personalizado o el generado automáticamente).
  * @param correo Dirección de correo electrónico asociada a la cuenta a la cual se remitió la notificación de activación.
  * @param mensaje Confirmación textual con instrucciones informativas para el usuario final.
  * @param requiereVerificacion Bandera lógica que indica si la cuenta se encuentra bloqueada hasta completar la validación de la dirección de correo.
  *
  * @author SIGEA Development Team
- * @version 1.0
+ * @version 1.1
  * @since 2026
  */
 @Schema(description = "Respuesta tras un registro exitoso en el sistema")
 public record RegistroResponse(
         @Schema(description = "Identificador único asignado al usuario", example = "1")
         Long usuarioId,
-
-        @Schema(description = "Nombre de usuario asignado en el sistema", example = "cgomez")
-        String nombreUsuario,
 
         @Schema(description = "Correo electrónico al cual se envió el enlace de verificación", example = "carlos.gomez@universidad.edu.co")
         String correo,

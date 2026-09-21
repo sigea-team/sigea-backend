@@ -2,7 +2,7 @@ package com.sigea.demosigea_backend.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sigea.demosigea_backend.model.EstadoUsuario;
-import com.sigea.demosigea_backend.model.Rol;
+import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
@@ -20,7 +20,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -59,23 +58,25 @@ class JwtAuthenticationFilterTest {
     void doFilterInternal_UsuarioActivo_AsignaRolesConConvencionRole() throws Exception {
         request.addHeader("Authorization", "Bearer valid_token");
 
+        String correo = "juan@correo.com";
         when(tokenProvider.validateToken("valid_token")).thenReturn(true);
-        when(tokenProvider.getUsernameFromToken("valid_token")).thenReturn("juan");
+        when(tokenProvider.getEmailFromToken("valid_token")).thenReturn(correo);
         when(tokenProvider.getRolesFromToken("valid_token")).thenReturn(List.of("ADMIN", "PARTICIPANTE"));
 
+        Persona persona = Persona.builder().correo(correo).build();
         Usuario usuario = Usuario.builder()
-                .nombreUsuario("juan")
+                .persona(persona)
                 .estado(EstadoUsuario.activo)
                 .correoVerificado(true)
                 .build();
 
-        when(usuarioRepository.findByNombreUsuarioIgnoreCase("juan")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase(correo)).thenReturn(Optional.of(usuario));
 
         filter.doFilter(request, response, filterChain);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assertNotNull(auth);
-        assertEquals("juan", auth.getName());
+        assertEquals(correo, auth.getName());
         assertEquals(2, auth.getAuthorities().size());
 
         List<String> authorityNames = auth.getAuthorities().stream().map(a -> a.getAuthority()).toList();
@@ -90,16 +91,18 @@ class JwtAuthenticationFilterTest {
     void doFilterInternal_UsuarioBloqueado_NoAutentica() throws Exception {
         request.addHeader("Authorization", "Bearer valid_token");
 
+        String correo = "juan@correo.com";
         when(tokenProvider.validateToken("valid_token")).thenReturn(true);
-        when(tokenProvider.getUsernameFromToken("valid_token")).thenReturn("juan");
+        when(tokenProvider.getEmailFromToken("valid_token")).thenReturn(correo);
 
+        Persona persona = Persona.builder().correo(correo).build();
         Usuario usuario = Usuario.builder()
-                .nombreUsuario("juan")
+                .persona(persona)
                 .estado(EstadoUsuario.bloqueado)
                 .correoVerificado(true)
                 .build();
 
-        when(usuarioRepository.findByNombreUsuarioIgnoreCase("juan")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase(correo)).thenReturn(Optional.of(usuario));
 
         filter.doFilter(request, response, filterChain);
 
@@ -113,16 +116,18 @@ class JwtAuthenticationFilterTest {
     void doFilterInternal_CorreoNoVerificado_NoAutentica() throws Exception {
         request.addHeader("Authorization", "Bearer valid_token");
 
+        String correo = "juan@correo.com";
         when(tokenProvider.validateToken("valid_token")).thenReturn(true);
-        when(tokenProvider.getUsernameFromToken("valid_token")).thenReturn("juan");
+        when(tokenProvider.getEmailFromToken("valid_token")).thenReturn(correo);
 
+        Persona persona = Persona.builder().correo(correo).build();
         Usuario usuario = Usuario.builder()
-                .nombreUsuario("juan")
+                .persona(persona)
                 .estado(EstadoUsuario.activo)
                 .correoVerificado(false)
                 .build();
 
-        when(usuarioRepository.findByNombreUsuarioIgnoreCase("juan")).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase(correo)).thenReturn(Optional.of(usuario));
 
         filter.doFilter(request, response, filterChain);
 
