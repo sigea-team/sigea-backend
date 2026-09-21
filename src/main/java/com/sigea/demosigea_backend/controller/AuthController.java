@@ -184,4 +184,22 @@ public class AuthController {
         ReenviarVerificacionResponse response = authService.reenviarVerificacion(request);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Obtiene el catálogo de afiliaciones institucionales.
+     * Endpoint público para poblar el combobox en el formulario de registro.
+     *
+     * @return Lista de {@link com.sigea.demosigea_backend.model.Afiliacion} (HTTP 200)
+     */
+    @Operation(
+            summary = "Obtener catálogo de afiliaciones institucionales",
+            description = "Devuelve la lista de afiliaciones institucionales registradas en el sistema para consumo en formularios de registro."
+    )
+    @ApiResponse(responseCode = "200", description = "Lista de afiliaciones obtenida exitosamente")
+    @GetMapping("/afiliaciones")
+    public ResponseEntity<java.util.List<com.sigea.demosigea_backend.model.Afiliacion>> obtenerAfiliaciones() {
+        return ResponseEntity.ok(authService.obtenerAfiliaciones());
+    }
 }
+
+

@@ -319,4 +319,16 @@ public class AuthService {
                 usuario.getPersona().getCorreo()
         );
     }
+
+    /**
+     * Obtiene la lista completa de afiliaciones institucionales disponibles en el catálogo.
+     *
+     * @return Lista de {@link com.sigea.demosigea_backend.model.Afiliacion}
+     */
+    @Transactional(readOnly = true)
+    public List<com.sigea.demosigea_backend.model.Afiliacion> obtenerAfiliaciones() {
+        return afiliacionRepository.findAll();
+    }
 }
+
+
