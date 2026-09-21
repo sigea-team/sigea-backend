@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.auth.AfiliacionResponse;
 import com.sigea.demosigea_backend.dto.auth.LoginRequest;
 import com.sigea.demosigea_backend.dto.auth.LoginResponse;
 import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
@@ -319,4 +320,18 @@ public class AuthService {
                 usuario.getPersona().getCorreo()
         );
     }
+
+    /**
+     * Obtiene la lista completa de afiliaciones institucionales disponibles en el catálogo.
+     *
+     * @return Lista de {@link AfiliacionResponse}
+     */
+    @Transactional(readOnly = true)
+    public List<AfiliacionResponse> obtenerAfiliaciones() {
+        return afiliacionRepository.findAll().stream()
+                .map(a -> new AfiliacionResponse(a.getId(), a.getNombreAfiliacion()))
+                .toList();
+    }
 }
+
+
