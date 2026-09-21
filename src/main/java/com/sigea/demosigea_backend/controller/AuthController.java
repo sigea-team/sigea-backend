@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.controller;
 
+import com.sigea.demosigea_backend.dto.auth.AfiliacionResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.auth.LoginRequest;
 import com.sigea.demosigea_backend.dto.auth.LoginResponse;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -189,7 +191,7 @@ public class AuthController {
      * Obtiene el catálogo de afiliaciones institucionales.
      * Endpoint público para poblar el combobox en el formulario de registro.
      *
-     * @return Lista de {@link com.sigea.demosigea_backend.model.Afiliacion} (HTTP 200)
+     * @return Lista de {@link AfiliacionResponse} (HTTP 200)
      */
     @Operation(
             summary = "Obtener catálogo de afiliaciones institucionales",
@@ -197,7 +199,7 @@ public class AuthController {
     )
     @ApiResponse(responseCode = "200", description = "Lista de afiliaciones obtenida exitosamente")
     @GetMapping("/afiliaciones")
-    public ResponseEntity<java.util.List<com.sigea.demosigea_backend.model.Afiliacion>> obtenerAfiliaciones() {
+    public ResponseEntity<List<AfiliacionResponse>> obtenerAfiliaciones() {
         return ResponseEntity.ok(authService.obtenerAfiliaciones());
     }
 }
