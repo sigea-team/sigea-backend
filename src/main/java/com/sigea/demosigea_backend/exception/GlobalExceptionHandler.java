@@ -115,6 +115,21 @@ public class GlobalExceptionHandler {
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
+    
+    @ExceptionHandler(CuentaBloqueadaException.class)
+    public ResponseEntity<ErrorResponse> handleCuentaBloqueada(CuentaBloqueadaException ex) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.LOCKED.value(),
+                HttpStatus.LOCKED.getReasonPhrase(),
+                ex.getMessage(),
+                "CUENTA_BLOQUEADA",
+                null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.LOCKED).body(response);
+    }
+    
 
     /**
      * Captura errores relacionados con tokens JWT o de verificación corruptos, expirados o malformados.

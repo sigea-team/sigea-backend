@@ -10,6 +10,7 @@ import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
+import com.sigea.demosigea_backend.exception.CuentaBloqueadaException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,6 +80,14 @@ public class AuthService {
     /** Nombre del rol inicial asignado a los nuevos usuarios (configurable vía {@code app.roles.default-initial}). */
     @Value("${app.roles.default-initial:PARTICIPANTE}")
     private String defaultRoleName;
+
+    /** Número máximo de intentos fallidos consecutivos antes de bloquear la cuenta (HU-01, Criterio 3). */
+    @Value("${app.security.max-intentos-fallidos:5}")
+    private int maxIntentosFallidos;
+
+    /** Minutos que dura el bloqueo temporal de la cuenta tras superar los intentos fallidos (HU-01, Criterio 3). */
+    @Value("${app.security.minutos-bloqueo:15}")
+    private int minutosBloqueo;
 
     /**
      * Registra un nuevo usuario en el sistema SIGEA.
@@ -223,16 +233,33 @@ public class AuthService {
      * @return {@link LoginResponse} con token JWT, datos del usuario y lista de roles
      * @throws CredencialesInvalidasException si el usuario no existe, la contraseña no coincide o la cuenta no está activa
      * @throws CorreoNoVerificadoException si el correo electrónico del usuario aún no ha sido verificado
+     * @throws CuentaBloqueadaException si la cuenta está bloqueada temporalmente por intentos fallidos (HU-01, Criterio 3)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         String correoNormalizado = request.correo().trim().toLowerCase();
 
         Usuario usuario = usuarioRepository.findByPersona_CorreoIgnoreCase(correoNormalizado)
                 .orElseThrow(() -> new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña."));
 
+        // Criterio 3 (HU-01): la cuenta ya está bloqueada por intentos fallidos previos.
+        if (usuario.getBloqueadoHasta() != null && usuario.getBloqueadoHasta().isAfter(LocalDateTime.now())) {
+            String horaDesbloqueo = usuario.getBloqueadoHasta().format(DateTimeFormatter.ofPattern("HH:mm"));
+            throw new CuentaBloqueadaException(
+                    "Su cuenta ha sido bloqueada temporalmente por múltiples intentos fallidos. "
+                            + "Podrá intentarlo nuevamente después de las " + horaDesbloqueo + ".");
+        }
+
         if (!passwordEncoder.matches(request.contrasena(), usuario.getContrasenaHash())) {
+            registrarIntentoFallido(usuario);
             throw new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña.");
+        }
+
+        // Login con contraseña correcta: se reinicia el contador de intentos fallidos si aplica.
+        if (usuario.getIntentosFallidos() != null && usuario.getIntentosFallidos() > 0) {
+            usuario.setIntentosFallidos(0);
+            usuario.setBloqueadoHasta(null);
+            usuarioRepository.save(usuario);
         }
 
         if (!Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
@@ -266,6 +293,30 @@ public class AuthService {
                 nombreCompleto,
                 rolesNombres
         );
+    }
+
+    /**
+     * Incrementa el contador de intentos fallidos de un usuario y, si se alcanza o supera
+     * el máximo configurado ({@code app.security.max-intentos-fallidos}), bloquea la cuenta
+     * temporalmente durante {@code app.security.minutos-bloqueo} minutos.
+     * <p>
+     * Corresponde al Criterio 3 de la historia de usuario HU-01 (RF01 - Autenticar usuario).
+     * </p>
+     *
+     * @param usuario usuario sobre el que se registra el intento fallido de autenticación
+     */
+    private void registrarIntentoFallido(Usuario usuario) {
+        int intentosPrevios = usuario.getIntentosFallidos() == null ? 0 : usuario.getIntentosFallidos();
+        int intentos = intentosPrevios + 1;
+        usuario.setIntentosFallidos(intentos);
+
+        if (intentos >= maxIntentosFallidos) {
+            usuario.setBloqueadoHasta(LocalDateTime.now().plusMinutes(minutosBloqueo));
+            log.warn("Cuenta bloqueada temporalmente por intentos fallidos: usuarioId={}, intentos={}",
+                    usuario.getId(), intentos);
+        }
+
+        usuarioRepository.save(usuario);
     }
 
     /**
@@ -333,5 +384,3 @@ public class AuthService {
                 .toList();
     }
 }
-
-
