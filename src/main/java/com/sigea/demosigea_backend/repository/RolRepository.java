@@ -27,4 +27,32 @@ public interface RolRepository extends JpaRepository<Rol, Long> {
      * @return Un {@link Optional} que contiene el {@link Rol} si fue encontrado, o un contenedor vacío si no existe.
      */
     Optional<Rol> findByNombreIgnoreCase(String nombre);
+
+    /**
+     * Verifica si ya existe un rol con el nombre dado.
+     */
+    boolean existsByNombreIgnoreCase(String nombre);
+
+    /**
+     * Verifica si existe otro rol con el mismo nombre excluyendo un ID específico (para updates).
+     */
+    boolean existsByNombreIgnoreCaseAndIdNot(String nombre, Long id);
+
+    /**
+     * Obtiene un rol con sus permisos cargados tempranamente.
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM Rol r LEFT JOIN FETCH r.permisos WHERE r.id = :id")
+    Optional<Rol> findByIdWithPermisos(@org.springframework.data.repository.query.Param("id") Long id);
+
+    /**
+     * Cuenta cuántos usuarios activos tienen asignado este rol.
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(u) FROM Usuario u JOIN u.roles r WHERE r.id = :rolId AND u.estado = com.sigea.demosigea_backend.model.EstadoUsuario.activo")
+    long countUsuariosActivosByRolId(@org.springframework.data.repository.query.Param("rolId") Long rolId);
+
+    /**
+     * Cuenta cuántos usuarios en total (cualquier estado) tienen asignado este rol.
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(u) FROM Usuario u JOIN u.roles r WHERE r.id = :rolId")
+    long countTotalUsuariosByRolId(@org.springframework.data.repository.query.Param("rolId") Long rolId);
 }

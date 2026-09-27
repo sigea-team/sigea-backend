@@ -51,4 +51,16 @@ public class Rol {
      */
     @Column(name = "descripcion", length = 255)
     private String descripcion;
+
+    /**
+     * Permisos atómicos asociados a este rol mediante la tabla intermedia roles_permisos.
+     */
+    @jakarta.persistence.ManyToMany(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinTable(
+            name = "roles_permisos",
+            joinColumns = @jakarta.persistence.JoinColumn(name = "rol_id"),
+            inverseJoinColumns = @jakarta.persistence.JoinColumn(name = "permiso_id")
+    )
+    @Builder.Default
+    private java.util.Set<Permiso> permisos = new java.util.HashSet<>();
 }

@@ -43,16 +43,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Usuario usuario = usuarioOpt.get();
                 // Revalidar que la cuenta siga activa y el correo verificado durante la vigencia del token
                 if (usuario.getEstado() == EstadoUsuario.activo && Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
-                    List<String> tokenRoles = tokenProvider.getRolesFromToken(token);
-                    List<String> rolesToUse = (tokenRoles != null && !tokenRoles.isEmpty())
-                            ? tokenRoles
-                            : usuario.getRoles().stream().map(Rol::getNombre).toList();
+                    java.util.Set<SimpleGrantedAuthority> authorities = new java.util.HashSet<>();
 
-                    // Aplicar convención única: asegurar prefijo "ROLE_"
-                    List<SimpleGrantedAuthority> authorities = rolesToUse.stream()
-                            .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
-                            .map(SimpleGrantedAuthority::new)
-                            .toList();
+                    // Cargar roles y sus permisos directamente desde el usuario en BD
+                    for (Rol rol : usuario.getRoles()) {
+                        String roleName = rol.getNombre();
+                        authorities.add(new SimpleGrantedAuthority(roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName));
+                        // También agregar el rol sin prefijo para hasAuthority flexible
+                        authorities.add(new SimpleGrantedAuthority(roleName));
+
+                        if (rol.getPermisos() != null) {
+                            for (com.sigea.demosigea_backend.model.Permiso permiso : rol.getPermisos()) {
+                                authorities.add(new SimpleGrantedAuthority(permiso.getCodigo()));
+                            }
+                        }
+                    }
 
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             email,
