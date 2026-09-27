@@ -17,26 +17,46 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Servicio de negocio para la gestión integral de roles y sus permisos (HU-02).
+ * <p>
+ * Contiene la lógica requerida para:
+ * <ul>
+ *   <li><b>Criterio 1:</b> Creación de roles y asignación de permisos sobre los módulos funcionales.</li>
+ *   <li><b>Criterio 2:</b> Modificación de roles y permisos con impacto en cascada sobre los usuarios asignados.</li>
+ *   <li><b>Criterio 3:</b> Validación previa a la eliminación impidiendo su borrado si existen usuarios activos asignados.</li>
+ * </ul>
+ * </p>
+ *
+ * @author SIGEA Development Team
+ * @version 1.0
+ * @since 2026
+ * @see RolRepository
+ * @see PermisoRepository
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RolService {
 
+    /** Repositorio de persistencia para la entidad {@link Rol}. */
     private final RolRepository rolRepository;
+
+    /** Repositorio de persistencia para la entidad {@link Permiso}. */
     private final PermisoRepository permisoRepository;
 
     /**
-     * Lista todos los roles con sus permisos y conteo de usuarios asignados.
+     * Recupera el catálogo completo de roles registrados en el sistema, incorporando
+     * sus permisos y el número de usuarios (tanto activos como globales) asignados.
+     *
+     * @return Lista de {@link RolResponse} con el balance de cada rol.
      */
     @Transactional(readOnly = true)
     public List<RolResponse> listarRoles() {
         return rolRepository.findAll().stream()
                 .map(rol -> {
-                    // Cargar permisos
                     Rol rolConPermisos = rolRepository.findByIdWithPermisos(rol.getId()).orElse(rol);
                     long activos = rolRepository.countUsuariosActivosByRolId(rol.getId());
                     long total = rolRepository.countTotalUsuariosByRolId(rol.getId());
@@ -46,7 +66,11 @@ public class RolService {
     }
 
     /**
-     * Obtiene el detalle de un rol específico por su identificador.
+     * Obtiene la información detallada de un rol específico a partir de su identificador.
+     *
+     * @param id Identificador numérico del rol.
+     * @return DTO {@link RolResponse} con el rol y sus permisos.
+     * @throws RecursoNoEncontradoException si no existe un rol con el ID suministrado.
      */
     @Transactional(readOnly = true)
     public RolResponse obtenerPorId(Long id) {
@@ -59,8 +83,13 @@ public class RolService {
     }
 
     /**
-     * Criterio 1: Crea un nuevo rol y le asigna un conjunto de permisos.
-     * Guarda el rol y lo deja disponible para asignarlo a usuarios.
+     * Crea un nuevo rol en la base de datos y le asocia el conjunto de permisos especificados.
+     * Cumple con el <b>Criterio 1</b> de la HU-02.
+     *
+     * @param request Datos del nuevo rol a registrar (nombre, descripción, permisosIds).
+     * @return DTO {@link RolResponse} con el rol recién persistido.
+     * @throws RecursoDuplicadoException si ya existe un rol con el mismo nombre.
+     * @throws RecursoNoEncontradoException si alguno de los IDs de permisos indicados no existe.
      */
     @Transactional
     public RolResponse crearRol(RolRequest request) {
@@ -85,9 +114,14 @@ public class RolService {
     }
 
     /**
-     * Criterio 2: Modifica los datos y permisos de un rol existente.
-     * Al modificar los permisos de este rol, el cambio aplica a todos los usuarios
-     * que tengan ese rol (relación en roles_permisos).
+     * Actualiza la información y permisos de un rol existente.
+     * Cumple con el <b>Criterio 2</b> de la HU-02, aplicando el cambio a todos los usuarios que posean el rol.
+     *
+     * @param id Identificador del rol a modificar.
+     * @param request Nuevos datos para el rol y nueva lista de permisos.
+     * @return DTO {@link RolResponse} actualizado.
+     * @throws RecursoNoEncontradoException si el rol o alguno de los permisos indicados no existen.
+     * @throws RecursoDuplicadoException si se intenta renombrar a un nombre ya tomado por otro rol.
      */
     @Transactional
     public RolResponse actualizarRol(Long id, RolRequest request) {
@@ -115,9 +149,12 @@ public class RolService {
     }
 
     /**
-     * Criterio 3: Elimina un rol del sistema.
-     * Si el rol tiene usuarios activos asignados, el sistema impide la eliminación
-     * y sugiere reasignar primero a los usuarios.
+     * Elimina un rol del sistema previa validación de usuarios activos.
+     * Cumple con el <b>Criterio 3</b> de la HU-02, impidiendo la eliminación si existen cuentas activas asignadas.
+     *
+     * @param id Identificador numérico del rol a suprimir.
+     * @throws RecursoNoEncontradoException si el rol no existe.
+     * @throws OperacionNoPermitidaException si el rol tiene uno o más usuarios activos vinculados.
      */
     @Transactional
     public void eliminarRol(Long id) {
@@ -134,13 +171,16 @@ public class RolService {
             );
         }
 
-        // Si no tiene usuarios activos, se procede con la eliminación segura
         rolRepository.delete(rol);
         log.info("Rol eliminado exitosamente: ID {}, Nombre {}", id, rol.getNombre());
     }
 
     /**
-     * Resuelve los objetos {@link Permiso} a partir de un conjunto de IDs.
+     * Resuelve y valida la existencia en base de datos de una colección de identificadores de permisos.
+     *
+     * @param permisosIds Colección de claves primarias de permisos.
+     * @return Conjunto de entidades {@link Permiso} correspondientes.
+     * @throws RecursoNoEncontradoException si uno o más IDs no se hallan en la base de datos.
      */
     private Set<Permiso> resolverPermisos(Set<Long> permisosIds) {
         if (permisosIds == null || permisosIds.isEmpty()) {
@@ -148,7 +188,7 @@ public class RolService {
         }
         List<Permiso> permisosEncontrados = permisoRepository.findAllById(permisosIds);
         if (permisosEncontrados.size() != permisosIds.size()) {
-            Set<Long> encontradosIds = permisosEncontrados.stream().map(Permiso::getId).collect(java.util.stream.Collectors.toSet());
+            Set<Long> encontradosIds = permisosEncontrados.stream().map(Permiso::getId).collect(Collectors.toSet());
             Set<Long> faltantes = new HashSet<>(permisosIds);
             faltantes.removeAll(encontradosIds);
             throw new RecursoNoEncontradoException("Los siguientes IDs de permisos no existen en el sistema: " + faltantes);
