@@ -1,4 +1,5 @@
 databaseChangeLog:
 - include:
       file: db/changelog/changes/1-afil-usrs.sql
+- include:
       file: db/changelog/changes/2-eliminar-afiliacion.sql
