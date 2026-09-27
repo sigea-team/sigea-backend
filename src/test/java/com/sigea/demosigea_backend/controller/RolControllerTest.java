@@ -59,7 +59,7 @@ class RolControllerTest {
     void crearRol_retorna201() throws Exception {
         RolRequest request = new RolRequest("EVALUADOR", "Rol para evaluadores", Set.of(1L, 2L));
         PermisoResponse perm = new PermisoResponse(1L, "ROLES_VER", "ROLES", "Ver roles");
-        RolResponse response = new RolResponse(1L, "EVALUADOR", "Rol para evaluadores", 0, 0, List.of(perm));
+        RolResponse response = new RolResponse(1L, "EVALUADOR", "Rol para evaluadores", 0, 0, List.of(perm), System.currentTimeMillis());
 
         when(rolService.crearRol(any(RolRequest.class))).thenReturn(response);
 
@@ -77,7 +77,7 @@ class RolControllerTest {
     void actualizarRol_retorna200() throws Exception {
         RolRequest request = new RolRequest("EVALUADOR_ACTUALIZADO", "Rol modificado", Set.of(2L));
         PermisoResponse perm = new PermisoResponse(2L, "PROPUESTAS_EVALUAR", "EVALUACION", "Evaluar");
-        RolResponse response = new RolResponse(1L, "EVALUADOR_ACTUALIZADO", "Rol modificado", 2, 2, List.of(perm));
+        RolResponse response = new RolResponse(1L, "EVALUADOR_ACTUALIZADO", "Rol modificado", 2, 2, List.of(perm), System.currentTimeMillis());
 
         when(rolService.actualizarRol(eq(1L), any(RolRequest.class))).thenReturn(response);
 
@@ -114,7 +114,7 @@ class RolControllerTest {
     @Test
     @DisplayName("GET /api/v1/roles lista los roles del sistema")
     void listarRoles_retorna200() throws Exception {
-        RolResponse rol = new RolResponse(1L, "PARTICIPANTE", "Rol participante", 5, 5, List.of());
+        RolResponse rol = new RolResponse(1L, "PARTICIPANTE", "Rol participante", 5, 5, List.of(), System.currentTimeMillis());
         when(rolService.listarRoles()).thenReturn(List.of(rol));
 
         mockMvc.perform(get("/api/v1/roles"))

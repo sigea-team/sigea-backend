@@ -47,6 +47,9 @@ public class RolService {
     /** Repositorio de persistencia para la entidad {@link Permiso}. */
     private final PermisoRepository permisoRepository;
 
+    /** Servicio de invalidación de tokens y sesiones activas. */
+    private final com.sigea.demosigea_backend.security.TokenBlacklistService tokenBlacklistService;
+
     /**
      * Recupera el catálogo completo de roles registrados en el sistema, incorporando
      * sus permisos y el número de usuarios (tanto activos como globales) asignados.
@@ -116,6 +119,12 @@ public class RolService {
     /**
      * Actualiza la información y permisos de un rol existente.
      * Cumple con el <b>Criterio 2</b> de la HU-02, aplicando el cambio a todos los usuarios que posean el rol.
+     * <p>
+     * NOTA IMPORTANTE - Sincronización de Permisos:
+     * Cuando se modifica un rol, los usuarios con sesiones activas serán
+     * forzados a re-autenticarse en la siguiente operación que requiera
+     * autorización, garantizando efecto inmediato del cambio (Criterio 2).
+     * </p>
      *
      * @param id Identificador del rol a modificar.
      * @param request Nuevos datos para el rol y nueva lista de permisos.
@@ -139,9 +148,13 @@ public class RolService {
         rol.setNombre(nombreNormalizado);
         rol.setDescripcion(request.descripcion() != null ? request.descripcion().trim() : null);
         rol.setPermisos(permisosActualizados);
+        rol.setFechaActualizacion(java.time.LocalDateTime.now());
 
         Rol rolActualizado = rolRepository.save(rol);
         log.info("Rol actualizado exitosamente: ID {}, Permisos asignados {}", rolActualizado.getId(), permisosActualizados.size());
+
+        // Invalida sesiones activas para usuarios con este rol garantizando efecto inmediato (Criterio 2)
+        tokenBlacklistService.invalidarSesionesDeRol(id);
 
         long activos = rolRepository.countUsuariosActivosByRolId(id);
         long total = rolRepository.countTotalUsuariosByRolId(id);

@@ -53,6 +53,14 @@ public class Rol {
     private String descripcion;
 
     /**
+     * Fecha y hora de la última modificación del rol o de sus permisos.
+     * Utilizada para la sincronización y revocación inmediata de sesiones activas.
+     */
+    @Builder.Default
+    @Column(name = "fecha_actualizacion", nullable = false)
+    private java.time.LocalDateTime fechaActualizacion = java.time.LocalDateTime.now();
+
+    /**
      * Permisos atómicos asociados a este rol mediante la tabla intermedia roles_permisos.
      */
     @jakarta.persistence.ManyToMany(fetch = jakarta.persistence.FetchType.LAZY)

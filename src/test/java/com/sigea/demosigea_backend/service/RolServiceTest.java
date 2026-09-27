@@ -24,6 +24,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -40,6 +41,9 @@ class RolServiceTest {
 
     @Mock
     private PermisoRepository permisoRepository;
+
+    @Mock
+    private com.sigea.demosigea_backend.security.TokenBlacklistService tokenBlacklistService;
 
     @InjectMocks
     private RolService rolService;
@@ -113,6 +117,8 @@ class RolServiceTest {
         assertEquals(1, response.permisos().size());
         assertEquals("PROPUESTAS_EVALUAR", response.permisos().get(0).codigo());
         assertEquals(3L, response.usuariosActivosAsignados());
+        assertTrue(response.ultimaModificacion() > 0);
+        verify(tokenBlacklistService).invalidarSesionesDeRol(5L);
     }
 
     @Test

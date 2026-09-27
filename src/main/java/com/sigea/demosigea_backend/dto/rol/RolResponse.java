@@ -44,7 +44,10 @@ public record RolResponse(
         long totalUsuariosAsignados,
 
         @Schema(description = "Lista de permisos funcionales asociados al rol")
-        List<PermisoResponse> permisos
+        List<PermisoResponse> permisos,
+
+        @Schema(description = "Timestamp en milisegundos de la última modificación del rol o sus permisos", example = "1711562400000")
+        long ultimaModificacion
 ) {
     /**
      * Construye un {@link RolResponse} a partir de la entidad JPA {@link Rol} y las métricas de asignación de usuarios.
@@ -63,13 +66,18 @@ public record RolResponse(
                         .toList()
                 : List.of();
 
+        long timestampModificacion = (rol.getFechaActualizacion() != null)
+                ? rol.getFechaActualizacion().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                : System.currentTimeMillis();
+
         return new RolResponse(
                 rol.getId(),
                 rol.getNombre(),
                 rol.getDescripcion(),
                 usuariosActivos,
                 totalUsuarios,
-                permisosList
+                permisosList,
+                timestampModificacion
         );
     }
 }
