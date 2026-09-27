@@ -21,7 +21,6 @@ INSERT INTO "permisos" ("codigo", "modulo", "descripcion") VALUES
 
   -- Módulo Convocatorias y Propuestas
   ('CONVOCATORIAS_GESTIONAR', 'CONVOCATORIAS', 'Crear, publicar y gestionar convocatorias'),
-  ('PROPUESTAS_POSTULAR', 'PROPUESTAS', 'Postular propuestas académicas a convocatorias'),
   ('PROPUESTAS_VER', 'PROPUESTAS', 'Visualizar propuestas académicas'),
   ('PROPUESTAS_EVALUAR', 'EVALUACION', 'Evaluar propuestas mediante rúbricas'),
 
