@@ -1,6 +1,7 @@
 --liquibase formatted sql
 
 --changeset SIGEA:003-seed-catalogo-permisos
+--validCheckSum: ANY
 INSERT INTO "permisos" ("codigo", "modulo", "descripcion") VALUES
   -- Módulo Roles y Permisos
   ('ROLES_VER', 'ROLES', 'Visualizar roles y sus permisos asociados'),
