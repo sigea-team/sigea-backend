@@ -1,5 +1,7 @@
 package com.sigea.demosigea_backend.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -116,8 +119,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
     
+    /**
+     * Captura las peticiones de inicio de sesión sobre cuentas que se encuentran bloqueadas
+     * temporalmente tras haber superado el número máximo de intentos fallidos permitidos
+     * (HU-01, Criterio 3).
+     * <p>
+     * Además del mensaje legible, devuelve {@code bloqueadoHasta} para que el frontend pueda
+     * mostrar la hora de desbloqueo o un contador, y el encabezado estándar {@code Retry-After}
+     * con los segundos restantes del bloqueo.
+     * </p>
+     *
+     * @param ex      Excepción lanzada cuando la cuenta está en periodo de bloqueo temporal.
+     * @param request Petición HTTP recibida, usada para informar la URI solicitada.
+     * @return {@link ResponseEntity} con estado 423 LOCKED y el detalle del bloqueo.
+     */
     @ExceptionHandler(CuentaBloqueadaException.class)
-    public ResponseEntity<ErrorResponse> handleCuentaBloqueada(CuentaBloqueadaException ex) {
+    public ResponseEntity<ErrorResponse> handleCuentaBloqueada(CuentaBloqueadaException ex,
+                                                               HttpServletRequest request) {
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.LOCKED.value(),
@@ -125,9 +143,18 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 "CUENTA_BLOQUEADA",
                 null,
-                null
+                null,
+                request.getRequestURI(),
+                ex.getBloqueadoHasta()
         );
-        return ResponseEntity.status(HttpStatus.LOCKED).body(response);
+
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.LOCKED);
+        if (ex.getBloqueadoHasta() != null) {
+            long segundosRestantes = Math.max(0,
+                    Duration.between(LocalDateTime.now(), ex.getBloqueadoHasta()).getSeconds());
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(segundosRestantes));
+        }
+        return builder.body(response);
     }
     
 
