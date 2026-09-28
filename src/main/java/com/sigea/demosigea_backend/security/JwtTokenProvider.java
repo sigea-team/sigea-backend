@@ -68,6 +68,15 @@ public class JwtTokenProvider {
         return getEmailFromToken(token);
     }
 
+    public Date getIssuedAtFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getIssuedAt();
+    }
+
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromToken(String token) {
         Claims claims = Jwts.parser()

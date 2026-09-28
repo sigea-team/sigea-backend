@@ -199,6 +199,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Captura operaciones denegadas por reglas de negocio o violaciones de integridad referencial controlada.
+     *
+     * @param ex Excepción de operación no permitida.
+     * @return {@link ResponseEntity} con estado 409 CONFLICT.
+     */
+    @ExceptionHandler(OperacionNoPermitidaException.class)
+    public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                "OPERACION_NO_PERMITIDA",
+                null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
      * Manejador de último recurso (*fallback*) para capturar cualquier error no controlado explícitamente.
      *
      * @param ex Excepción general del sistema.
