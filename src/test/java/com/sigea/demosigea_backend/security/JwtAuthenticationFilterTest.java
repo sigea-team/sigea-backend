@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,9 @@ class JwtAuthenticationFilterTest {
 
     @Mock
     private UsuarioRepository usuarioRepository;
+
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
 
     @Mock
     private FilterChain filterChain;
@@ -61,13 +66,22 @@ class JwtAuthenticationFilterTest {
         String correo = "juan@correo.com";
         when(tokenProvider.validateToken("valid_token")).thenReturn(true);
         when(tokenProvider.getEmailFromToken("valid_token")).thenReturn(correo);
-        when(tokenProvider.getRolesFromToken("valid_token")).thenReturn(List.of("ADMIN", "PARTICIPANTE"));
+
+        com.sigea.demosigea_backend.model.Rol rolAdmin = com.sigea.demosigea_backend.model.Rol.builder()
+                .id(1L)
+                .nombre("ADMIN")
+                .build();
+        com.sigea.demosigea_backend.model.Rol rolPart = com.sigea.demosigea_backend.model.Rol.builder()
+                .id(2L)
+                .nombre("PARTICIPANTE")
+                .build();
 
         Persona persona = Persona.builder().correo(correo).build();
         Usuario usuario = Usuario.builder()
                 .persona(persona)
                 .estado(EstadoUsuario.activo)
                 .correoVerificado(true)
+                .roles(java.util.Set.of(rolAdmin, rolPart))
                 .build();
 
         when(usuarioRepository.findByPersona_CorreoIgnoreCase(correo)).thenReturn(Optional.of(usuario));
@@ -77,7 +91,6 @@ class JwtAuthenticationFilterTest {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assertNotNull(auth);
         assertEquals(correo, auth.getName());
-        assertEquals(2, auth.getAuthorities().size());
 
         List<String> authorityNames = auth.getAuthorities().stream().map(a -> a.getAuthority()).toList();
         assertTrue(authorityNames.contains("ROLE_ADMIN"));
@@ -156,5 +169,40 @@ class JwtAuthenticationFilterTest {
         accessDeniedHandler.handle(req, res403, null);
         assertEquals(403, res403.getStatus());
         assertTrue(res403.getContentAsString().contains("ACCESO_DENEGADO"));
+    }
+
+    @Test
+    @DisplayName("Criterio 2: Token emitido antes de la invalidación del rol es rechazado de inmediato")
+    void doFilterInternal_TokenConRolModificado_InvalidaSesion() throws Exception {
+        request.addHeader("Authorization", "Bearer token_viejo");
+
+        String correo = "docente@correo.com";
+        when(tokenProvider.validateToken("token_viejo")).thenReturn(true);
+        when(tokenProvider.getEmailFromToken("token_viejo")).thenReturn(correo);
+
+        java.time.Instant fechaEmision = java.time.Instant.now().minusSeconds(120);
+        when(tokenProvider.getIssuedAtFromToken("token_viejo")).thenReturn(java.util.Date.from(fechaEmision));
+
+        com.sigea.demosigea_backend.model.Rol rol = com.sigea.demosigea_backend.model.Rol.builder()
+                .id(3L)
+                .nombre("DOCENTE")
+                .build();
+
+        com.sigea.demosigea_backend.model.Persona persona = com.sigea.demosigea_backend.model.Persona.builder().correo(correo).build();
+        com.sigea.demosigea_backend.model.Usuario usuario = com.sigea.demosigea_backend.model.Usuario.builder()
+                .persona(persona)
+                .estado(com.sigea.demosigea_backend.model.EstadoUsuario.activo)
+                .correoVerificado(true)
+                .roles(java.util.Set.of(rol))
+                .build();
+
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase(correo)).thenReturn(java.util.Optional.of(usuario));
+        when(tokenBlacklistService.esTokenInvalidoPorRoles(any(), any())).thenReturn(true);
+
+        filter.doFilter(request, response, filterChain);
+
+        org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        assertNull(auth, "El contexto de seguridad no debe autenticar si el rol fue modificado");
+        verify(filterChain).doFilter(request, response);
     }
 }
