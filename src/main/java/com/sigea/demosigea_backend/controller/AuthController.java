@@ -8,6 +8,10 @@ import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
 import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionResponse;
 import com.sigea.demosigea_backend.dto.auth.RegistroRequest;
 import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
+import com.sigea.demosigea_backend.dto.auth.RestablecerContrasenaRequest;
+import com.sigea.demosigea_backend.dto.auth.RestablecerContrasenaResponse;
+import com.sigea.demosigea_backend.dto.auth.SolicitarRecuperacionRequest;
+import com.sigea.demosigea_backend.dto.auth.SolicitarRecuperacionResponse;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoRequest;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.service.AuthService;
@@ -195,4 +199,67 @@ public class AuthController {
         public ResponseEntity<List<AfiliacionResponse>> obtenerAfiliaciones() {
                 return ResponseEntity.ok(authService.obtenerAfiliaciones());
         }
+    /**
+     * Inicia la recuperación de contraseña (HU-32, Criterios 1 y 4).
+     * <p>
+     * Siempre responde HTTP 200 con el mismo mensaje genérico, exista o no una
+     * cuenta con el correo indicado, para no revelar esa información.
+     * </p>
+     *
+     * @param request correo de la cuenta que solicita recuperar su contraseña
+     * @return {@link SolicitarRecuperacionResponse} con el mensaje genérico (HTTP 200)
+     */
+    @Operation(
+            summary = "Solicitar recuperación de contraseña",
+            description = "Genera un token de recuperación y envía un enlace por correo si la cuenta existe. "
+                    + "Responde siempre el mismo mensaje genérico, exista o no el correo, para no revelar esa información."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Solicitud procesada (mensaje genérico)",
+                    content = @Content(schema = @Schema(implementation = SolicitarRecuperacionResponse.class)))
+    })
+    @PostMapping("/forgot-password")
+    public ResponseEntity<SolicitarRecuperacionResponse> solicitarRecuperacion(@Valid @RequestBody SolicitarRecuperacionRequest request) {
+        SolicitarRecuperacionResponse response = authService.solicitarRecuperacion(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Restablece la contraseña usando el token de recuperación (HU-32, Criterios 2 y 3).
+     *
+     * @param request token de recuperación y nueva contraseña
+     * @return {@link RestablecerContrasenaResponse} con la confirmación del cambio (HTTP 200)
+     */
+    @Operation(
+            summary = "Restablecer contraseña con token de recuperación",
+            description = "Valida el token de recuperación (no usado, no expirado), actualiza la contraseña "
+                    + "aplicando la misma política de seguridad del registro, y notifica el cambio por correo."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Contraseña actualizada exitosamente",
+                    content = @Content(schema = @Schema(implementation = RestablecerContrasenaResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Token inválido, expirado, ya utilizado, o contraseña que no cumple la política",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/reset-password")
+    public ResponseEntity<RestablecerContrasenaResponse> restablecerContrasena(@Valid @RequestBody RestablecerContrasenaRequest request) {
+        RestablecerContrasenaResponse response = authService.restablecerContrasena(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Obtiene el catálogo de afiliaciones institucionales.
+     * Endpoint público para poblar el combobox en el formulario de registro.
+     *
+     * @return Lista de {@link AfiliacionResponse} (HTTP 200)
+     */
+    @Operation(
+            summary = "Obtener catálogo de afiliaciones institucionales",
+            description = "Devuelve la lista de afiliaciones institucionales registradas en el sistema para consumo en formularios de registro."
+    )
+    @ApiResponse(responseCode = "200", description = "Lista de afiliaciones obtenida exitosamente")
+    @GetMapping("/afiliaciones")
+    public ResponseEntity<List<AfiliacionResponse>> obtenerAfiliaciones() {
+        return ResponseEntity.ok(authService.obtenerAfiliaciones());
+    }
 }

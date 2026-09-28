@@ -7,6 +7,10 @@ import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionRequest;
 import com.sigea.demosigea_backend.dto.auth.ReenviarVerificacionResponse;
 import com.sigea.demosigea_backend.dto.auth.RegistroRequest;
 import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
+import com.sigea.demosigea_backend.dto.auth.RestablecerContrasenaRequest;
+import com.sigea.demosigea_backend.dto.auth.RestablecerContrasenaResponse;
+import com.sigea.demosigea_backend.dto.auth.SolicitarRecuperacionRequest;
+import com.sigea.demosigea_backend.dto.auth.SolicitarRecuperacionResponse;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
@@ -78,6 +82,14 @@ public class AuthService {
     /** Nombre del rol inicial asignado a los nuevos usuarios (configurable vía {@code app.roles.default-initial}). */
     @Value("${app.roles.default-initial:PARTICIPANTE}")
     private String defaultRoleName;
+
+    /**
+     * Horas de vigencia de un token de recuperación de contraseña (HU-32, Criterio 1).
+     * Configurable vía {@code app.mail.reset-token-expiration-hours}; se deja mas corto
+     * que el de verificación (24h) por ser un flujo mas sensible en seguridad.
+     */
+    @Value("${app.mail.reset-token-expiration-hours:1}")
+    private int resetTokenExpirationHours;
 
     /**
      * Registra un nuevo usuario en el sistema SIGEA.
@@ -317,6 +329,102 @@ public class AuthService {
 
         return new ReenviarVerificacionResponse(
                 "Se ha enviado un nuevo enlace de verificación a su correo electrónico.",
+                usuario.getPersona().getCorreo()
+        );
+    }
+
+    /**
+     * Inicia el flujo de recuperación de contraseña (HU-32, Criterios 1 y 4).
+     * <p>
+     * Siempre responde con el mismo mensaje genérico, exista o no una cuenta con
+     * ese correo (Criterio 4): la diferencia de comportamiento (generar token y
+     * enviar el correo) ocurre solo internamente cuando sí existe, nunca se refleja
+     * en la respuesta ni en el tiempo de respuesta de forma que se pueda distinguir.
+     * </p>
+     *
+     * @param request correo de la cuenta que solicita recuperar su contraseña
+     * @return {@link SolicitarRecuperacionResponse} con el mensaje genérico
+     */
+    @Transactional
+    public SolicitarRecuperacionResponse solicitarRecuperacion(SolicitarRecuperacionRequest request) {
+        String correoNormalizado = request.correo().trim().toLowerCase();
+        String mensajeGenerico = "Si el correo está registrado, hemos enviado un enlace de recuperación "
+                + "con vigencia de " + resetTokenExpirationHours + " hora(s).";
+
+        usuarioRepository.findByPersona_CorreoIgnoreCase(correoNormalizado).ifPresent(usuario -> {
+            // Invalidar tokens de recuperación previos que no se hayan usado.
+            List<TokenRecuperacion> tokensPrevios =
+                    tokenRecuperacionRepository.findByUsuarioAndTipoAndUsadoFalse(usuario, TipoToken.recuperacion);
+            for (TokenRecuperacion t : tokensPrevios) {
+                t.setUsado(true);
+            }
+            tokenRecuperacionRepository.saveAll(tokensPrevios);
+
+            // Generar el nuevo token de recuperación.
+            String tokenUuid = UUID.randomUUID().toString();
+            TokenRecuperacion tokenRecuperacion = TokenRecuperacion.builder()
+                    .usuario(usuario)
+                    .token(tokenUuid)
+                    .tipo(TipoToken.recuperacion)
+                    .fechaGeneracion(LocalDateTime.now())
+                    .fechaExpiracion(LocalDateTime.now().plusHours(resetTokenExpirationHours))
+                    .usado(false)
+                    .build();
+            tokenRecuperacionRepository.save(tokenRecuperacion);
+
+            emailService.enviarCorreoRecuperacion(
+                    usuario.getPersona().getCorreo(),
+                    usuario.getPersona().getNombres(),
+                    tokenUuid
+            );
+        });
+
+        return new SolicitarRecuperacionResponse(mensajeGenerico);
+    }
+
+    /**
+     * Completa el restablecimiento de contraseña con un token de recuperación
+     * válido (HU-32, Criterios 2 y 3).
+     *
+     * @param request token de recuperación y nueva contraseña (ya validada por
+     *                Bean Validation contra la misma política que el registro)
+     * @return {@link RestablecerContrasenaResponse} con la confirmación del cambio
+     * @throws TokenInvalidoException si el token no existe, ya fue usado o expiró
+     */
+    @Transactional
+    public RestablecerContrasenaResponse restablecerContrasena(RestablecerContrasenaRequest request) {
+        TokenRecuperacion token = tokenRecuperacionRepository
+                .findByTokenAndTipo(request.token().trim(), TipoToken.recuperacion)
+                .orElseThrow(() -> new TokenInvalidoException(
+                        "El enlace o código de recuperación proporcionado no es válido."));
+
+        if (Boolean.TRUE.equals(token.getUsado())) {
+            throw new TokenInvalidoException(
+                    "Este enlace de recuperación ya fue utilizado. Solicita uno nuevo.");
+        }
+
+        if (token.getFechaExpiracion().isBefore(LocalDateTime.now())) {
+            throw new TokenInvalidoException(
+                    "El enlace de recuperación expiró. Solicita uno nuevo.");
+        }
+
+        // Marcar el token como usado (de un solo uso, igual que el de verificación).
+        token.setUsado(true);
+        tokenRecuperacionRepository.save(token);
+
+        // Actualizar la contraseña (la política de seguridad ya la valida el DTO).
+        Usuario usuario = token.getUsuario();
+        usuario.setContrasenaHash(passwordEncoder.encode(request.nuevaContrasena()));
+        usuarioRepository.save(usuario);
+
+        // Notificar el cambio al correo del usuario (Criterio 2).
+        emailService.enviarNotificacionCambioContrasena(
+                usuario.getPersona().getCorreo(),
+                usuario.getPersona().getNombres()
+        );
+
+        return new RestablecerContrasenaResponse(
+                "Tu contraseña fue actualizada correctamente. Te notificamos el cambio por correo electrónico.",
                 usuario.getPersona().getCorreo()
         );
     }
