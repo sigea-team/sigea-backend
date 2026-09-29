@@ -5,7 +5,9 @@ databaseChangeLog:
       file: db/changelog/changes/2-eliminar-afiliacion.sql
   - include:
       file: db/changelog/changes/3-bloqueo-login.sql
-- include:
-      file: db/changelog/changes/4-seed-permisos.sql
-- include:
-      file: db/changelog/changes/5-add-fecha-actualizacion-roles.sql
+  - include:
+      file: db/changelog/changes/3-seed-permisos.sql
+  - include:
+      file: db/changelog/changes/4-add-fecha-actualizacion-roles.sql
+  - include:
+      file: db/changelog/changes/5-auditoria-hu03.sql

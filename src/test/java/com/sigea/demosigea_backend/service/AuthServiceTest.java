@@ -80,6 +80,10 @@ class AuthServiceTest {
     @Mock
     private EmailService emailService;
 
+    /** HU-03: dependencia agregada a los servicios de negocio. */
+    @Mock
+    private AuditoriaService auditoriaService;
+
     @InjectMocks
     private AuthService authService;
 

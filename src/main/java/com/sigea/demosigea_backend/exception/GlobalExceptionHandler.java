@@ -4,6 +4,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -216,6 +219,82 @@ public class GlobalExceptionHandler {
                 null
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * HU-03, Criterio 3: intento de modificar o eliminar un registro de auditoría.
+     *
+     * @return {@link ResponseEntity} con estado 405 METHOD NOT ALLOWED.
+     */
+    @ExceptionHandler(RegistroAuditoriaInmutableException.class)
+    public ResponseEntity<ErrorResponse> handleAuditoriaInmutable(RegistroAuditoriaInmutableException ex,
+                                                                  HttpServletRequest request) {
+        return construir(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), "AUDITORIA_INMUTABLE", request);
+    }
+
+    /**
+     * Parámetros de consulta incoherentes (ej. rango de fechas invertido en el filtro de auditoría).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
+     */
+    @ExceptionHandler(SolicitudInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleSolicitudInvalida(SolicitudInvalidaException ex,
+                                                                 HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), "SOLICITUD_INVALIDA", request);
+    }
+
+    /**
+     * Parámetro con formato inválido (ej. fecha que no cumple yyyy-MM-dd).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTipoParametro(MethodArgumentTypeMismatchException ex,
+                                                             HttpServletRequest request) {
+        String mensaje = "El parámetro '" + ex.getName() + "' tiene un formato inválido.";
+        return construir(HttpStatus.BAD_REQUEST, mensaje, "PARAMETRO_INVALIDO", request);
+    }
+
+    /**
+     * Acceso denegado por {@code @PreAuthorize}. Sin este manejador la excepción caería en el
+     * manejador genérico y se respondería 500 en lugar de 403.
+     *
+     * @return {@link ResponseEntity} con estado 403 FORBIDDEN.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccesoDenegado(AccessDeniedException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.FORBIDDEN, "No tiene permisos para realizar esta operación.",
+                "ACCESO_DENEGADO", request);
+    }
+
+    /**
+     * Método HTTP no soportado por el endpoint (sin este manejador se respondería 500).
+     *
+     * @return {@link ResponseEntity} con estado 405 METHOD NOT ALLOWED.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMetodoNoSoportado(HttpRequestMethodNotSupportedException ex,
+                                                                 HttpServletRequest request) {
+        return construir(HttpStatus.METHOD_NOT_ALLOWED,
+                "El método " + ex.getMethod() + " no está permitido en este recurso.",
+                "METODO_NO_PERMITIDO", request);
+    }
+
+    private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,
+                                                    HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                mensaje,
+                codigo,
+                null,
+                null,
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(status).body(response);
     }
 
     /**

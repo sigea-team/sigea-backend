@@ -18,6 +18,7 @@ import com.sigea.demosigea_backend.exception.CuentaBloqueadaException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
+import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Afiliacion;
 import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Persona;
@@ -80,6 +81,8 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     /** Servicio de envío de correos electrónicos. */
     private final EmailService emailService;
+    /** Servicio de auditoría de operaciones críticas (HU-03). */
+    private final AuditoriaService auditoriaService;
 
     /** Nombre del rol inicial asignado a los nuevos usuarios (configurable vía {@code app.roles.default-initial}). */
     @Value("${app.roles.default-initial:PARTICIPANTE}")
@@ -185,6 +188,14 @@ public class AuthService {
                 .usado(false)
                 .build();
         tokenRecuperacionRepository.save(tokenVerificacion);
+
+        // HU-03: auditoría del registro. El actor es el propio usuario (flujo público, sin JWT).
+        auditoriaService.registrar(TipoOperacionAuditoria.USUARIO_REGISTRADO, "usuarios", usuarioGuardado.getId(),
+                DetalleAuditoria.de(
+                        "correo", personaGuardada.getCorreo(),
+                        "rolInicial", rolInicial.getNombre()
+                ),
+                usuarioGuardado);
 
         // 4. Enviar correo de verificación
         emailService.enviarCorreoVerificacion(
@@ -502,6 +513,11 @@ public class AuthService {
         Usuario usuario = token.getUsuario();
         usuario.setContrasenaHash(passwordEncoder.encode(request.nuevaContrasena()));
         usuarioRepository.save(usuario);
+
+        // HU-03: auditoría del restablecimiento (nunca se guarda la contraseña ni el token).
+        auditoriaService.registrar(TipoOperacionAuditoria.CONTRASENA_RESTABLECIDA, "usuarios", usuario.getId(),
+                DetalleAuditoria.de("metodo", "token_recuperacion"),
+                usuario);
 
         // Notificar el cambio al correo del usuario (Criterio 2).
         emailService.enviarNotificacionCambioContrasena(
