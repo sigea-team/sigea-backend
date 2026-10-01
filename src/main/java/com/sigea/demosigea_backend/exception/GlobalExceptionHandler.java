@@ -2,6 +2,8 @@ package com.sigea.demosigea_backend.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -174,6 +176,67 @@ public class GlobalExceptionHandler {
                 null
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * Operaciones que requieren confirmación explícita del usuario (HU-04, Criterio 5).
+     *
+     * @param ex Excepción de confirmación requerida.
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código CONFIRMACION_REQUERIDA.
+     */
+    @ExceptionHandler(ConfirmacionRequeridaException.class)
+    public ResponseEntity<ErrorResponse> handleConfirmacionRequerida(ConfirmacionRequeridaException ex) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                "CONFIRMACION_REQUERIDA",
+                null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * Cuerpo JSON malformado o con valores no convertibles (p. ej. una modalidad que no existe
+     * o una fecha con formato inválido).
+     *
+     * @param ex Excepción de lectura del cuerpo HTTP.
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMensajeIlegible(HttpMessageNotReadableException ex) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "El cuerpo de la petición es inválido: revise el formato JSON, las fechas (AAAA-MM-DD) y los valores permitidos.",
+                "VALIDACION_FALLIDA",
+                null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * Parámetros de ruta o de consulta con un tipo/valor no válido (p. ej. ?estado=inexistente).
+     *
+     * @param ex Excepción de conversión de argumento.
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTipoArgumentoInvalido(MethodArgumentTypeMismatchException ex) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "El valor '" + ex.getValue() + "' no es válido para el parámetro '" + ex.getName() + "'.",
+                "VALIDACION_FALLIDA",
+                null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**

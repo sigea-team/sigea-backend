@@ -246,20 +246,4 @@ public class AuthController {
         RestablecerContrasenaResponse response = authService.restablecerContrasena(request);
         return ResponseEntity.ok(response);
     }
-
-    /**
-     * Obtiene el catálogo de afiliaciones institucionales.
-     * Endpoint público para poblar el combobox en el formulario de registro.
-     *
-     * @return Lista de {@link AfiliacionResponse} (HTTP 200)
-     */
-    @Operation(
-            summary = "Obtener catálogo de afiliaciones institucionales",
-            description = "Devuelve la lista de afiliaciones institucionales registradas en el sistema para consumo en formularios de registro."
-    )
-    @ApiResponse(responseCode = "200", description = "Lista de afiliaciones obtenida exitosamente")
-    @GetMapping("/afiliaciones")
-    public ResponseEntity<List<AfiliacionResponse>> obtenerAfiliaciones() {
-        return ResponseEntity.ok(authService.obtenerAfiliaciones());
-    }
 }
