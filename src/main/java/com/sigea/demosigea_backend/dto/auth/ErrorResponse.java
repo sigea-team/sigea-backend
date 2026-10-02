@@ -26,6 +26,8 @@ import java.util.Map;
  * @param codigo Código de negocio o regla de dominio violada (ej. "CUENTA_YA_EXISTE", "CORREO_NO_VERIFICADO").
  * @param correo Dirección de correo asociada al flujo del error, utilizada principalmente en bloqueos de autenticación para facilitar acciones como el reenvío de enlaces.
  * @param erroresValidacion Mapa que contiene los nombres de los campos con fallas de validación como claves y sus respectivos mensajes de error como valores.
+ * @param path URI de la petición que originó el error.
+ * @param bloqueadoHasta Fecha y hora en que finaliza el bloqueo temporal de la cuenta (solo para {@code CUENTA_BLOQUEADA}).
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -53,6 +55,22 @@ public record ErrorResponse(
         String correo,
 
         @Schema(description = "Detalle de validación de campos inválidos")
-        Map<String, String> erroresValidacion
+        Map<String, String> erroresValidacion,
+
+        @Schema(description = "URI de la petición que originó el error", example = "/api/v1/auth/login")
+        String path,
+
+        @Schema(description = "Fecha y hora en que finaliza el bloqueo temporal de la cuenta", example = "2026-09-17T17:15:00")
+        LocalDateTime bloqueadoHasta
 ) {
+
+    /**
+     * Constructor de compatibilidad para los errores que no requieren {@code path}
+     * ni {@code bloqueadoHasta}. Ambos campos quedan en {@code null} y, gracias a
+     * {@link JsonInclude.Include#NON_NULL}, no se serializan en la respuesta.
+     */
+    public ErrorResponse(LocalDateTime timestamp, int status, String error, String message,
+                         String codigo, String correo, Map<String, String> erroresValidacion) {
+        this(timestamp, status, error, message, codigo, correo, erroresValidacion, null, null);
+    }
 }

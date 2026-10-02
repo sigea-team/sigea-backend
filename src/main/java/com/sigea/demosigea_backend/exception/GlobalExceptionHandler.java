@@ -1,7 +1,12 @@
 package com.sigea.demosigea_backend.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -9,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -115,6 +121,45 @@ public class GlobalExceptionHandler {
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
+    
+    /**
+     * Captura las peticiones de inicio de sesión sobre cuentas que se encuentran bloqueadas
+     * temporalmente tras haber superado el número máximo de intentos fallidos permitidos
+     * (HU-01, Criterio 3).
+     * <p>
+     * Además del mensaje legible, devuelve {@code bloqueadoHasta} para que el frontend pueda
+     * mostrar la hora de desbloqueo o un contador, y el encabezado estándar {@code Retry-After}
+     * con los segundos restantes del bloqueo.
+     * </p>
+     *
+     * @param ex      Excepción lanzada cuando la cuenta está en periodo de bloqueo temporal.
+     * @param request Petición HTTP recibida, usada para informar la URI solicitada.
+     * @return {@link ResponseEntity} con estado 423 LOCKED y el detalle del bloqueo.
+     */
+    @ExceptionHandler(CuentaBloqueadaException.class)
+    public ResponseEntity<ErrorResponse> handleCuentaBloqueada(CuentaBloqueadaException ex,
+                                                               HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.LOCKED.value(),
+                HttpStatus.LOCKED.getReasonPhrase(),
+                ex.getMessage(),
+                "CUENTA_BLOQUEADA",
+                null,
+                null,
+                request.getRequestURI(),
+                ex.getBloqueadoHasta()
+        );
+
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.LOCKED);
+        if (ex.getBloqueadoHasta() != null) {
+            long segundosRestantes = Math.max(0,
+                    Duration.between(LocalDateTime.now(), ex.getBloqueadoHasta()).getSeconds());
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(segundosRestantes));
+        }
+        return builder.body(response);
+    }
+    
 
     /**
      * Captura errores relacionados con tokens JWT o de verificación corruptos, expirados o malformados.
@@ -174,6 +219,82 @@ public class GlobalExceptionHandler {
                 null
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * HU-03, Criterio 3: intento de modificar o eliminar un registro de auditoría.
+     *
+     * @return {@link ResponseEntity} con estado 405 METHOD NOT ALLOWED.
+     */
+    @ExceptionHandler(RegistroAuditoriaInmutableException.class)
+    public ResponseEntity<ErrorResponse> handleAuditoriaInmutable(RegistroAuditoriaInmutableException ex,
+                                                                  HttpServletRequest request) {
+        return construir(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), "AUDITORIA_INMUTABLE", request);
+    }
+
+    /**
+     * Parámetros de consulta incoherentes (ej. rango de fechas invertido en el filtro de auditoría).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
+     */
+    @ExceptionHandler(SolicitudInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleSolicitudInvalida(SolicitudInvalidaException ex,
+                                                                 HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), "SOLICITUD_INVALIDA", request);
+    }
+
+    /**
+     * Parámetro con formato inválido (ej. fecha que no cumple yyyy-MM-dd).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTipoParametro(MethodArgumentTypeMismatchException ex,
+                                                             HttpServletRequest request) {
+        String mensaje = "El parámetro '" + ex.getName() + "' tiene un formato inválido.";
+        return construir(HttpStatus.BAD_REQUEST, mensaje, "PARAMETRO_INVALIDO", request);
+    }
+
+    /**
+     * Acceso denegado por {@code @PreAuthorize}. Sin este manejador la excepción caería en el
+     * manejador genérico y se respondería 500 en lugar de 403.
+     *
+     * @return {@link ResponseEntity} con estado 403 FORBIDDEN.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccesoDenegado(AccessDeniedException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.FORBIDDEN, "No tiene permisos para realizar esta operación.",
+                "ACCESO_DENEGADO", request);
+    }
+
+    /**
+     * Método HTTP no soportado por el endpoint (sin este manejador se respondería 500).
+     *
+     * @return {@link ResponseEntity} con estado 405 METHOD NOT ALLOWED.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMetodoNoSoportado(HttpRequestMethodNotSupportedException ex,
+                                                                 HttpServletRequest request) {
+        return construir(HttpStatus.METHOD_NOT_ALLOWED,
+                "El método " + ex.getMethod() + " no está permitido en este recurso.",
+                "METODO_NO_PERMITIDO", request);
+    }
+
+    private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,
+                                                    HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                mensaje,
+                codigo,
+                null,
+                null,
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(status).body(response);
     }
 
     /**

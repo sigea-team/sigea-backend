@@ -7,6 +7,7 @@ import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.Permiso;
 import com.sigea.demosigea_backend.model.Rol;
+import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.repository.PermisoRepository;
 import com.sigea.demosigea_backend.repository.RolRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RolService {
 
+    /** Nombre de la tabla afectada, usado en los registros de auditoría. */
+    private static final String ENTIDAD_ROLES = "roles";
+
     /** Repositorio de persistencia para la entidad {@link Rol}. */
     private final RolRepository rolRepository;
 
@@ -49,6 +54,9 @@ public class RolService {
 
     /** Servicio de invalidación de tokens y sesiones activas. */
     private final com.sigea.demosigea_backend.security.TokenBlacklistService tokenBlacklistService;
+
+    /** Servicio de auditoría de operaciones críticas (HU-03). */
+    private final AuditoriaService auditoriaService;
 
     /**
      * Recupera el catálogo completo de roles registrados en el sistema, incorporando
@@ -113,6 +121,10 @@ public class RolService {
         Rol rolGuardado = rolRepository.save(nuevoRol);
         log.info("Rol creado exitosamente: ID {}, Nombre {}", rolGuardado.getId(), rolGuardado.getNombre());
 
+        // HU-03: auditoría de la operación crítica (misma transacción)
+        auditoriaService.registrar(TipoOperacionAuditoria.ROL_CREADO, ENTIDAD_ROLES, rolGuardado.getId(),
+                DetalleAuditoria.de("despues", instantanea(rolGuardado)));
+
         return RolResponse.fromEntity(rolGuardado, 0, 0);
     }
 
@@ -139,6 +151,9 @@ public class RolService {
 
         String nombreNormalizado = request.nombre().trim().toUpperCase();
 
+        // HU-03: se captura el estado previo para registrar el "antes" y el "después"
+        Map<String, Object> estadoAnterior = instantanea(rol);
+
         if (rolRepository.existsByNombreIgnoreCaseAndIdNot(nombreNormalizado, id)) {
             throw new RecursoDuplicadoException("Ya existe otro rol registrado con el nombre: " + nombreNormalizado);
         }
@@ -155,6 +170,10 @@ public class RolService {
 
         // Invalida sesiones activas para usuarios con este rol garantizando efecto inmediato (Criterio 2)
         tokenBlacklistService.invalidarSesionesDeRol(id);
+
+        // HU-03: auditoría de la operación crítica "cambiar un rol"
+        auditoriaService.registrar(TipoOperacionAuditoria.ROL_ACTUALIZADO, ENTIDAD_ROLES, id,
+                DetalleAuditoria.de("antes", estadoAnterior, "despues", instantanea(rolActualizado)));
 
         long activos = rolRepository.countUsuariosActivosByRolId(id);
         long total = rolRepository.countTotalUsuariosByRolId(id);
@@ -184,8 +203,31 @@ public class RolService {
             );
         }
 
+        // HU-03: se captura el rol antes de borrarlo para conservar evidencia de lo eliminado
+        Map<String, Object> estadoEliminado = instantanea(rol);
+
         rolRepository.delete(rol);
         log.info("Rol eliminado exitosamente: ID {}, Nombre {}", id, rol.getNombre());
+
+        auditoriaService.registrar(TipoOperacionAuditoria.ROL_ELIMINADO, ENTIDAD_ROLES, id,
+                DetalleAuditoria.de("antes", estadoEliminado));
+    }
+
+    /**
+     * Construye una fotografía del rol (nombre, descripción y códigos de permisos ordenados)
+     * para guardarla como "datos afectados" en la auditoría (HU-03).
+     */
+    private Map<String, Object> instantanea(Rol rol) {
+        List<String> codigos = rol.getPermisos() == null ? List.of() : rol.getPermisos().stream()
+                .map(Permiso::getCodigo)
+                .filter(java.util.Objects::nonNull)
+                .sorted()
+                .toList();
+        return DetalleAuditoria.de(
+                "nombre", rol.getNombre(),
+                "descripcion", rol.getDescripcion(),
+                "permisos", codigos
+        );
     }
 
     /**

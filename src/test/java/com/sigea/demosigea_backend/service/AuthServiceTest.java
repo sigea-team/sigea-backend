@@ -9,6 +9,7 @@ import com.sigea.demosigea_backend.dto.auth.RegistroResponse;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
+import com.sigea.demosigea_backend.exception.CuentaBloqueadaException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
 import com.sigea.demosigea_backend.model.Afiliacion;
@@ -42,6 +43,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,12 +80,18 @@ class AuthServiceTest {
     @Mock
     private EmailService emailService;
 
+    /** HU-03: dependencia agregada a los servicios de negocio. */
+    @Mock
+    private AuditoriaService auditoriaService;
+
     @InjectMocks
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authService, "defaultRoleName", "PARTICIPANTE");
+        ReflectionTestUtils.setField(authService, "maxIntentosFallidos", 5);
+        ReflectionTestUtils.setField(authService, "minutosBloqueo", 15);
     }
 
     @Test
@@ -252,5 +260,61 @@ class AuthServiceTest {
         assertEquals("carlos@correo.com", response.correo());
         verify(tokenRecuperacionRepository).save(any(TokenRecuperacion.class));
         verify(emailService).enviarCorreoVerificacion(eq("carlos@correo.com"), eq("Carlos"), anyString());
+    }
+
+    private Usuario usuarioConIntentos(int intentos, LocalDateTime bloqueadoHasta) {
+        Persona persona = Persona.builder().id(1L).correo("carlos@correo.com").nombres("Carlos").apellidos("Gómez").build();
+        return Usuario.builder()
+                .id(1L)
+                .persona(persona)
+                .contrasenaHash("hash_pass")
+                .correoVerificado(true)
+                .estado(EstadoUsuario.activo)
+                .intentosFallidos(intentos)
+                .bloqueadoHasta(bloqueadoHasta)
+                .build();
+    }
+
+    @Test
+    @DisplayName("Criterio 3: con el bloqueo vigente se rechaza el login con CuentaBloqueadaException")
+    void login_BloqueoVigente_LanzaCuentaBloqueada() {
+        LocalDateTime hasta = LocalDateTime.now().plusMinutes(10);
+        Usuario usuario = usuarioConIntentos(5, hasta);
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
+
+        CuentaBloqueadaException ex = assertThrows(CuentaBloqueadaException.class,
+                () -> authService.login(new LoginRequest("carlos@correo.com", "Password123*")));
+
+        assertEquals(hasta, ex.getBloqueadoHasta());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Criterio 3: tras expirar el bloqueo, un intento fallido NO vuelve a bloquear la cuenta")
+    void login_BloqueoExpirado_ContrasenaIncorrecta_ReiniciaContador() {
+        Usuario usuario = usuarioConIntentos(5, LocalDateTime.now().minusMinutes(1));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("Incorrecta1*", "hash_pass")).thenReturn(false);
+
+        assertThrows(CredencialesInvalidasException.class,
+                () -> authService.login(new LoginRequest("carlos@correo.com", "Incorrecta1*")));
+
+        assertEquals(1, usuario.getIntentosFallidos());
+        assertNull(usuario.getBloqueadoHasta());
+    }
+
+    @Test
+    @DisplayName("Criterio 3: al alcanzar el máximo de intentos fallidos la cuenta se bloquea")
+    void login_QuintoIntentoFallido_BloqueaCuenta() {
+        Usuario usuario = usuarioConIntentos(4, null);
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("Incorrecta1*", "hash_pass")).thenReturn(false);
+
+        assertThrows(CredencialesInvalidasException.class,
+                () -> authService.login(new LoginRequest("carlos@correo.com", "Incorrecta1*")));
+
+        assertEquals(5, usuario.getIntentosFallidos());
+        assertNotNull(usuario.getBloqueadoHasta());
+        assertTrue(usuario.getBloqueadoHasta().isAfter(LocalDateTime.now()));
     }
 }
