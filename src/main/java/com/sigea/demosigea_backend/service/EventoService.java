@@ -13,6 +13,7 @@ import com.sigea.demosigea_backend.repository.EventoRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class EventoService {
+
+    /** Índice único de la base de datos: un semestre por familia (changeset 006). */
+    static final String INDICE_SEMESTRE_FAMILIA = "ux_eventos_familia_semestre";
 
     private final EventoRepository eventoRepository;
 
@@ -167,12 +171,9 @@ public class EventoService {
         validarRangoFechas(request.fechaInicio(), request.fechaFin());
 
         // El semestre debe ser único dentro de la familia (evento base + ediciones), igual que en
-        // crearEdicion. Aplica tanto a ediciones como al evento base; solo se valida si cambia,
-        // porque el propio evento aún conserva su semestre anterior en la base de datos.
+        // crearEdicion. Se valida siempre, contra toda la familia, excluyendo el propio registro.
         String nuevoSemestre = resolverSemestre(request.semestre(), request.fechaInicio());
-        if (!nuevoSemestre.equals(evento.getSemestre())) {
-            validarSemestreDisponible(resolverRaiz(evento).getId(), nuevoSemestre);
-        }
+        validarSemestreDisponible(resolverRaiz(evento).getId(), nuevoSemestre, evento.getId());
 
         evento.setNombre(request.nombre().trim());
         evento.setObjetivo(limpiar(request.objetivo()));
@@ -183,7 +184,7 @@ public class EventoService {
         evento.setFechaFin(request.fechaFin());
         evento.setSemestre(nuevoSemestre);
 
-        Evento actualizado = eventoRepository.save(evento);
+        Evento actualizado = guardarControlandoSemestre(evento);
         log.info("Evento actualizado: ID {}", actualizado.getId());
         return EventoResponse.fromEntity(actualizado);
     }
@@ -213,7 +214,7 @@ public class EventoService {
         validarRangoFechas(request.fechaInicio(), request.fechaFin());
 
         String semestre = resolverSemestre(request.semestre(), request.fechaInicio());
-        validarSemestreDisponible(raiz.getId(), semestre);
+        validarSemestreDisponible(raiz.getId(), semestre, null);
 
         String nombre = (request.nombre() == null || request.nombre().isBlank())
                 ? origen.getNombre()
@@ -232,7 +233,7 @@ public class EventoService {
                 .eventoBase(raiz)
                 .build();
 
-        Evento guardada = eventoRepository.save(edicion);
+        Evento guardada = guardarControlandoSemestre(edicion);
 
         log.info("Edición creada: ID {} a partir del evento {} (evento base {})",
                 guardada.getId(), origen.getId(), raiz.getId());
@@ -294,13 +295,17 @@ public class EventoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró el evento con ID: " + id));
     }
 
-    /** Devuelve el evento raíz de la familia (el propio evento si no es edición). */
+    /**
+     * Devuelve el evento raíz de la familia (el propio evento si no es edición).
+     * <p>
+     * La jerarquía tiene como máximo un nivel: {@link #crearEdicion} siempre vincula la nueva edición
+     * al evento raíz y {@link #actualizar} nunca modifica el vínculo. Por eso basta con un solo salto,
+     * sin recorrer la cadena; así tampoco hay riesgo de bucle infinito si la base de datos tuviera
+     * una relación cíclica creada manualmente.
+     * </p>
+     */
     private Evento resolverRaiz(Evento evento) {
-        Evento actual = evento;
-        while (actual.getEventoBase() != null) {
-            actual = actual.getEventoBase();
-        }
-        return actual;
+        return evento.getEventoBase() != null ? evento.getEventoBase() : evento;
     }
 
     private void validarRangoFechas(LocalDate inicio, LocalDate fin) {
@@ -312,12 +317,42 @@ public class EventoService {
         }
     }
 
-    private void validarSemestreDisponible(Long raizId, String semestre) {
-        if (eventoRepository.existsByIdAndSemestre(raizId, semestre)
-                || eventoRepository.existsByEventoBase_IdAndSemestre(raizId, semestre)) {
-            throw new OperacionNoPermitidaException(
-                    "Ya existe una edición de este evento para el semestre " + semestre + ".");
+    /**
+     * Verifica que el semestre no esté ocupado en la familia (evento base + ediciones).
+     *
+     * @param raizId    ID del evento raíz de la familia.
+     * @param semestre  Semestre a verificar.
+     * @param excluirId ID del evento que se está actualizando (no cuenta como duplicado); {@code null} al crear.
+     */
+    private void validarSemestreDisponible(Long raizId, String semestre, Long excluirId) {
+        boolean ocupado = excluirId == null
+                ? eventoRepository.existsByIdAndSemestre(raizId, semestre)
+                        || eventoRepository.existsByEventoBase_IdAndSemestre(raizId, semestre)
+                : eventoRepository.existsByIdAndSemestreAndIdNot(raizId, semestre, excluirId)
+                        || eventoRepository.existsByEventoBase_IdAndSemestreAndIdNot(raizId, semestre, excluirId);
+        if (ocupado) {
+            throw new OperacionNoPermitidaException(mensajeSemestreOcupado(semestre));
         }
+    }
+
+    /**
+     * Guarda inmediatamente (flush) para que, si dos peticiones simultáneas pasaron la validación,
+     * el índice único {@value #INDICE_SEMESTRE_FAMILIA} lo detecte aquí y se responda 409 en vez de 500.
+     */
+    private Evento guardarControlandoSemestre(Evento evento) {
+        try {
+            return eventoRepository.saveAndFlush(evento);
+        } catch (DataIntegrityViolationException ex) {
+            String detalle = ex.getMostSpecificCause().getMessage();
+            if (detalle != null && detalle.contains(INDICE_SEMESTRE_FAMILIA)) {
+                throw new OperacionNoPermitidaException(mensajeSemestreOcupado(evento.getSemestre()));
+            }
+            throw ex;
+        }
+    }
+
+    private static String mensajeSemestreOcupado(String semestre) {
+        return "Ya existe una edición de este evento para el semestre " + semestre + ".";
     }
 
     /**

@@ -42,7 +42,7 @@ public record NuevaEdicionRequest(
         LocalDate fechaFin,
 
         @Schema(description = "Semestre académico", example = "2027-2")
-        @Pattern(regexp = "^\\d{4}-[12]$", message = "El semestre debe tener el formato AAAA-1 o AAAA-2.")
+        @Pattern(regexp = "^\\s*\\d{4}-[12]\\s*$", message = "El semestre debe tener el formato AAAA-1 o AAAA-2.")
         String semestre
 ) {
     /**

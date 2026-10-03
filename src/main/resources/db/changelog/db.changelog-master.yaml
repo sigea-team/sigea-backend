@@ -11,3 +11,5 @@ databaseChangeLog:
       file: db/changelog/changes/4-add-fecha-actualizacion-roles.sql
   - include:
       file: db/changelog/changes/5-auditoria-hu03.sql
+  - include:
+      file: db/changelog/changes/6-eventos-semestre-unico-familia.sql

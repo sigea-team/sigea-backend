@@ -816,6 +816,14 @@
           "columns": [
             "semestre"
           ]
+        },
+        {
+          "name": "ux_eventos_familia_semestre",
+          "unique": true,
+          "columns": [
+            "COALESCE(evento_base_id, evento_id)",
+            "semestre"
+          ]
         }
       ],
       "java_entity": "Evento"

@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.evento.EdicionesEventoResponse;
 import com.sigea.demosigea_backend.dto.evento.EventoRequest;
 import com.sigea.demosigea_backend.dto.evento.EventoResponse;
 import com.sigea.demosigea_backend.dto.evento.NuevaEdicionRequest;
+import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.service.EventoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,7 +19,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,7 +30,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -94,7 +96,8 @@ public class EventoController {
     @PostMapping
     @PreAuthorize("hasAnyAuthority('EVENTOS_CREAR', 'ROLE_ADMIN', 'ADMIN')")
     public ResponseEntity<EventoResponse> crear(@Valid @RequestBody EventoRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventoService.crear(request));
+        EventoResponse creado = eventoService.crear(request);
+        return ResponseEntity.created(ubicacion(creado.id())).body(creado);
     }
 
     @Operation(summary = "Modificar configuración del evento",
@@ -135,7 +138,8 @@ public class EventoController {
             @PathVariable Long id,
             @Valid @RequestBody NuevaEdicionRequest request
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventoService.crearEdicion(id, request));
+        EventoResponse edicion = eventoService.crearEdicion(id, request);
+        return ResponseEntity.created(ubicacion(edicion.id())).body(edicion);
     }
 
     @Operation(summary = "Listar ediciones de un evento",
@@ -167,13 +171,45 @@ public class EventoController {
     @PreAuthorize("hasAnyAuthority('EVENTOS_ELIMINAR', 'ROLE_ADMIN', 'ADMIN')")
     public ResponseEntity<Map<String, String>> eliminar(
             @PathVariable Long id,
-            @Parameter(description = "Confirmación explícita de la eliminación", example = "true")
-            @RequestParam(defaultValue = "false") boolean confirmar
+            @Parameter(description = "Confirmación explícita de la eliminación: solo se acepta el valor true", example = "true")
+            @RequestParam(required = false) String confirmar
     ) {
-        eventoService.eliminar(id, confirmar);
+        eventoService.eliminar(id, esConfirmacionExplicita(confirmar));
         return ResponseEntity.ok(Map.of(
                 "mensaje", "Evento eliminado exitosamente.",
                 "eventoId", String.valueOf(id)
         ));
+    }
+
+    /**
+     * URL del recurso creado, para el encabezado {@code Location} de las respuestas 201.
+     *
+     * @param id ID del evento o edición creado.
+     * @return URI absoluta, p. ej. {@code http://localhost:8080/api/v1/eventos/5}.
+     */
+    private URI ubicacion(Long id) {
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/eventos/{id}")
+                .buildAndExpand(id)
+                .toUri();
+    }
+
+    /**
+     * Interpreta el parámetro {@code confirmar} de forma estricta: solo {@code "true"} confirma.
+     * Sin parámetro o con {@code "false"} no hay confirmación; cualquier otro valor (p. ej. {@code yes}
+     * o {@code 1}, que Spring aceptaría como verdadero) se rechaza para evitar ambigüedad.
+     *
+     * @param confirmar Valor recibido en la consulta.
+     * @return {@code true} solo si se recibió exactamente {@code "true"}.
+     */
+    private boolean esConfirmacionExplicita(String confirmar) {
+        if (confirmar == null || "false".equals(confirmar)) {
+            return false;
+        }
+        if ("true".equals(confirmar)) {
+            return true;
+        }
+        throw new ConfirmacionRequeridaException(
+                "El parámetro 'confirmar' solo admite el valor true. Envíe confirmar=true para confirmar la eliminación.");
     }
 }

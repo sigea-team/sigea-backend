@@ -39,10 +39,12 @@ public record EventoRequest(
         @Size(max = 200, message = "El nombre no puede superar los 200 caracteres.")
         String nombre,
 
-        @Schema(description = "Objetivo general del evento")
+        @Schema(description = "Objetivo general del evento (máx. 1000 caracteres)")
+        @Size(max = 1000, message = "El objetivo no puede superar los 1000 caracteres.")
         String objetivo,
 
-        @Schema(description = "Descripción del evento")
+        @Schema(description = "Descripción del evento (máx. 4000 caracteres)")
+        @Size(max = 4000, message = "La descripción no puede superar los 4000 caracteres.")
         String descripcion,
 
         @Schema(description = "Tipo de evento", example = "Congreso")
@@ -63,7 +65,7 @@ public record EventoRequest(
         LocalDate fechaFin,
 
         @Schema(description = "Semestre académico (si se omite se calcula desde la fecha de inicio)", example = "2026-2")
-        @Pattern(regexp = "^\\d{4}-[12]$", message = "El semestre debe tener el formato AAAA-1 o AAAA-2.")
+        @Pattern(regexp = "^\\s*\\d{4}-[12]\\s*$", message = "El semestre debe tener el formato AAAA-1 o AAAA-2.")
         String semestre
 ) {
     /**

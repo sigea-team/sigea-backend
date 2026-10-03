@@ -24,6 +24,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -72,7 +75,8 @@ class EventoControllerTest {
         mockMvc.perform(post("/api/v1/eventos").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.estado").value("en_configuracion"));
+                .andExpect(jsonPath("$.estado").value("en_configuracion"))
+                .andExpect(header().string("Location", "http://localhost/api/v1/eventos/1"));
     }
 
     @Test
@@ -118,7 +122,8 @@ class EventoControllerTest {
         mockMvc.perform(post("/api/v1/eventos/1/ediciones").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.eventoBaseId").value(1))
-                .andExpect(jsonPath("$.esEdicion").value(true));
+                .andExpect(jsonPath("$.esEdicion").value(true))
+                .andExpect(header().string("Location", "http://localhost/api/v1/eventos/2"));
     }
 
     @Test
@@ -166,5 +171,21 @@ class EventoControllerTest {
 
         mockMvc.perform(post("/api/v1/eventos").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Criterio 5: confirmar con un valor distinto de true (p. ej. yes) se rechaza sin eliminar")
+    void eliminar_confirmarAmbiguo_retorna409() throws Exception {
+        mockMvc.perform(delete("/api/v1/eventos/1").param("confirmar", "yes"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value("CONFIRMACION_REQUERIDA"));
+        verify(eventoService, never()).eliminar(anyLong(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("Criterio 5: confirmar=false equivale a no confirmar")
+    void eliminar_confirmarFalse_noConfirma() throws Exception {
+        mockMvc.perform(delete("/api/v1/eventos/1").param("confirmar", "false"));
+        verify(eventoService).eliminar(1L, false);
     }
 }

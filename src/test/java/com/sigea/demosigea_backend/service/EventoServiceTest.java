@@ -19,9 +19,11 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -96,7 +99,7 @@ class EventoServiceTest {
     void actualizar_exitoso() {
         Evento evento = eventoBase(EstadoEvento.en_configuracion);
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
-        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EventoRequest cambios = new EventoRequest("Congreso renombrado", null, null, "Seminario",
                 ModalidadEvento.hibrida, INICIO, FIN, null);
@@ -115,21 +118,21 @@ class EventoServiceTest {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.habilitado)));
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, requestValido()));
-        verify(eventoRepository, never()).save(any());
+        verify(eventoRepository, never()).saveAndFlush(any());
     }
 
     @Test
     @DisplayName("Criterio 2: el evento base no puede cambiar a un semestre que ya usa una de sus ediciones")
     void actualizar_baseConSemestreOcupadoPorEdicion_rechaza() {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
-        when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
-        when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(true);
+        when(eventoRepository.existsByIdAndSemestreAndIdNot(1L, "2027-2", 1L)).thenReturn(false);
+        when(eventoRepository.existsByEventoBase_IdAndSemestreAndIdNot(1L, "2027-2", 1L)).thenReturn(true);
 
         EventoRequest cambios = new EventoRequest("Congreso", null, null, "Congreso",
                 ModalidadEvento.presencial, INICIO, FIN, "2027-2");
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, cambios));
-        verify(eventoRepository, never()).save(any());
+        verify(eventoRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -141,25 +144,48 @@ class EventoServiceTest {
                 .fechaFin(LocalDate.of(2027, 10, 21)).semestre("2027-2")
                 .estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
         when(eventoRepository.findById(2L)).thenReturn(Optional.of(edicion));
-        when(eventoRepository.existsByIdAndSemestre(1L, "2026-2")).thenReturn(true);
+        when(eventoRepository.existsByIdAndSemestreAndIdNot(1L, "2026-2", 2L)).thenReturn(true);
 
         EventoRequest cambios = new EventoRequest("Congreso 2027", null, null, "Congreso",
                 ModalidadEvento.presencial, INICIO, FIN, "2026-2");
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(2L, cambios));
-        verify(eventoRepository, never()).save(any());
+        verify(eventoRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    @DisplayName("Criterio 2: si el semestre no cambia, no se vuelve a validar la unicidad")
-    void actualizar_mismoSemestre_noValidaUnicidad() {
+    @DisplayName("Criterio 2: la unicidad del semestre se valida siempre, excluyendo el propio registro")
+    void actualizar_validaSiempreExcluyendoElPropioRegistro() {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
-        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
 
         eventoService.actualizar(1L, requestValido()); // semestre derivado: 2026-2, igual al actual
 
-        verify(eventoRepository, never()).existsByIdAndSemestre(any(), any());
-        verify(eventoRepository, never()).existsByEventoBase_IdAndSemestre(any(), any());
+        verify(eventoRepository).existsByIdAndSemestreAndIdNot(1L, "2026-2", 1L);
+        verify(eventoRepository).existsByEventoBase_IdAndSemestreAndIdNot(1L, "2026-2", 1L);
+    }
+
+    @Test
+    @DisplayName("Criterio 2: si el índice único detecta un duplicado (concurrencia), responde como semestre ocupado")
+    void actualizar_violacionIndiceUnico_seTraduceAOperacionNoPermitida() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(new DataIntegrityViolationException(
+                "could not execute statement",
+                new RuntimeException("duplicate key value violates unique constraint \"ux_eventos_familia_semestre\"")));
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
+                () -> eventoService.actualizar(1L, requestValido()));
+        assertTrue(ex.getMessage().contains("2026-2"));
+    }
+
+    @Test
+    @DisplayName("Otras violaciones de integridad no se confunden con el semestre duplicado")
+    void actualizar_otraViolacionDeIntegridad_seRelanza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(new DataIntegrityViolationException(
+                "could not execute statement", new RuntimeException("violates check constraint \"eventos_check\"")));
+
+        assertThrows(DataIntegrityViolationException.class, () -> eventoService.actualizar(1L, requestValido()));
     }
 
     // ---------------- Criterio 3 ----------------
@@ -171,7 +197,7 @@ class EventoServiceTest {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(base));
         when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
         when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(false);
-        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> {
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenAnswer(inv -> {
             Evento e = inv.getArgument(0);
             e.setId(20L);
             return e;
@@ -183,7 +209,7 @@ class EventoServiceTest {
         EventoResponse response = eventoService.crearEdicion(1L, request);
 
         ArgumentCaptor<Evento> captor = ArgumentCaptor.forClass(Evento.class);
-        verify(eventoRepository).save(captor.capture());
+        verify(eventoRepository).saveAndFlush(captor.capture());
         Evento guardada = captor.getValue();
 
         assertEquals(20L, response.id());
@@ -212,7 +238,7 @@ class EventoServiceTest {
         when(eventoRepository.findById(5L)).thenReturn(Optional.of(edicion2026));
         when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
         when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(false);
-        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> {
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenAnswer(inv -> {
             Evento e = inv.getArgument(0);
             e.setId(21L);
             return e;
@@ -236,7 +262,7 @@ class EventoServiceTest {
         NuevaEdicionRequest request = new NuevaEdicionRequest(null, INICIO, FIN, null);
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.crearEdicion(1L, request));
-        verify(eventoRepository, never()).save(any());
+        verify(eventoRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -267,6 +293,23 @@ class EventoServiceTest {
         assertEquals(1L, response.ediciones().get(0).id());
         assertEquals(EstadoEvento.cerrado, response.ediciones().get(0).estado());
         assertEquals(EstadoEvento.en_configuracion, response.ediciones().get(1).estado());
+    }
+
+    @Test
+    @DisplayName("Una relación cíclica creada a mano en la base de datos no provoca un bucle infinito")
+    void listarEdiciones_jerarquiaCiclica_noSeBloquea() {
+        Evento a = Evento.builder().id(10L).nombre("A").tipo("Congreso")
+                .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).build();
+        Evento b = Evento.builder().id(11L).nombre("B").tipo("Congreso")
+                .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(a).build();
+        a.setEventoBase(b); // A -> B -> A
+        when(eventoRepository.findById(10L)).thenReturn(Optional.of(a));
+        when(eventoRepository.findByEventoBase_IdOrderByFechaInicioAscIdAsc(11L)).thenReturn(List.of(a));
+
+        EdicionesEventoResponse response = assertTimeoutPreemptively(Duration.ofSeconds(2),
+                () -> eventoService.listarEdiciones(10L));
+
+        assertEquals(11L, response.eventoBaseId());
     }
 
     // ---------------- Criterio 5 ----------------

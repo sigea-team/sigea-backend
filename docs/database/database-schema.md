@@ -272,6 +272,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 **Índices Definidos**:
 - Índice `idx_eventos_semestre` sobre (`semestre`)
+- Índice ÚNICO `ux_eventos_familia_semestre` sobre (`COALESCE(evento_base_id, evento_id)`, `semestre`): un semestre por familia de eventos (evento base + ediciones). HU-04, changeset 006.
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_base_id` -> [`eventos.evento_id`](#eventos) `DEFERRABLE INITIALLY IMMEDIATE`

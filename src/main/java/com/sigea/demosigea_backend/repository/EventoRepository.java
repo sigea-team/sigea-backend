@@ -32,4 +32,10 @@ public interface EventoRepository extends JpaRepository<Evento, Long>, JpaSpecif
 
     /** Indica si alguna edición derivada del evento base tiene el semestre dado. */
     boolean existsByEventoBase_IdAndSemestre(Long eventoBaseId, String semestre);
+
+    /** Como {@link #existsByIdAndSemestre}, pero sin contar el evento {@code excluirId} (usado al actualizar). */
+    boolean existsByIdAndSemestreAndIdNot(Long id, String semestre, Long excluirId);
+
+    /** Como {@link #existsByEventoBase_IdAndSemestre}, pero sin contar el evento {@code excluirId} (usado al actualizar). */
+    boolean existsByEventoBase_IdAndSemestreAndIdNot(Long eventoBaseId, String semestre, Long excluirId);
 }

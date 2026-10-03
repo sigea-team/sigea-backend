@@ -3549,6 +3549,14 @@ CREATE INDEX idx_eventos_semestre ON public.eventos USING btree (semestre);
 
 
 --
+-- Name: ux_eventos_familia_semestre; Type: INDEX; Schema: public; Owner: neondb_owner
+-- HU-04: un semestre por familia de eventos (evento base + ediciones). Changeset 006.
+--
+
+CREATE UNIQUE INDEX ux_eventos_familia_semestre ON public.eventos USING btree ((COALESCE(evento_base_id, evento_id)), semestre);
+
+
+--
 -- TOC entry 3688 (class 1259 OID 25194)
 -- Name: idx_inscripciones_evento; Type: INDEX; Schema: public; Owner: neondb_owner
 --
