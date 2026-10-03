@@ -1,0 +1,328 @@
+package com.sigea.demosigea_backend.service;
+
+import com.sigea.demosigea_backend.dto.evento.EdicionesEventoResponse;
+import com.sigea.demosigea_backend.dto.evento.EventoRequest;
+import com.sigea.demosigea_backend.dto.evento.EventoResponse;
+import com.sigea.demosigea_backend.dto.evento.NuevaEdicionRequest;
+import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
+import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
+import com.sigea.demosigea_backend.model.EstadoEvento;
+import com.sigea.demosigea_backend.model.Evento;
+import com.sigea.demosigea_backend.model.ModalidadEvento;
+import com.sigea.demosigea_backend.repository.EventoRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class EventoServiceTest {
+
+    @Mock
+    private EventoRepository eventoRepository;
+
+    @InjectMocks
+    private EventoService eventoService;
+
+    private static final LocalDate INICIO = LocalDate.of(2026, 10, 20);
+    private static final LocalDate FIN = LocalDate.of(2026, 10, 22);
+
+    private EventoRequest requestValido() {
+        return new EventoRequest("Congreso de Ingeniería de Sistemas", "Objetivo", "Descripción",
+                "Congreso", ModalidadEvento.presencial, INICIO, FIN, null);
+    }
+
+    private Evento eventoBase(EstadoEvento estado) {
+        return Evento.builder()
+                .id(1L).nombre("Congreso de Ingeniería de Sistemas").objetivo("Objetivo").descripcion("Descripción")
+                .tipo("Congreso").modalidad(ModalidadEvento.presencial)
+                .fechaInicio(INICIO).fechaFin(FIN).semestre("2026-2").estado(estado)
+                .build();
+    }
+
+    // ---------------- Criterio 1 ----------------
+
+    @Test
+    @DisplayName("Criterio 1: crea el evento en estado en_configuracion y deriva el semestre")
+    void crear_quedaEnConfiguracion() {
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> {
+            Evento e = inv.getArgument(0);
+            e.setId(10L);
+            return e;
+        });
+
+        EventoResponse response = eventoService.crear(requestValido());
+
+        assertEquals(10L, response.id());
+        assertEquals(EstadoEvento.en_configuracion, response.estado());
+        assertEquals("2026-2", response.semestre());
+        assertFalse(response.esEdicion());
+        assertNull(response.eventoBaseId());
+    }
+
+    @Test
+    @DisplayName("Semestre: enero-junio → AAAA-1, julio-diciembre → AAAA-2, y respeta el enviado")
+    void resolverSemestre() {
+        assertEquals("2026-1", EventoService.resolverSemestre(null, LocalDate.of(2026, 3, 1)));
+        assertEquals("2026-2", EventoService.resolverSemestre(" ", LocalDate.of(2026, 7, 1)));
+        assertEquals("2025-1", EventoService.resolverSemestre("2025-1", LocalDate.of(2026, 7, 1)));
+    }
+
+    // ---------------- Criterio 2 ----------------
+
+    @Test
+    @DisplayName("Criterio 2: actualiza la configuración de un evento en configuración")
+    void actualizar_exitoso() {
+        Evento evento = eventoBase(EstadoEvento.en_configuracion);
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoRequest cambios = new EventoRequest("Congreso renombrado", null, null, "Seminario",
+                ModalidadEvento.hibrida, INICIO, FIN, null);
+
+        EventoResponse response = eventoService.actualizar(1L, cambios);
+
+        assertEquals("Congreso renombrado", response.nombre());
+        assertEquals("Seminario", response.tipo());
+        assertEquals(ModalidadEvento.hibrida, response.modalidad());
+        assertEquals(EstadoEvento.en_configuracion, response.estado());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: no permite modificar un evento ya publicado")
+    void actualizar_eventoPublicado_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.habilitado)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, requestValido()));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: el evento base no puede cambiar a un semestre que ya usa una de sus ediciones")
+    void actualizar_baseConSemestreOcupadoPorEdicion_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(true);
+
+        EventoRequest cambios = new EventoRequest("Congreso", null, null, "Congreso",
+                ModalidadEvento.presencial, INICIO, FIN, "2027-2");
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, cambios));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: una edición no puede cambiar a un semestre ya usado en su familia")
+    void actualizar_edicionConSemestreOcupado_rechaza() {
+        Evento raiz = eventoBase(EstadoEvento.cerrado);
+        Evento edicion = Evento.builder().id(2L).nombre("Congreso 2027").tipo("Congreso")
+                .modalidad(ModalidadEvento.presencial).fechaInicio(LocalDate.of(2027, 10, 19))
+                .fechaFin(LocalDate.of(2027, 10, 21)).semestre("2027-2")
+                .estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
+        when(eventoRepository.findById(2L)).thenReturn(Optional.of(edicion));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2026-2")).thenReturn(true);
+
+        EventoRequest cambios = new EventoRequest("Congreso 2027", null, null, "Congreso",
+                ModalidadEvento.presencial, INICIO, FIN, "2026-2");
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(2L, cambios));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: si el semestre no cambia, no se vuelve a validar la unicidad")
+    void actualizar_mismoSemestre_noValidaUnicidad() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventoService.actualizar(1L, requestValido()); // semestre derivado: 2026-2, igual al actual
+
+        verify(eventoRepository, never()).existsByIdAndSemestre(any(), any());
+        verify(eventoRepository, never()).existsByEventoBase_IdAndSemestre(any(), any());
+    }
+
+    // ---------------- Criterio 3 ----------------
+
+    @Test
+    @DisplayName("Criterio 3: crea una edición vinculada al base, heredando su configuración general")
+    void crearEdicion_exitoso() {
+        Evento base = eventoBase(EstadoEvento.cerrado);
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(base));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> {
+            Evento e = inv.getArgument(0);
+            e.setId(20L);
+            return e;
+        });
+
+        NuevaEdicionRequest request = new NuevaEdicionRequest(null,
+                LocalDate.of(2027, 10, 19), LocalDate.of(2027, 10, 21), null);
+
+        EventoResponse response = eventoService.crearEdicion(1L, request);
+
+        ArgumentCaptor<Evento> captor = ArgumentCaptor.forClass(Evento.class);
+        verify(eventoRepository).save(captor.capture());
+        Evento guardada = captor.getValue();
+
+        assertEquals(20L, response.id());
+        assertTrue(response.esEdicion());
+        assertEquals(1L, response.eventoBaseId());
+        assertEquals(EstadoEvento.en_configuracion, response.estado());
+        assertEquals("2027-2", response.semestre());
+        assertEquals(base.getNombre(), guardada.getNombre());
+        assertEquals(base.getObjetivo(), guardada.getObjetivo());
+        assertEquals(base.getDescripcion(), guardada.getDescripcion());
+        assertEquals(base.getTipo(), guardada.getTipo());
+        assertEquals(base.getModalidad(), guardada.getModalidad());
+        // El evento origen no se modifica
+        assertEquals(EstadoEvento.cerrado, base.getEstado());
+        assertEquals(INICIO, base.getFechaInicio());
+    }
+
+    @Test
+    @DisplayName("Criterio 3: una edición creada desde otra edición queda vinculada al evento raíz")
+    void crearEdicion_desdeOtraEdicion_apuntaAlRaiz() {
+        Evento raiz = eventoBase(EstadoEvento.cerrado);
+        Evento edicion2026 = Evento.builder().id(5L).nombre("Congreso 2026").tipo("Congreso")
+                .modalidad(ModalidadEvento.virtual).fechaInicio(INICIO).fechaFin(FIN)
+                .semestre("2026-2").estado(EstadoEvento.cerrado).eventoBase(raiz).build();
+
+        when(eventoRepository.findById(5L)).thenReturn(Optional.of(edicion2026));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> {
+            Evento e = inv.getArgument(0);
+            e.setId(21L);
+            return e;
+        });
+
+        NuevaEdicionRequest request = new NuevaEdicionRequest("Congreso 2027",
+                LocalDate.of(2027, 10, 19), LocalDate.of(2027, 10, 21), "2027-2");
+
+        EventoResponse response = eventoService.crearEdicion(5L, request);
+
+        assertEquals(1L, response.eventoBaseId());
+        assertEquals(ModalidadEvento.virtual, response.modalidad()); // hereda del origen inmediato
+    }
+
+    @Test
+    @DisplayName("Criterio 3: rechaza una edición duplicada para el mismo semestre")
+    void crearEdicion_semestreDuplicado_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.cerrado)));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2026-2")).thenReturn(true);
+
+        NuevaEdicionRequest request = new NuevaEdicionRequest(null, INICIO, FIN, null);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.crearEdicion(1L, request));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 3: evento origen inexistente → 404")
+    void crearEdicion_origenInexistente() {
+        when(eventoRepository.findById(99L)).thenReturn(Optional.empty());
+        NuevaEdicionRequest request = new NuevaEdicionRequest(null, INICIO, FIN, null);
+        assertThrows(RecursoNoEncontradoException.class, () -> eventoService.crearEdicion(99L, request));
+    }
+
+    // ---------------- Criterio 4 ----------------
+
+    @Test
+    @DisplayName("Criterio 4: lista las ediciones de la familia aunque se consulte desde una edición")
+    void listarEdiciones_desdeEdicion() {
+        Evento raiz = eventoBase(EstadoEvento.cerrado);
+        Evento e2 = Evento.builder().id(2L).nombre("Congreso 2027").tipo("Congreso")
+                .fechaInicio(LocalDate.of(2027, 10, 19)).fechaFin(LocalDate.of(2027, 10, 21))
+                .semestre("2027-2").estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
+
+        when(eventoRepository.findById(2L)).thenReturn(Optional.of(e2));
+        when(eventoRepository.findByEventoBase_IdOrderByFechaInicioAscIdAsc(1L)).thenReturn(List.of(e2));
+
+        EdicionesEventoResponse response = eventoService.listarEdiciones(2L);
+
+        assertEquals(1L, response.eventoBaseId());
+        assertEquals(2, response.totalEdiciones());
+        assertEquals(1L, response.ediciones().get(0).id());
+        assertEquals(EstadoEvento.cerrado, response.ediciones().get(0).estado());
+        assertEquals(EstadoEvento.en_configuracion, response.ediciones().get(1).estado());
+    }
+
+    // ---------------- Criterio 5 ----------------
+
+    @Test
+    @DisplayName("Criterio 5: eliminar sin confirmación explícita exige confirmación")
+    void eliminar_sinConfirmar_exigeConfirmacion() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.countByEventoBase_Id(1L)).thenReturn(0L);
+
+        assertThrows(ConfirmacionRequeridaException.class, () -> eventoService.eliminar(1L, false));
+        verify(eventoRepository, never()).delete(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Criterio 5: con confirmación explícita se elimina")
+    void eliminar_confirmado() {
+        Evento evento = eventoBase(EstadoEvento.en_configuracion);
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
+        when(eventoRepository.countByEventoBase_Id(1L)).thenReturn(0L);
+
+        eventoService.eliminar(1L, true);
+
+        verify(eventoRepository).delete(evento);
+    }
+
+    @Test
+    @DisplayName("Criterio 5: no elimina un evento base con ediciones derivadas (integridad histórica)")
+    void eliminar_baseConEdiciones_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.countByEventoBase_Id(1L)).thenReturn(2L);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.eliminar(1L, true));
+        verify(eventoRepository, never()).delete(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Criterio 5: no elimina un evento que ya no está en configuración")
+    void eliminar_eventoPublicado_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.cerrado)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.eliminar(1L, true));
+        verify(eventoRepository, never()).delete(any(Evento.class));
+    }
+
+    // ---------------- Listado ----------------
+
+    @Test
+    @DisplayName("Listar: aplica filtros opcionales mediante Specification")
+    void listar_conFiltros() {
+        when(eventoRepository.findAll(ArgumentMatchers.<Specification<Evento>>any(), any(Sort.class)))
+                .thenReturn(List.of(eventoBase(EstadoEvento.habilitado)));
+
+        List<EventoResponse> resultado = eventoService.listar(EstadoEvento.habilitado, "  ");
+
+        assertEquals(1, resultado.size());
+        assertEquals(EstadoEvento.habilitado, resultado.get(0).estado());
+    }
+}

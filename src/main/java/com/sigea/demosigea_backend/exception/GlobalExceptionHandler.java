@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -222,6 +223,31 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Operaciones que requieren confirmación explícita del usuario (HU-04, Criterio 5).
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código CONFIRMACION_REQUERIDA.
+     */
+    @ExceptionHandler(ConfirmacionRequeridaException.class)
+    public ResponseEntity<ErrorResponse> handleConfirmacionRequerida(ConfirmacionRequeridaException ex,
+                                                                     HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "CONFIRMACION_REQUERIDA", request);
+    }
+
+    /**
+     * Cuerpo JSON malformado o con valores no convertibles (p. ej. una modalidad que no existe
+     * o una fecha con formato inválido).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMensajeIlegible(HttpMessageNotReadableException ex,
+                                                               HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST,
+                "El cuerpo de la petición es inválido: revise el formato JSON, las fechas (AAAA-MM-DD) y los valores permitidos.",
+                "VALIDACION_FALLIDA", request);
+    }
+
+    /**
      * HU-03, Criterio 3: intento de modificar o eliminar un registro de auditoría.
      *
      * @return {@link ResponseEntity} con estado 405 METHOD NOT ALLOWED.
@@ -244,7 +270,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Parámetro con formato inválido (ej. fecha que no cumple yyyy-MM-dd).
+     * Parámetro con formato inválido (ej. fecha que no cumple yyyy-MM-dd o un estado de evento inexistente).
      *
      * @return {@link ResponseEntity} con estado 400 BAD REQUEST.
      */
