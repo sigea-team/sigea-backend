@@ -45,6 +45,10 @@ class RolServiceTest {
     @Mock
     private com.sigea.demosigea_backend.security.TokenBlacklistService tokenBlacklistService;
 
+    /** HU-03: dependencia agregada a los servicios de negocio. */
+    @Mock
+    private AuditoriaService auditoriaService;
+
     @InjectMocks
     private RolService rolService;
 

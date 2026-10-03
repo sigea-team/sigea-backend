@@ -238,6 +238,11 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Relaciones Foráneas Salientes**:
 - Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `DEFERRABLE INITIALLY IMMEDIATE`
 
+**Reglas adicionales (HU-03, changelog `5-auditoria-hu03.sql`)**:
+- Tabla de solo inserción: el trigger `trg_auditoria_inmutable` (función `fn_auditoria_inmutable`) rechaza `UPDATE` y `DELETE`, y `trg_auditoria_no_truncate` rechaza `TRUNCATE`.
+- Índices: `idx_auditoria_fecha_hora`, `idx_auditoria_usuario`, `idx_auditoria_accion` (filtros del log).
+- `accion` guarda el nombre de una constante de `TipoOperacionAuditoria`; `entidad` el nombre de la tabla afectada; `detalle` un JSON con los datos afectados.
+
 ---
 
 ## 2. Gestión de Eventos y Organización

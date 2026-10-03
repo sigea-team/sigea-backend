@@ -99,4 +99,12 @@ public class Usuario {
             inverseJoinColumns = @JoinColumn(name = "rol_id")
     )
     private Set<Rol> roles = new HashSet<>();
+	    
+    @Builder.Default
+    @Column(name = "intentos_fallidos", nullable = false)
+    private Integer intentosFallidos = 0;
+
+    @Column(name = "bloqueado_hasta")
+    private LocalDateTime bloqueadoHasta;
+    
 }

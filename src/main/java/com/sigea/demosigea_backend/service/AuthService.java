@@ -14,9 +14,11 @@ import com.sigea.demosigea_backend.dto.auth.SolicitarRecuperacionResponse;
 import com.sigea.demosigea_backend.dto.auth.VerificarCorreoResponse;
 import com.sigea.demosigea_backend.exception.CorreoNoVerificadoException;
 import com.sigea.demosigea_backend.exception.CredencialesInvalidasException;
+import com.sigea.demosigea_backend.exception.CuentaBloqueadaException;
 import com.sigea.demosigea_backend.exception.RecursoDuplicadoException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.TokenInvalidoException;
+import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Afiliacion;
 import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Persona;
@@ -39,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,10 +81,20 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     /** Servicio de envío de correos electrónicos. */
     private final EmailService emailService;
+    /** Servicio de auditoría de operaciones críticas (HU-03). */
+    private final AuditoriaService auditoriaService;
 
     /** Nombre del rol inicial asignado a los nuevos usuarios (configurable vía {@code app.roles.default-initial}). */
     @Value("${app.roles.default-initial:PARTICIPANTE}")
     private String defaultRoleName;
+
+    /** Número máximo de intentos fallidos consecutivos antes de bloquear la cuenta (HU-01, Criterio 3). */
+    @Value("${app.security.max-intentos-fallidos:5}")
+    private int maxIntentosFallidos;
+
+    /** Minutos que dura el bloqueo temporal de la cuenta tras superar los intentos fallidos (HU-01, Criterio 3). */
+    @Value("${app.security.minutos-bloqueo:15}")
+    private int minutosBloqueo;
 
     /**
      * Horas de vigencia de un token de recuperación de contraseña (HU-32, Criterio 1).
@@ -176,6 +189,14 @@ public class AuthService {
                 .build();
         tokenRecuperacionRepository.save(tokenVerificacion);
 
+        // HU-03: auditoría del registro. El actor es el propio usuario (flujo público, sin JWT).
+        auditoriaService.registrar(TipoOperacionAuditoria.USUARIO_REGISTRADO, "usuarios", usuarioGuardado.getId(),
+                DetalleAuditoria.de(
+                        "correo", personaGuardada.getCorreo(),
+                        "rolInicial", rolInicial.getNombre()
+                ),
+                usuarioGuardado);
+
         // 4. Enviar correo de verificación
         emailService.enviarCorreoVerificacion(
                 personaGuardada.getCorreo(),
@@ -230,23 +251,61 @@ public class AuthService {
 
     /**
      * Autentica un usuario en el sistema mediante su correo electrónico y contraseña.
+     * <p>
+     * Se declara {@code noRollbackFor} porque estas excepciones de negocio se lanzan DESPUÉS de
+     * actualizar el contador de intentos fallidos. Sin esta configuración, Spring revertiría la
+     * transacción al propagarse la excepción (son {@link RuntimeException}) y el contador y el
+     * bloqueo nunca quedarían persistidos en la base de datos.
+     * </p>
      *
      * @param request credenciales de inicio de sesión (correo + contraseña)
      * @return {@link LoginResponse} con token JWT, datos del usuario y lista de roles
      * @throws CredencialesInvalidasException si el usuario no existe, la contraseña no coincide o la cuenta no está activa
      * @throws CorreoNoVerificadoException si el correo electrónico del usuario aún no ha sido verificado
+          * @throws CuentaBloqueadaException si la cuenta está bloqueada temporalmente por intentos fallidos (HU-01, Criterio 3)
      */
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = {
+            CredencialesInvalidasException.class,
+            CuentaBloqueadaException.class,
+            CorreoNoVerificadoException.class
+    })
     public LoginResponse login(LoginRequest request) {
         String correoNormalizado = request.correo().trim().toLowerCase();
 
         Usuario usuario = usuarioRepository.findByPersona_CorreoIgnoreCase(correoNormalizado)
                 .orElseThrow(() -> new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña."));
 
+        LocalDateTime ahora = LocalDateTime.now();
+
+        if (usuario.getBloqueadoHasta() != null) {
+            if (usuario.getBloqueadoHasta().isAfter(ahora)) {
+                // Criterio 3 (HU-01): la cuenta sigue bloqueada por intentos fallidos previos.
+                LocalDateTime bloqueadoHasta = usuario.getBloqueadoHasta();
+                throw new CuentaBloqueadaException(mensajeBloqueo(bloqueadoHasta), bloqueadoHasta);
+            }
+
+            // El bloqueo ya expiró: se reinicia el contador ANTES de validar la contraseña.
+            // Sin este reinicio el contador quedaría en el máximo y un solo intento fallido
+            // posterior volvería a bloquear la cuenta de inmediato.
+            reiniciarIntentosFallidos(usuario);
+        }
+
         if (!passwordEncoder.matches(request.contrasena(), usuario.getContrasenaHash())) {
+            LocalDateTime bloqueadoHasta = registrarIntentoFallido(usuario);
+            if (bloqueadoHasta != null) {
+                // Criterio 3 (HU-01): este intento fue el que alcanzó el máximo permitido.
+                // Se notifica el bloqueo de inmediato (423) en lugar del 401 genérico,
+                // para que el usuario sepa por qué ya no puede ingresar y hasta cuándo.
+                throw new CuentaBloqueadaException(mensajeBloqueo(bloqueadoHasta), bloqueadoHasta);
+            }
             throw new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña.");
         }
 
+        // Login con contraseña correcta: se reinicia el contador de intentos fallidos si aplica.
+        if (usuario.getIntentosFallidos() != null && usuario.getIntentosFallidos() > 0) {
+            reiniciarIntentosFallidos(usuario);
+        }
+        
         if (!Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             throw new CorreoNoVerificadoException(
                     "No se puede iniciar sesión: Su correo electrónico aún no ha sido verificado. Por favor revise su bandeja de entrada o solicite el reenvío del enlace de verificación.",
@@ -278,6 +337,62 @@ public class AuthService {
                 nombreCompleto,
                 rolesNombres
         );
+    }
+    
+    /**
+     * Reinicia el contador de intentos fallidos y elimina la marca de bloqueo temporal.
+     * <p>
+     * Se invoca cuando el usuario inicia sesión correctamente o cuando el periodo de
+     * bloqueo ({@code bloqueadoHasta}) ya expiró, de modo que el usuario recupere el
+     * número completo de intentos permitidos (HU-01, Criterio 3).
+     * </p>
+     *
+     * @param usuario usuario cuyo contador de intentos se reinicia
+     */
+    private void reiniciarIntentosFallidos(Usuario usuario) {
+        usuario.setIntentosFallidos(0);
+        usuario.setBloqueadoHasta(null);
+        usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Incrementa el contador de intentos fallidos de un usuario y, si se alcanza o supera
+     * el máximo configurado ({@code app.security.max-intentos-fallidos}), bloquea la cuenta
+     * temporalmente durante {@code app.security.minutos-bloqueo} minutos.
+     * <p>
+     * Corresponde al Criterio 3 de la historia de usuario HU-01 (RF01 - Autenticar usuario).
+     * </p>
+     *
+     * @param usuario usuario sobre el que se registra el intento fallido de autenticación
+     * @return la fecha y hora de fin del bloqueo si este intento bloqueó la cuenta, o {@code null}
+     */
+    private LocalDateTime registrarIntentoFallido(Usuario usuario) {
+        int intentosPrevios = usuario.getIntentosFallidos() == null ? 0 : usuario.getIntentosFallidos();
+        int intentos = intentosPrevios + 1;
+        usuario.setIntentosFallidos(intentos);
+        
+        LocalDateTime bloqueadoHasta = null;
+        if (intentos >= maxIntentosFallidos) {
+            bloqueadoHasta = LocalDateTime.now().plusMinutes(minutosBloqueo);
+            usuario.setBloqueadoHasta(bloqueadoHasta);
+            log.warn("Cuenta bloqueada temporalmente por intentos fallidos: usuarioId={}, intentos={}",
+                    usuario.getId(), intentos);
+        }
+
+        usuarioRepository.save(usuario);
+        return bloqueadoHasta;
+    }
+
+    /**
+     * Mensaje para el usuario cuando su cuenta está bloqueada (HU-01, Criterio 3).
+     *
+     * @param bloqueadoHasta fecha y hora de fin del bloqueo
+     * @return mensaje con la hora a partir de la cual podrá volver a intentarlo
+     */
+    private String mensajeBloqueo(LocalDateTime bloqueadoHasta) {
+        String horaDesbloqueo = bloqueadoHasta.format(DateTimeFormatter.ofPattern("HH:mm"));
+        return "Su cuenta ha sido bloqueada temporalmente por múltiples intentos fallidos. "
+                + "Podrá intentarlo nuevamente después de las " + horaDesbloqueo + ".";
     }
 
     /**
@@ -417,6 +532,11 @@ public class AuthService {
         usuario.setContrasenaHash(passwordEncoder.encode(request.nuevaContrasena()));
         usuarioRepository.save(usuario);
 
+        // HU-03: auditoría del restablecimiento (nunca se guarda la contraseña ni el token).
+        auditoriaService.registrar(TipoOperacionAuditoria.CONTRASENA_RESTABLECIDA, "usuarios", usuario.getId(),
+                DetalleAuditoria.de("metodo", "token_recuperacion"),
+                usuario);
+
         // Notificar el cambio al correo del usuario (Criterio 2).
         emailService.enviarNotificacionCambioContrasena(
                 usuario.getPersona().getCorreo(),
@@ -441,5 +561,3 @@ public class AuthService {
                 .toList();
     }
 }
-
-
