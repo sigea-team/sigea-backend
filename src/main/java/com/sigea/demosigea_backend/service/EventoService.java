@@ -13,6 +13,7 @@ import com.sigea.demosigea_backend.repository.EventoRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Servicio de negocio para la gestión de eventos y sus ediciones (HU-04: RF03 + RF04).
@@ -45,6 +47,9 @@ public class EventoService {
 
     /** Índice único de la base de datos: un semestre por familia (changeset 006). */
     static final String INDICE_SEMESTRE_FAMILIA = "ux_eventos_familia_semestre";
+
+    /** SQLState estándar de violación de unicidad (unique_violation) en PostgreSQL. */
+    static final String SQLSTATE_VIOLACION_UNICIDAD = "23505";
 
     private final EventoRepository eventoRepository;
 
@@ -300,12 +305,29 @@ public class EventoService {
      * <p>
      * La jerarquía tiene como máximo un nivel: {@link #crearEdicion} siempre vincula la nueva edición
      * al evento raíz y {@link #actualizar} nunca modifica el vínculo. Por eso basta con un solo salto,
-     * sin recorrer la cadena; así tampoco hay riesgo de bucle infinito si la base de datos tuviera
-     * una relación cíclica creada manualmente.
+     * sin recorrer la cadena (no hay riesgo de bucle infinito). Si la base de datos tuviera una
+     * autorreferencia, una cadena o un ciclo creados manualmente, se lanza una excepción controlada.
      * </p>
      */
     private Evento resolverRaiz(Evento evento) {
-        return evento.getEventoBase() != null ? evento.getEventoBase() : evento;
+        Evento base = evento.getEventoBase();
+        if (base == null) {
+            return evento;
+        }
+        // Validación defensiva: la API nunca crea estas situaciones, pero podrían existir por
+        // modificaciones manuales en la base de datos. Se rechazan de forma controlada.
+        if (Objects.equals(base.getId(), evento.getId())) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "La jerarquía del evento '%s' es inválida: el evento figura como su propio evento base.",
+                    evento.getNombre()));
+        }
+        if (base.getEventoBase() != null) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "La jerarquía del evento '%s' es inválida: su evento base también figura como edición de otro "
+                            + "evento (cadena o ciclo de ediciones). Corrija el campo evento_base_id en la base de datos.",
+                    evento.getNombre()));
+        }
+        return base;
     }
 
     private void validarRangoFechas(LocalDate inicio, LocalDate fin) {
@@ -343,12 +365,32 @@ public class EventoService {
         try {
             return eventoRepository.saveAndFlush(evento);
         } catch (DataIntegrityViolationException ex) {
-            String detalle = ex.getMostSpecificCause().getMessage();
-            if (detalle != null && detalle.contains(INDICE_SEMESTRE_FAMILIA)) {
+            if (esViolacionSemestreFamilia(ex)) {
                 throw new OperacionNoPermitidaException(mensajeSemestreOcupado(evento.getSemestre()));
             }
             throw ex;
         }
+    }
+
+    /**
+     * Determina si la excepción corresponde al índice único {@value #INDICE_SEMESTRE_FAMILIA}, usando
+     * la información estructurada de Hibernate ({@link ConstraintViolationException}): el SQLState
+     * {@value #SQLSTATE_VIOLACION_UNICIDAD} y el nombre de la restricción. No depende del texto del
+     * mensaje, que varía según el idioma y la versión del driver.
+     *
+     * @param ex Excepción traducida por Spring.
+     * @return {@code true} solo si es una violación de unicidad de ese índice.
+     */
+    static boolean esViolacionSemestreFamilia(Throwable ex) {
+        for (Throwable causa = ex; causa != null; causa = causa.getCause() == causa ? null : causa.getCause()) {
+            if (causa instanceof ConstraintViolationException violacion) {
+                String restriccion = violacion.getConstraintName();
+                return SQLSTATE_VIOLACION_UNICIDAD.equals(violacion.getSQLState())
+                        && restriccion != null
+                        && INDICE_SEMESTRE_FAMILIA.equalsIgnoreCase(restriccion.replace("\"", ""));
+            }
+        }
+        return false;
     }
 
     private static String mensajeSemestreOcupado(String semestre) {

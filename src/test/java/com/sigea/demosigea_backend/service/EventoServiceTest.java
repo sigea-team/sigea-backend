@@ -19,10 +19,12 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
@@ -169,9 +171,8 @@ class EventoServiceTest {
     @DisplayName("Criterio 2: si el índice único detecta un duplicado (concurrencia), responde como semestre ocupado")
     void actualizar_violacionIndiceUnico_seTraduceAOperacionNoPermitida() {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
-        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(new DataIntegrityViolationException(
-                "could not execute statement",
-                new RuntimeException("duplicate key value violates unique constraint \"ux_eventos_familia_semestre\"")));
+        when(eventoRepository.saveAndFlush(any(Evento.class)))
+                .thenThrow(violacion("23505", "ux_eventos_familia_semestre"));
 
         OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
                 () -> eventoService.actualizar(1L, requestValido()));
@@ -179,13 +180,33 @@ class EventoServiceTest {
     }
 
     @Test
-    @DisplayName("Otras violaciones de integridad no se confunden con el semestre duplicado")
-    void actualizar_otraViolacionDeIntegridad_seRelanza() {
+    @DisplayName("Otras violaciones de integridad (CHECK) no se confunden con el semestre duplicado")
+    void actualizar_violacionCheck_seRelanza() {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
-        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(new DataIntegrityViolationException(
-                "could not execute statement", new RuntimeException("violates check constraint \"eventos_check\"")));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(violacion("23514", "eventos_check"));
 
         assertThrows(DataIntegrityViolationException.class, () -> eventoService.actualizar(1L, requestValido()));
+    }
+
+    @Test
+    @DisplayName("Una violación de unicidad de otra restricción no se confunde con el semestre duplicado")
+    void actualizar_otraRestriccionUnica_seRelanza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.saveAndFlush(any(Evento.class))).thenThrow(violacion("23505", "eventos_pkey"));
+
+        assertThrows(DataIntegrityViolationException.class, () -> eventoService.actualizar(1L, requestValido()));
+    }
+
+    @Test
+    @DisplayName("La detección del índice usa SQLState y nombre de restricción, no el texto del mensaje")
+    void esViolacionSemestreFamilia_usaDatosEstructurados() {
+        assertTrue(EventoService.esViolacionSemestreFamilia(violacion("23505", "ux_eventos_familia_semestre")));
+        assertTrue(EventoService.esViolacionSemestreFamilia(violacion("23505", "\"UX_EVENTOS_FAMILIA_SEMESTRE\"")));
+        assertFalse(EventoService.esViolacionSemestreFamilia(violacion("23514", "ux_eventos_familia_semestre")));
+        assertFalse(EventoService.esViolacionSemestreFamilia(violacion("23505", null)));
+        // Un mensaje que menciona el índice, pero sin datos estructurados, ya no basta
+        assertFalse(EventoService.esViolacionSemestreFamilia(new DataIntegrityViolationException(
+                "x", new RuntimeException("duplicate key value violates unique constraint \"ux_eventos_familia_semestre\""))));
     }
 
     // ---------------- Criterio 3 ----------------
@@ -296,20 +317,45 @@ class EventoServiceTest {
     }
 
     @Test
-    @DisplayName("Una relación cíclica creada a mano en la base de datos no provoca un bucle infinito")
-    void listarEdiciones_jerarquiaCiclica_noSeBloquea() {
+    @DisplayName("Un ciclo en la jerarquía (A -> B -> A) se rechaza de forma controlada y sin bloquearse")
+    void listarEdiciones_jerarquiaCiclica_seRechaza() {
         Evento a = Evento.builder().id(10L).nombre("A").tipo("Congreso")
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).build();
         Evento b = Evento.builder().id(11L).nombre("B").tipo("Congreso")
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(a).build();
         a.setEventoBase(b); // A -> B -> A
         when(eventoRepository.findById(10L)).thenReturn(Optional.of(a));
-        when(eventoRepository.findByEventoBase_IdOrderByFechaInicioAscIdAsc(11L)).thenReturn(List.of(a));
 
-        EdicionesEventoResponse response = assertTimeoutPreemptively(Duration.ofSeconds(2),
-                () -> eventoService.listarEdiciones(10L));
+        OperacionNoPermitidaException ex = assertTimeoutPreemptively(Duration.ofSeconds(2),
+                () -> assertThrows(OperacionNoPermitidaException.class, () -> eventoService.listarEdiciones(10L)));
+        assertTrue(ex.getMessage().contains("jerarquía"));
+    }
 
-        assertEquals(11L, response.eventoBaseId());
+    @Test
+    @DisplayName("Un evento que figura como su propio evento base se rechaza de forma controlada")
+    void listarEdiciones_autorreferencia_seRechaza() {
+        Evento a = Evento.builder().id(10L).nombre("A").tipo("Congreso")
+                .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).build();
+        a.setEventoBase(a); // A -> A
+        when(eventoRepository.findById(10L)).thenReturn(Optional.of(a));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.listarEdiciones(10L));
+    }
+
+    @Test
+    @DisplayName("No se crea una edición a partir de un evento con jerarquía inválida")
+    void crearEdicion_origenConJerarquiaInvalida_seRechaza() {
+        Evento raiz = eventoBase(EstadoEvento.cerrado);
+        Evento intermedio = Evento.builder().id(5L).nombre("Intermedio").tipo("Congreso")
+                .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(raiz).build();
+        Evento origen = Evento.builder().id(6L).nombre("Origen").tipo("Congreso")
+                .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(intermedio).build();
+        when(eventoRepository.findById(6L)).thenReturn(Optional.of(origen));
+
+        NuevaEdicionRequest request = new NuevaEdicionRequest(null, LocalDate.of(2027, 10, 19), LocalDate.of(2027, 10, 21), null);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.crearEdicion(6L, request));
+        verify(eventoRepository, never()).saveAndFlush(any());
     }
 
     // ---------------- Criterio 5 ----------------
@@ -367,5 +413,12 @@ class EventoServiceTest {
 
         assertEquals(1, resultado.size());
         assertEquals(EstadoEvento.habilitado, resultado.get(0).estado());
+    }
+
+    /** Imita la excepción que entrega Spring: DataIntegrityViolationException envolviendo la de Hibernate. */
+    private static DataIntegrityViolationException violacion(String sqlState, String restriccion) {
+        ConstraintViolationException hibernate = new ConstraintViolationException(
+                "could not execute statement", new SQLException("error de integridad", sqlState), restriccion);
+        return new DataIntegrityViolationException("could not execute statement", hibernate);
     }
 }
