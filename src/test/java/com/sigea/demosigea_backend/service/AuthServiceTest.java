@@ -304,17 +304,33 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Criterio 3: al alcanzar el máximo de intentos fallidos la cuenta se bloquea")
+    @DisplayName("Criterio 3: el intento que alcanza el máximo bloquea la cuenta y lo notifica de inmediato (423)")
     void login_QuintoIntentoFallido_BloqueaCuenta() {
         Usuario usuario = usuarioConIntentos(4, null);
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("Incorrecta1*", "hash_pass")).thenReturn(false);
+
+        CuentaBloqueadaException ex = assertThrows(CuentaBloqueadaException.class,
+                () -> authService.login(new LoginRequest("carlos@correo.com", "Incorrecta1*")));
+
+        assertEquals(5, usuario.getIntentosFallidos());
+        assertNotNull(usuario.getBloqueadoHasta());
+        assertTrue(usuario.getBloqueadoHasta().isAfter(LocalDateTime.now()));
+        assertEquals(usuario.getBloqueadoHasta(), ex.getBloqueadoHasta());
+        assertTrue(ex.getMessage().contains("bloqueada temporalmente"));
+    }
+
+    @Test
+    @DisplayName("Criterio 2: un intento fallido por debajo del máximo responde el error genérico (401)")
+    void login_CuartoIntentoFallido_NoBloquea() {
+        Usuario usuario = usuarioConIntentos(3, null);
         when(usuarioRepository.findByPersona_CorreoIgnoreCase("carlos@correo.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("Incorrecta1*", "hash_pass")).thenReturn(false);
 
         assertThrows(CredencialesInvalidasException.class,
                 () -> authService.login(new LoginRequest("carlos@correo.com", "Incorrecta1*")));
 
-        assertEquals(5, usuario.getIntentosFallidos());
-        assertNotNull(usuario.getBloqueadoHasta());
-        assertTrue(usuario.getBloqueadoHasta().isAfter(LocalDateTime.now()));
+        assertEquals(4, usuario.getIntentosFallidos());
+        assertNull(usuario.getBloqueadoHasta());
     }
 }
