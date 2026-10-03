@@ -118,6 +118,50 @@ class EventoServiceTest {
         verify(eventoRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Criterio 2: el evento base no puede cambiar a un semestre que ya usa una de sus ediciones")
+    void actualizar_baseConSemestreOcupadoPorEdicion_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2027-2")).thenReturn(false);
+        when(eventoRepository.existsByEventoBase_IdAndSemestre(1L, "2027-2")).thenReturn(true);
+
+        EventoRequest cambios = new EventoRequest("Congreso", null, null, "Congreso",
+                ModalidadEvento.presencial, INICIO, FIN, "2027-2");
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, cambios));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: una edición no puede cambiar a un semestre ya usado en su familia")
+    void actualizar_edicionConSemestreOcupado_rechaza() {
+        Evento raiz = eventoBase(EstadoEvento.cerrado);
+        Evento edicion = Evento.builder().id(2L).nombre("Congreso 2027").tipo("Congreso")
+                .modalidad(ModalidadEvento.presencial).fechaInicio(LocalDate.of(2027, 10, 19))
+                .fechaFin(LocalDate.of(2027, 10, 21)).semestre("2027-2")
+                .estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
+        when(eventoRepository.findById(2L)).thenReturn(Optional.of(edicion));
+        when(eventoRepository.existsByIdAndSemestre(1L, "2026-2")).thenReturn(true);
+
+        EventoRequest cambios = new EventoRequest("Congreso 2027", null, null, "Congreso",
+                ModalidadEvento.presencial, INICIO, FIN, "2026-2");
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(2L, cambios));
+        verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 2: si el semestre no cambia, no se vuelve a validar la unicidad")
+    void actualizar_mismoSemestre_noValidaUnicidad() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventoService.actualizar(1L, requestValido()); // semestre derivado: 2026-2, igual al actual
+
+        verify(eventoRepository, never()).existsByIdAndSemestre(any(), any());
+        verify(eventoRepository, never()).existsByEventoBase_IdAndSemestre(any(), any());
+    }
+
     // ---------------- Criterio 3 ----------------
 
     @Test

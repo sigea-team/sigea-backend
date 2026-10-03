@@ -166,8 +166,11 @@ public class EventoService {
 
         validarRangoFechas(request.fechaInicio(), request.fechaFin());
 
+        // El semestre debe ser único dentro de la familia (evento base + ediciones), igual que en
+        // crearEdicion. Aplica tanto a ediciones como al evento base; solo se valida si cambia,
+        // porque el propio evento aún conserva su semestre anterior en la base de datos.
         String nuevoSemestre = resolverSemestre(request.semestre(), request.fechaInicio());
-        if (evento.esEdicion() && !nuevoSemestre.equals(evento.getSemestre())) {
+        if (!nuevoSemestre.equals(evento.getSemestre())) {
             validarSemestreDisponible(resolverRaiz(evento).getId(), nuevoSemestre);
         }
 
