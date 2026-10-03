@@ -54,8 +54,8 @@ public class AuditoriaRepositoryCustomImpl implements AuditoriaRepositoryCustom 
         // 2. Página de datos, trayendo usuario y persona en la misma consulta (evita N+1)
         CriteriaQuery<Auditoria> dataQuery = cb.createQuery(Auditoria.class);
         Root<Auditoria> root = dataQuery.from(Auditoria.class);
-        Join<Auditoria, Usuario> usuario = (Join<Auditoria, Usuario>) root.fetch("usuario", JoinType.LEFT);
-        Join<Usuario, Persona> persona = (Join<Usuario, Persona>) usuario.fetch("persona", JoinType.LEFT);
+        Join<Auditoria, Usuario> usuario = (Join<Auditoria, Usuario>) root.<Auditoria, Usuario>fetch("usuario", JoinType.LEFT);
+        Join<Usuario, Persona> persona = (Join<Usuario, Persona>) usuario.<Usuario, Persona>fetch("persona", JoinType.LEFT);
         dataQuery.select(root)
                 .where(predicados(cb, root, usuario, persona, filtro))
                 .orderBy(cb.desc(root.get("fechaHora")), cb.desc(root.get("id")));

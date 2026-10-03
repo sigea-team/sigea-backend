@@ -281,11 +281,7 @@ public class AuthService {
             if (usuario.getBloqueadoHasta().isAfter(ahora)) {
                 // Criterio 3 (HU-01): la cuenta sigue bloqueada por intentos fallidos previos.
                 LocalDateTime bloqueadoHasta = usuario.getBloqueadoHasta();
-                String horaDesbloqueo = bloqueadoHasta.format(DateTimeFormatter.ofPattern("HH:mm"));
-                throw new CuentaBloqueadaException(
-                        "Su cuenta ha sido bloqueada temporalmente por múltiples intentos fallidos. "
-                                + "Podrá intentarlo nuevamente después de las " + horaDesbloqueo + ".",
-                        bloqueadoHasta);
+                throw new CuentaBloqueadaException(mensajeBloqueo(bloqueadoHasta), bloqueadoHasta);
             }
 
             // El bloqueo ya expiró: se reinicia el contador ANTES de validar la contraseña.
@@ -295,7 +291,13 @@ public class AuthService {
         }
 
         if (!passwordEncoder.matches(request.contrasena(), usuario.getContrasenaHash())) {
-            registrarIntentoFallido(usuario);
+            LocalDateTime bloqueadoHasta = registrarIntentoFallido(usuario);
+            if (bloqueadoHasta != null) {
+                // Criterio 3 (HU-01): este intento fue el que alcanzó el máximo permitido.
+                // Se notifica el bloqueo de inmediato (423) en lugar del 401 genérico,
+                // para que el usuario sepa por qué ya no puede ingresar y hasta cuándo.
+                throw new CuentaBloqueadaException(mensajeBloqueo(bloqueadoHasta), bloqueadoHasta);
+            }
             throw new CredencialesInvalidasException("Credenciales incorrectas. Verifique su correo electrónico y contraseña.");
         }
 
@@ -362,19 +364,35 @@ public class AuthService {
      * </p>
      *
      * @param usuario usuario sobre el que se registra el intento fallido de autenticación
+     * @return la fecha y hora de fin del bloqueo si este intento bloqueó la cuenta, o {@code null}
      */
-    private void registrarIntentoFallido(Usuario usuario) {
+    private LocalDateTime registrarIntentoFallido(Usuario usuario) {
         int intentosPrevios = usuario.getIntentosFallidos() == null ? 0 : usuario.getIntentosFallidos();
         int intentos = intentosPrevios + 1;
         usuario.setIntentosFallidos(intentos);
         
+        LocalDateTime bloqueadoHasta = null;
         if (intentos >= maxIntentosFallidos) {
-            usuario.setBloqueadoHasta(LocalDateTime.now().plusMinutes(minutosBloqueo));
+            bloqueadoHasta = LocalDateTime.now().plusMinutes(minutosBloqueo);
+            usuario.setBloqueadoHasta(bloqueadoHasta);
             log.warn("Cuenta bloqueada temporalmente por intentos fallidos: usuarioId={}, intentos={}",
                     usuario.getId(), intentos);
         }
 
         usuarioRepository.save(usuario);
+        return bloqueadoHasta;
+    }
+
+    /**
+     * Mensaje para el usuario cuando su cuenta está bloqueada (HU-01, Criterio 3).
+     *
+     * @param bloqueadoHasta fecha y hora de fin del bloqueo
+     * @return mensaje con la hora a partir de la cual podrá volver a intentarlo
+     */
+    private String mensajeBloqueo(LocalDateTime bloqueadoHasta) {
+        String horaDesbloqueo = bloqueadoHasta.format(DateTimeFormatter.ofPattern("HH:mm"));
+        return "Su cuenta ha sido bloqueada temporalmente por múltiples intentos fallidos. "
+                + "Podrá intentarlo nuevamente después de las " + horaDesbloqueo + ".";
     }
 
     /**
