@@ -11,8 +11,8 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // Aplica a todos los endpoints (/api/v1/...)
                 .allowedOrigins(
-                    "http://localhost:5173",                       // Frontend local (Vite/React)
-                    "https://tu-usuario.github.io"                  // Tu URL de GitHub Pages
+                    "http://localhost:5173",          // Frontend local (Vite/React)
+                    "https://sigea-team.github.io"     // Frontend en GitHub Pages
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
