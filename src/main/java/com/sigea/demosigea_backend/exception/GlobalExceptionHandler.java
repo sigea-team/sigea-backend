@@ -83,6 +83,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-06, Criterio 2: la persona ya es miembro vigente del comité organizador del evento.
+     * Al ser subclase de {@link RecursoDuplicadoException}, Spring elige este manejador por ser
+     * el más específico, y se responde con un código propio en lugar de CUENTA_YA_EXISTE.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código MIEMBRO_COMITE_DUPLICADO.
+     */
+    @ExceptionHandler(MiembroComiteDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleMiembroComiteDuplicado(MiembroComiteDuplicadoException ex,
+                                                                      HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "MIEMBRO_COMITE_DUPLICADO", request);
+    }
+
+    /**
      * Maneja el acceso o autenticación de cuentas cuyos correos no han completado el flujo de verificación.
      * Adjunta la dirección de correo involucrada para facilitar reenvíos desde la interfaz gráfica.
      *
