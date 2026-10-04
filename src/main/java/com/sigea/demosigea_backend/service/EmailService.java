@@ -120,7 +120,7 @@ public class EmailService {
             MimeMessage mensaje = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mensaje, true, "UTF-8");
 
-            helper.setFrom(remitente);
+            helper.setFrom(remitente, "SIGEA - Notificaciones");
             helper.setTo(destinatario);
             helper.setSubject("SIGEA - Verificación de Cuenta");
 
@@ -190,7 +190,7 @@ public class EmailService {
             MimeMessage mensaje = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mensaje, true, "UTF-8");
 
-            helper.setFrom(remitente);
+            helper.setFrom(remitente, "SIGEA - Notificaciones");
             helper.setTo(destinatario);
             helper.setSubject("SIGEA - Recuperación de contraseña");
 
@@ -252,7 +252,7 @@ public class EmailService {
             MimeMessage mensaje = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mensaje, true, "UTF-8");
 
-            helper.setFrom(remitente);
+            helper.setFrom(remitente, "SIGEA - Notificaciones");
             helper.setTo(destinatario);
             helper.setSubject("SIGEA - Tu contraseña fue actualizada");
 
@@ -274,7 +274,7 @@ public class EmailService {
             log.info("✅ Notificación de cambio de contraseña enviada exitosamente a {}", destinatario);
 
         } catch (MessagingException ex) {
-            log.warn("⚠️ No se pudo enviar la notificación de cambio de contraseña vía SMTP a {}: {}.", destinatario, ex.getMessage());
+            log.warn("⚠️️ No se pudo enviar la notificación de cambio de contraseña vía SMTP a {}: {}.", destinatario, ex.getMessage());
         } catch (Exception ex) {
             log.warn("⚠️ Error al intentar conectar con el servidor SMTP: {}.", ex.getMessage());
         }
