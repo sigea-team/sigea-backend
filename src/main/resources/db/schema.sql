@@ -374,6 +374,8 @@ CREATE TABLE "memorias_historicas" (
 
 CREATE INDEX "idx_eventos_semestre" ON "eventos" ("semestre");
 
+CREATE UNIQUE INDEX "ux_eventos_familia_semestre" ON "eventos" ((COALESCE("evento_base_id", "evento_id")), "semestre");
+
 CREATE UNIQUE INDEX ON "comite_organizador" ("evento_id", "persona_id", "rol_comite");
 
 CREATE UNIQUE INDEX ON "tipos_actividad" ("evento_id", "nombre");
