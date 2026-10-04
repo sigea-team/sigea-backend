@@ -5,6 +5,8 @@ import com.sigea.demosigea_backend.model.Persona;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * DTO de respuesta con una participación en el comité organizador (HU-06).
@@ -38,7 +40,7 @@ public record MiembroComiteResponse(
                 miembro.getId(),
                 miembro.getEvento().getId(),
                 persona.getId(),
-                (persona.getNombres() + " " + persona.getApellidos()).trim(),
+                nombreCompleto(persona),
                 persona.getNumeroDocumento(),
                 persona.getCorreo(),
                 miembro.getRolComite(),
@@ -46,5 +48,21 @@ public record MiembroComiteResponse(
                 miembro.getFechaRetiro(),
                 miembro.isActivo()
         );
+    }
+
+    /**
+     * Nombre completo de la persona, tolerante a valores nulos o vacíos.
+     *
+     * @param persona Persona (puede ser {@code null}).
+     * @return "Nombres Apellidos" sin espacios sobrantes, o cadena vacía si no hay datos.
+     */
+    public static String nombreCompleto(Persona persona) {
+        if (persona == null) {
+            return "";
+        }
+        return Stream.of(persona.getNombres(), persona.getApellidos())
+                .filter(parte -> parte != null && !parte.isBlank())
+                .map(String::trim)
+                .collect(Collectors.joining(" "));
     }
 }

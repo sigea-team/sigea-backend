@@ -17,6 +17,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -26,6 +28,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -158,15 +161,79 @@ class ComiteOrganizadorServiceTest {
         verify(comiteRepository, never()).saveAndFlush(any());
     }
 
-    @Test
-    @DisplayName("Un evento cerrado no admite cambios en su comité")
-    void agregar_eventoCerrado_409() {
-        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento(EstadoEvento.cerrado)));
+    // ---------------- Criterio 4: estado del evento ----------------
 
-        assertThrows(OperacionNoPermitidaException.class,
+    @ParameterizedTest(name = "Criterio 4: evento en {0} → agregar miembro permitido")
+    @EnumSource(value = EstadoEvento.class, names = {"en_configuracion", "habilitado"})
+    void agregar_estadosModificables_permitido(EstadoEvento estado) {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento(estado)));
+        when(personaRepository.findById(12L)).thenReturn(Optional.of(persona()));
+        when(comiteRepository.saveAndFlush(any(ComiteOrganizador.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MiembroComiteResponse response = comiteService.agregar(1L, new MiembroComiteRequest(12L, null, "Logística"));
+
+        assertTrue(response.activo());
+        verify(comiteRepository).saveAndFlush(any(ComiteOrganizador.class));
+    }
+
+    @ParameterizedTest(name = "Criterio 4: evento en {0} → agregar miembro rechazado (409)")
+    @EnumSource(value = EstadoEvento.class, names = {"en_ejecucion", "cerrado"})
+    void agregar_estadosNoModificables_409(EstadoEvento estado) {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento(estado)));
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
                 () -> comiteService.agregar(1L, new MiembroComiteRequest(12L, null, "Logística")));
+
+        assertTrue(ex.getMessage().contains(estado.name()));
         verify(personaRepository, never()).findById(anyLong());
         verify(comiteRepository, never()).saveAndFlush(any());
+        verify(auditoriaService, never()).registrar(any(), anyString(), anyLong(), anyMap());
+    }
+
+    @ParameterizedTest(name = "Criterio 4: evento en {0} → retirar miembro permitido")
+    @EnumSource(value = EstadoEvento.class, names = {"en_configuracion", "habilitado"})
+    void retirar_estadosModificables_permitido(EstadoEvento estado) {
+        Evento evento = evento(estado);
+        ComiteOrganizador miembro = miembroActivo(evento, persona());
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
+        when(comiteRepository.findByIdAndEvento_Id(5L, 1L)).thenReturn(Optional.of(miembro));
+        when(comiteRepository.save(miembro)).thenReturn(miembro);
+
+        assertFalse(comiteService.retirar(1L, 5L).activo());
+    }
+
+    @ParameterizedTest(name = "Criterio 4: evento en {0} → retirar miembro rechazado (409)")
+    @EnumSource(value = EstadoEvento.class, names = {"en_ejecucion", "cerrado"})
+    void retirar_estadosNoModificables_409(EstadoEvento estado) {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento(estado)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> comiteService.retirar(1L, 5L));
+        verify(comiteRepository, never()).findByIdAndEvento_Id(anyLong(), anyLong());
+        verify(comiteRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 4: la regla cubre todos los estados del ciclo de vida del evento")
+    void reglaDeEstado_cubreTodoElCicloDeVida() {
+        // Si se agrega un estado nuevo a EstadoEvento, esta prueba obliga a decidir explícitamente
+        // si el comité puede modificarse en él.
+        assertEquals(EnumSet.of(EstadoEvento.en_configuracion, EstadoEvento.habilitado),
+                ComiteOrganizadorService.ESTADOS_COMITE_MODIFICABLE);
+        assertEquals(4, EstadoEvento.values().length,
+                "Se agregó un estado a EstadoEvento: revise ESTADOS_COMITE_MODIFICABLE en ComiteOrganizadorService.");
+    }
+
+    // ---------------- Nombre completo (null-safety) ----------------
+
+    @Test
+    @DisplayName("nombreCompleto tolera nulos y espacios")
+    void nombreCompleto_toleraNulos() {
+        assertEquals("", MiembroComiteResponse.nombreCompleto(null));
+        assertEquals("Ana María", MiembroComiteResponse.nombreCompleto(
+                Persona.builder().nombres("  Ana María ").apellidos(null).build()));
+        assertEquals("Pérez", MiembroComiteResponse.nombreCompleto(
+                Persona.builder().nombres("   ").apellidos("Pérez").build()));
+        assertEquals("Ana María Pérez Gómez", MiembroComiteResponse.nombreCompleto(persona()));
     }
 
     // ---------------- Criterio 2 ----------------

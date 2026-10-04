@@ -20,7 +20,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Servicio de negocio para el registro de responsables y comité organizador de un evento
@@ -30,8 +33,19 @@ import java.util.List;
  *   <li><b>Criterio 2:</b> impedir que una persona con participación vigente se agregue de nuevo.</li>
  *   <li><b>Criterio 3:</b> retirar a un miembro de la lista vigente conservando su historial
  *       (borrado lógico: {@code activo = false} + {@code fecha_retiro}).</li>
+ *   <li><b>Criterio 4:</b> el comité solo se modifica mientras el evento está en
+ *       {@code en_configuracion} o {@code habilitado}.</li>
  * </ul>
  * Las altas y retiros se registran en la auditoría (RF56) dentro de la misma transacción.
+ * <p>
+ * <b>Regla de estado (decisión del PO).</b> Los datos generales del evento solo cambian en
+ * {@code en_configuracion} (HU-04), porque son lo que aprueban el comité curricular y el Rector.
+ * El comité organizador es el equipo de trabajo y cambia durante la organización, que ocurre
+ * principalmente en {@code habilitado} (convocatoria, evaluación, agenda, inscripciones); por eso
+ * también se permite modificarlo en ese estado. Desde {@code en_ejecucion} queda congelado, para que
+ * los certificados de organizador (RF47) y la memoria histórica (RF55) se generen sobre un comité
+ * estable. Ver {@link #ESTADOS_COMITE_MODIFICABLE}.
+ * </p>
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -50,6 +64,13 @@ public class ComiteOrganizadorService {
 
     /** SQLState estándar de violación de unicidad en PostgreSQL. */
     static final String SQLSTATE_VIOLACION_UNICIDAD = "23505";
+
+    /**
+     * Estados del evento en los que el comité organizador puede modificarse (Criterio 4).
+     * En {@code en_ejecucion} y {@code cerrado} el comité queda congelado.
+     */
+    static final Set<EstadoEvento> ESTADOS_COMITE_MODIFICABLE =
+            EnumSet.of(EstadoEvento.en_configuracion, EstadoEvento.habilitado);
 
     private final ComiteOrganizadorRepository comiteRepository;
     private final EventoRepository eventoRepository;
@@ -83,11 +104,11 @@ public class ComiteOrganizadorService {
     /**
      * Vincula una persona al comité organizador del evento con el rol indicado.
      *
-     * @param eventoId ID del evento (debe existir y no estar cerrado).
+     * @param eventoId ID del evento (debe existir y estar en un estado de {@link #ESTADOS_COMITE_MODIFICABLE}).
      * @param request  Persona (por ID o documento) y rol dentro del comité.
      * @return Participación creada.
      * @throws RecursoNoEncontradoException     si el evento o la persona no existen.
-     * @throws OperacionNoPermitidaException    si el evento está cerrado.
+     * @throws OperacionNoPermitidaException    si el evento está en ejecución o cerrado (Criterio 4).
      * @throws MiembroComiteDuplicadoException  si la persona ya es miembro vigente del evento (Criterio 2).
      */
     @Transactional
@@ -134,7 +155,7 @@ public class ComiteOrganizadorService {
      * @param miembroId  ID de la participación ({@code comite_id}).
      * @return Participación retirada (con {@code activo = false} y {@code fechaRetiro}).
      * @throws RecursoNoEncontradoException  si la participación no existe en ese evento.
-     * @throws OperacionNoPermitidaException si ya estaba retirada o si el evento está cerrado.
+     * @throws OperacionNoPermitidaException si ya estaba retirada o si el evento está en ejecución o cerrado.
      */
     @Transactional
     public MiembroComiteResponse retirar(Long eventoId, Long miembroId) {
@@ -175,13 +196,17 @@ public class ComiteOrganizadorService {
     }
 
     /**
-     * Un evento cerrado ya forma parte de la memoria histórica: su comité no se modifica.
+     * Criterio 4: el comité solo se modifica en los estados de {@link #ESTADOS_COMITE_MODIFICABLE}.
      */
     private void validarEventoModificable(Evento evento) {
-        if (evento.getEstado() == EstadoEvento.cerrado) {
+        if (!ESTADOS_COMITE_MODIFICABLE.contains(evento.getEstado())) {
+            String permitidos = ESTADOS_COMITE_MODIFICABLE.stream()
+                    .map(Enum::name)
+                    .collect(Collectors.joining(" o "));
             throw new OperacionNoPermitidaException(String.format(
-                    "El evento '%s' está cerrado; su comité organizador ya no puede modificarse.",
-                    evento.getNombre()));
+                    "El comité organizador del evento '%s' ya no puede modificarse (estado actual: %s). "
+                            + "Solo se permiten cambios mientras el evento está en %s.",
+                    evento.getNombre(), evento.getEstado(), permitidos));
         }
     }
 
@@ -240,6 +265,6 @@ public class ComiteOrganizadorService {
     }
 
     private static String nombreCompleto(Persona persona) {
-        return (persona.getNombres() + " " + persona.getApellidos()).trim();
+        return MiembroComiteResponse.nombreCompleto(persona);
     }
 }
