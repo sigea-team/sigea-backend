@@ -53,7 +53,11 @@ public class EventoController {
 
     private final EventoService eventoService;
 
-    @Operation(summary = "Listar eventos", description = "Lista eventos y ediciones, filtrando opcionalmente por estado y semestre.")
+    @Operation(summary = "Listar eventos",
+            description = "Lista eventos base y ediciones juntos, del más reciente al más antiguo, filtrando opcionalmente "
+                    + "por estado y semestre. Cada registro indica su tipo con eventoBaseId (null = evento base; "
+                    + "con valor = edición de ese evento) y esEdicion, que se deriva de eventoBaseId. "
+                    + "Para obtener solo la familia de un evento use GET /api/v1/eventos/{id}/ediciones.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Listado de eventos",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = EventoResponse.class)))),

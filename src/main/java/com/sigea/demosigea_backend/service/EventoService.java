@@ -366,6 +366,9 @@ public class EventoService {
             return eventoRepository.saveAndFlush(evento);
         } catch (DataIntegrityViolationException ex) {
             if (esViolacionSemestreFamilia(ex)) {
+                // Sin stack trace: es un caso esperado (dos peticiones simultáneas), no un fallo del sistema.
+                log.warn("El índice {} rechazó un semestre duplicado: evento ID {}, semestre {}. Se responde 409.",
+                        INDICE_SEMESTRE_FAMILIA, evento.getId(), evento.getSemestre());
                 throw new OperacionNoPermitidaException(mensajeSemestreOcupado(evento.getSemestre()));
             }
             throw ex;
