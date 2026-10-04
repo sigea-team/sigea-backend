@@ -30,6 +30,10 @@ public enum TipoOperacionAuditoria {
     USUARIO_REGISTRADO("USUARIOS", "Registro de una nueva cuenta de usuario"),
     CONTRASENA_RESTABLECIDA("USUARIOS", "Restablecimiento de contraseña mediante token de recuperación"),
 
+    // ----- Planeación y configuración de eventos (HU-06) -----
+    MIEMBRO_COMITE_AGREGADO("EVENTOS", "Vinculación de una persona al comité organizador de un evento"),
+    MIEMBRO_COMITE_RETIRADO("EVENTOS", "Retiro de un miembro del comité organizador vigente de un evento"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
