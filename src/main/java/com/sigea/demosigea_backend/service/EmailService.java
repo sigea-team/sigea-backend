@@ -55,9 +55,9 @@ public class EmailService {
     private String senderName;
 
     /**
-     * URL base del servidor utilizada para construir enlaces de verificación.
+     * URL base del servidor backend utilizada para construir enlaces de verificación GET.
      */
-    @Value("${app.mail.frontend-url:http://localhost:8080}")
+    @Value("${app.mail.backend-url:${app.mail.frontend-url:http://localhost:8080}}")
     private String baseUrl;
 
     /**
