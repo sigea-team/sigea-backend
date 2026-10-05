@@ -222,18 +222,22 @@ public class GlobalExceptionHandler {
      * @return {@link ResponseEntity} con estado 409 CONFLICT.
      */
     @ExceptionHandler(OperacionNoPermitidaException.class)
-    public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex) {
-        ErrorResponse response = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
-                ex.getMessage(),
-                "OPERACION_NO_PERMITIDA",
-                null,
-                null
-        );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex,
+                                                                    HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "OPERACION_NO_PERMITIDA", request);
     }
+
+    /**
+     * Captura el intento de envío de propuesta sobre una convocatoria cerrada o fuera del rango de fechas.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST y código CONVOCATORIA_CERRADA.
+     */
+    @ExceptionHandler(ConvocatoriaCerradaException.class)
+    public ResponseEntity<ErrorResponse> handleConvocatoriaCerrada(ConvocatoriaCerradaException ex,
+                                                                   HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage(), "CONVOCATORIA_CERRADA", request);
+    }
+
 
     /**
      * Operaciones que requieren confirmación explícita del usuario (HU-04, Criterio 5).
