@@ -222,17 +222,9 @@ public class GlobalExceptionHandler {
      * @return {@link ResponseEntity} con estado 409 CONFLICT.
      */
     @ExceptionHandler(OperacionNoPermitidaException.class)
-    public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex) {
-        ErrorResponse response = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
-                ex.getMessage(),
-                "OPERACION_NO_PERMITIDA",
-                null,
-                null
-        );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex,
+                                                                    HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "OPERACION_NO_PERMITIDA", request);
     }
 
     /**

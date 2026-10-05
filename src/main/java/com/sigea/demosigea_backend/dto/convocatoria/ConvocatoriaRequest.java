@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.dto.convocatoria;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -9,6 +10,10 @@ import java.time.LocalDateTime;
 
 /**
  * DTO para la creación y edición de una convocatoria asociada a un evento.
+ * <p>
+ * El estado no se incluye en este DTO para evitar que el cliente modifique
+ * el ciclo de vida de la convocatoria en la creación o actualización.
+ * </p>
  *
  * @param eventoId      ID del evento al que pertenece la convocatoria (obligatorio).
  * @param titulo        Título descriptivo (obligatorio, máx 150 caracteres).
@@ -22,6 +27,7 @@ import java.time.LocalDateTime;
  * @since 2026
  */
 @Schema(description = "Datos para crear o actualizar una convocatoria de evento")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ConvocatoriaRequest(
 
         @Schema(description = "ID del evento asociado", example = "1")

@@ -86,6 +86,12 @@ public class ConvocatoriaService {
      */
     @Transactional
     public ConvocatoriaResponse crear(ConvocatoriaRequest request) {
+        if (request.eventoId() == null) {
+            throw new SolicitudInvalidaException("El ID del evento es obligatorio.");
+        }
+        if (request.titulo() == null || request.titulo().isBlank()) {
+            throw new SolicitudInvalidaException("El título de la convocatoria es obligatorio.");
+        }
         validarFechas(request.fechaApertura(), request.fechaCierre());
 
         Evento evento = eventoRepository.findById(request.eventoId())
@@ -98,7 +104,7 @@ public class ConvocatoriaService {
                 .requisitos(request.requisitos())
                 .fechaApertura(request.fechaApertura())
                 .fechaCierre(request.fechaCierre())
-                .estado(EstadoConvocatoria.borrador) // Criterio 1: guarda en borrador
+                .estado(EstadoConvocatoria.borrador) // Criterio 1: guarda SIEMPRE en borrador en creación
                 .build();
 
         Convocatoria guardada = convocatoriaRepository.save(convocatoria);
@@ -108,15 +114,22 @@ public class ConvocatoriaService {
 
     /**
      * Edita el contenido o fechas de una convocatoria existente (Criterio 3).
+     * Mantiene el estado actual de la convocatoria sin modificarlo (no lo pasa a publicada ni a otro estado).
      *
      * @param id      ID de la convocatoria.
      * @param request Nuevos datos de la convocatoria.
      * @return Convocatoria actualizada.
      * @throws RecursoNoEncontradoException si la convocatoria o evento no existen.
-     * @throws SolicitudInvalidaException si las fechas son inválidas.
+     * @throws SolicitudInvalidaException si las fechas o campos son inválidos.
      */
     @Transactional
     public ConvocatoriaResponse actualizar(Long id, ConvocatoriaRequest request) {
+        if (request.eventoId() == null) {
+            throw new SolicitudInvalidaException("El ID del evento es obligatorio.");
+        }
+        if (request.titulo() == null || request.titulo().isBlank()) {
+            throw new SolicitudInvalidaException("El título de la convocatoria es obligatorio.");
+        }
         validarFechas(request.fechaApertura(), request.fechaCierre());
 
         Convocatoria convocatoria = buscarPorId(id);
@@ -129,7 +142,7 @@ public class ConvocatoriaService {
         convocatoria.setRequisitos(request.requisitos());
         convocatoria.setFechaApertura(request.fechaApertura());
         convocatoria.setFechaCierre(request.fechaCierre());
-        // Criterio 3: actualiza información sin cambiar el estado a publicada
+        // Criterio 3: actualiza la información manteniendo el estado que tenía sin cambiarlo a publicada
 
         Convocatoria actualizada = convocatoriaRepository.save(convocatoria);
         log.info("Convocatoria actualizada: ID {}, estado {}", actualizada.getId(), actualizada.getEstado());

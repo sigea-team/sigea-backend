@@ -110,8 +110,8 @@ class ConvocatoriaControllerTest {
                         .content(objectMapper.writeValueAsString(requestIncompleto)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
-                .andExpect(jsonPath("$.errores.eventoId").exists())
-                .andExpect(jsonPath("$.errores.titulo").exists());
+                .andExpect(jsonPath("$.erroresValidacion.eventoId").exists())
+                .andExpect(jsonPath("$.erroresValidacion.titulo").exists());
 
         verify(convocatoriaService, never()).crear(any());
     }
@@ -160,6 +160,17 @@ class ConvocatoriaControllerTest {
         mockMvc.perform(get("/api/v1/convocatorias/10/validar-envio"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("CONVOCATORIA_CERRADA"));
+    }
+
+    @Test
+    @DisplayName("Criterio 4: GET /api/v1/convocatorias/{id}/validar-envio retorna 409 OPERACION_NO_PERMITIDA si la convocatoria no está publicada")
+    void validarEnvio_estadoNoPublicado_retorna409() throws Exception {
+        doThrow(new com.sigea.demosigea_backend.exception.OperacionNoPermitidaException("La convocatoria no está publicada."))
+                .when(convocatoriaService).validarRecepcionPropuestas(10L);
+
+        mockMvc.perform(get("/api/v1/convocatorias/10/validar-envio"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value("OPERACION_NO_PERMITIDA"));
     }
 
     @Test
