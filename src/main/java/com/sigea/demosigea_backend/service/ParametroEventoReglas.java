@@ -6,6 +6,7 @@ import com.sigea.demosigea_backend.model.Evento;
 import org.hibernate.exception.ConstraintViolationException;
 
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -96,9 +97,35 @@ final class ParametroEventoReglas {
         return buscarViolacion(ex)
                 .filter(v -> SQLSTATE_VIOLACION_UNICIDAD.equals(v.getSQLState()))
                 .map(ConstraintViolationException::getConstraintName)
-                .map(nombre -> nombre.replace("\"", "").toLowerCase())
+                .map(ParametroEventoReglas::normalizarNombreRestriccion)
                 .filter(indices::contains)
                 .isPresent();
+    }
+
+    /**
+     * Normaliza el nombre de una restricción o índice reportado por la base de datos para poder
+     * compararlo con los nombres declarados en las migraciones.
+     * <p>
+     * Según el driver y la versión de Hibernate, el nombre puede llegar entre comillas y/o
+     * calificado con el esquema: {@code ux_x}, {@code "ux_x"}, {@code public.ux_x} o
+     * {@code "public"."ux_x"}. Se quitan las comillas, se conserva solo la parte posterior al
+     * último punto (el esquema nunca forma parte del nombre del índice) y se pasa a minúsculas.
+     * </p>
+     * <p>
+     * Se compara por igualdad exacta después de normalizar, no con {@code endsWith}: así un índice
+     * llamado, por ejemplo, {@code otro_ux_x} no se confunde con {@code ux_x}.
+     * </p>
+     *
+     * @param nombre Nombre recibido (puede ser {@code null}).
+     * @return Nombre sin comillas, sin esquema y en minúsculas; cadena vacía si es {@code null}.
+     */
+    static String normalizarNombreRestriccion(String nombre) {
+        if (nombre == null) {
+            return "";
+        }
+        String sinComillas = nombre.replace("\"", "").trim();
+        String sinEsquema = sinComillas.substring(sinComillas.lastIndexOf('.') + 1);
+        return sinEsquema.toLowerCase(Locale.ROOT);
     }
 
     /**
