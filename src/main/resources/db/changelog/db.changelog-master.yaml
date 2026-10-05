@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/changes/6-eventos-semestre-unico-familia.sql
   - include:
       file: db/changelog/changes/7-hu06-comite-organizador.sql
+  - include:
+      file: db/changelog/changes/8-hu05-parametros-evento.sql

@@ -96,6 +96,30 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-05, Criterio 3: ya existe un tipo de actividad o una línea temática con ese nombre en el evento.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código PARAMETRO_DUPLICADO.
+     */
+    @ExceptionHandler(ParametroEventoDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleParametroDuplicado(ParametroEventoDuplicadoException ex,
+                                                                  HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "PARAMETRO_DUPLICADO", request);
+    }
+
+    /**
+     * HU-05, Criterio 2: el tipo de actividad o la línea temática está en uso y no puede eliminarse.
+     * Al ser subclase de {@link OperacionNoPermitidaException}, Spring elige este manejador por ser
+     * el más específico.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código PARAMETRO_EN_USO.
+     */
+    @ExceptionHandler(ParametroEventoEnUsoException.class)
+    public ResponseEntity<ErrorResponse> handleParametroEnUso(ParametroEventoEnUsoException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "PARAMETRO_EN_USO", request);
+    }
+
+    /**
      * Maneja el acceso o autenticación de cuentas cuyos correos no han completado el flujo de verificación.
      * Adjunta la dirección de correo involucrada para facilitar reenvíos desde la interfaz gráfica.
      *
