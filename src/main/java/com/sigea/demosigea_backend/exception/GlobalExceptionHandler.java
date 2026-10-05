@@ -96,6 +96,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Criterio 2: ya existe una línea temática con el mismo nombre en el evento.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código LINEA_TEMATICA_DUPLICADA.
+     */
+    @ExceptionHandler(LineaTematicaDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleLineaTematicaDuplicada(LineaTematicaDuplicadaException ex,
+                                                                      HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "LINEA_TEMATICA_DUPLICADA", request);
+    }
+
+    /**
      * Maneja el acceso o autenticación de cuentas cuyos correos no han completado el flujo de verificación.
      * Adjunta la dirección de correo involucrada para facilitar reenvíos desde la interfaz gráfica.
      *
