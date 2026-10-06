@@ -122,6 +122,22 @@ public class EventoController {
         return ResponseEntity.ok(eventoService.actualizar(id, request));
     }
 
+    @Operation(summary = "Publicar evento",
+            description = "Publica un evento o edición que se encuentre en configuración, cambiando su estado a 'habilitado'.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Evento publicado exitosamente",
+                    content = @Content(schema = @Schema(implementation = EventoResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "El evento ya no está en configuración",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{id}/publicar")
+    @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<EventoResponse> publicar(@PathVariable Long id) {
+        return ResponseEntity.ok(eventoService.publicar(id));
+    }
+
     @Operation(summary = "Crear nueva edición",
             description = "Genera una edición vinculada al evento base a partir del evento indicado, heredando su configuración general "
                     + "pero con datos independientes (Criterio 3).")
