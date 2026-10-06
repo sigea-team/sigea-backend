@@ -202,6 +202,29 @@ class ConvocatoriaServiceTest {
         verify(convocatoriaRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Publicar: Cambia estado de borrador a publicada exitosamente")
+    void publicar_convocatoriaEnBorrador_cambiaAPublicada() {
+        Convocatoria existente = convocatoriaEjemplo(EstadoConvocatoria.borrador);
+        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(existente));
+        when(convocatoriaRepository.save(any(Convocatoria.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ConvocatoriaResponse res = convocatoriaService.publicar(10L);
+
+        assertEquals(EstadoConvocatoria.publicada, res.estado());
+        verify(convocatoriaRepository).save(existente);
+    }
+
+    @Test
+    @DisplayName("Publicar: Si no está en estado borrador, lanza OperacionNoPermitidaException")
+    void publicar_noEnBorrador_lanzaOperacionNoPermitida() {
+        Convocatoria existente = convocatoriaEjemplo(EstadoConvocatoria.publicada);
+        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(existente));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> convocatoriaService.publicar(10L));
+        verify(convocatoriaRepository, never()).save(any());
+    }
+
     // ---------------- Criterio 4 ----------------
 
     @Test

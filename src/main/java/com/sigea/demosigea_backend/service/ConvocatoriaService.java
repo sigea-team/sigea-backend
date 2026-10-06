@@ -150,6 +150,30 @@ public class ConvocatoriaService {
     }
 
     /**
+     * Publica una convocatoria que se encuentra en estado borrador.
+     * Pasa el estado a 'publicada' permitiendo la recepción de propuestas durante su vigencia.
+     *
+     * @param id ID de la convocatoria.
+     * @return Convocatoria actualizada con estado 'publicada'.
+     * @throws RecursoNoEncontradoException si no existe.
+     * @throws OperacionNoPermitidaException si no está en estado borrador.
+     */
+    @Transactional
+    public ConvocatoriaResponse publicar(Long id) {
+        Convocatoria convocatoria = buscarPorId(id);
+        if (convocatoria.getEstado() != EstadoConvocatoria.borrador) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Solo se pueden publicar convocatorias en estado borrador. El estado actual es '%s'.",
+                    convocatoria.getEstado()));
+        }
+
+        convocatoria.setEstado(EstadoConvocatoria.publicada);
+        Convocatoria publicada = convocatoriaRepository.save(convocatoria);
+        log.info("Convocatoria publicada: ID {}, estado {}", publicada.getId(), publicada.getEstado());
+        return ConvocatoriaResponse.fromEntity(publicada);
+    }
+
+    /**
      * Elimina una convocatoria del sistema.
      *
      * @param id ID de la convocatoria a eliminar.
