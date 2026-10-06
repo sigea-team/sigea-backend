@@ -188,4 +188,15 @@ class EventoControllerTest {
         mockMvc.perform(delete("/api/v1/eventos/1").param("confirmar", "false"));
         verify(eventoService).eliminar(1L, false);
     }
+
+    @Test
+    @DisplayName("Publicar: POST /api/v1/eventos/{id}/publicar retorna 200 con estado habilitado")
+    void publicar_retorna200() throws Exception {
+        when(eventoService.publicar(1L)).thenReturn(respuesta(1L, null, EstadoEvento.habilitado));
+
+        mockMvc.perform(post("/api/v1/eventos/1/publicar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.estado").value("habilitado"));
+    }
 }
