@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -132,11 +133,7 @@ public class ComiteOrganizadorService {
         ComiteOrganizador guardado = guardarControlandoDuplicado(miembro, persona, evento);
 
         auditoriaService.registrar(TipoOperacionAuditoria.MIEMBRO_COMITE_AGREGADO, ENTIDAD_COMITE, guardado.getId(),
-                DetalleAuditoria.de(
-                        "eventoId", evento.getId(),
-                        "personaId", persona.getId(),
-                        "numeroDocumento", persona.getNumeroDocumento(),
-                        "rolComite", guardado.getRolComite()));
+                detalleAuditoria(evento, persona, guardado, false));
 
         log.info("Miembro agregado al comité: participación {}, evento {}, persona {}, rol '{}'",
                 guardado.getId(), evento.getId(), persona.getId(), guardado.getRolComite());
@@ -176,11 +173,7 @@ public class ComiteOrganizadorService {
         ComiteOrganizador retirado = comiteRepository.save(miembro);
 
         auditoriaService.registrar(TipoOperacionAuditoria.MIEMBRO_COMITE_RETIRADO, ENTIDAD_COMITE, retirado.getId(),
-                DetalleAuditoria.de(
-                        "eventoId", evento.getId(),
-                        "personaId", retirado.getPersona().getId(),
-                        "rolComite", retirado.getRolComite(),
-                        "fechaRetiro", retirado.getFechaRetiro()));
+                detalleAuditoria(evento, retirado.getPersona(), retirado, true));
 
         log.info("Miembro retirado del comité: participación {}, evento {}", retirado.getId(), evento.getId());
         return MiembroComiteResponse.fromEntity(retirado);
@@ -189,6 +182,33 @@ public class ComiteOrganizadorService {
     // ------------------------------------------------------------------
     // Utilidades
     // ------------------------------------------------------------------
+
+    /**
+     * Datos afectados que se guardan en la auditoría (RF56).
+     * <p>
+     * Se guardan los <b>nombres</b> de la persona y del evento, no solo sus IDs: el registro de
+     * auditoría es una fotografía del momento y debe poder leerse aunque después la persona cambie
+     * de nombre o el evento se renombre, y sin consultar otras tablas. El ID de la participación ya
+     * queda en {@code auditoria.entidad_id}.
+     * </p>
+     *
+     * @param evento  Evento del comité.
+     * @param persona Persona agregada o retirada.
+     * @param miembro Participación en el comité.
+     * @param retiro  {@code true} si la operación es un retiro (agrega la fecha de retiro).
+     */
+    private static Map<String, Object> detalleAuditoria(Evento evento, Persona persona,
+                                                        ComiteOrganizador miembro, boolean retiro) {
+        Map<String, Object> detalle = DetalleAuditoria.de(
+                "evento", evento.getNombre(),
+                "persona", nombreCompleto(persona),
+                "numeroDocumento", persona != null ? persona.getNumeroDocumento() : null,
+                "rolComite", miembro.getRolComite());
+        if (retiro) {
+            detalle.put("fechaRetiro", miembro.getFechaRetiro());
+        }
+        return detalle;
+    }
 
     private Evento buscarEvento(Long id) {
         return eventoRepository.findById(id)
