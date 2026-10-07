@@ -16,6 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
+                .exposedHeaders("Retry-After") // HU-01: el frontend lee los segundos restantes del bloqueo
                 .allowCredentials(true);
     }
 }
