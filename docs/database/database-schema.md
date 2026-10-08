@@ -318,6 +318,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 **Índices Definidos**:
 - UNIQUE Índice `tipos_actividad_evento_id_nombre_idx` sobre (`evento_id`, `nombre`)
+- Índice ÚNICO `ux_tipos_actividad_evento_nombre_ci` sobre (`evento_id`, `LOWER(nombre)`): nombre único por evento sin distinguir mayúsculas. HU-05, changeset hu05-001.
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -339,6 +340,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 **Índices Definidos**:
 - UNIQUE Índice `lineas_tematicas_evento_id_nombre_idx` sobre (`evento_id`, `nombre`)
+- Índice ÚNICO `ux_lineas_tematicas_evento_nombre_ci` sobre (`evento_id`, `LOWER(nombre)`): nombre único por evento sin distinguir mayúsculas. HU-05, changeset hu05-002.
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -713,8 +715,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `disponibilidad_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `sala_id` | `INT` | `Integer` | NO | FK | - | FK -> [`salas.sala_id`](#salas) |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
-| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
@@ -736,8 +738,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
-| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
@@ -765,8 +767,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `nombre` | `VARCHAR(200)` | `String` | NO |  | - | - |
 | `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
-| `hora_fin` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
+| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
+| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
 | `sala_id` | `INT` | `Integer` | NO | FK | - | FK -> [`salas.sala_id`](#salas) |
 | `ponente_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `modalidad` | `VARCHAR(20)` | `String` | SÍ |  | - | CHECK `modalidad IN ('presencial','virtual','hibrida'` |
