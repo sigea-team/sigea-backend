@@ -96,6 +96,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-07: ya existe un rubro vigente con ese nombre en el presupuesto preliminar del evento.
+     * Al ser subclase de {@link RecursoDuplicadoException}, Spring elige este manejador por ser
+     * el más específico.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código RUBRO_DUPLICADO.
+     */
+    @ExceptionHandler(RubroDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleRubroDuplicado(RubroDuplicadoException ex,
+                                                              HttpServletRequest request) {
+           return construir(HttpStatus.CONFLICT, ex.getMessage(), "RUBRO_DUPLICADO", request);
+    }
+
+    /**
      * HU-05, Criterio 3: ya existe un tipo de actividad o una línea temática con ese nombre en el evento.
      *
      * @return {@link ResponseEntity} con estado 409 CONFLICT y código PARAMETRO_DUPLICADO.

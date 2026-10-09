@@ -31,6 +31,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`rubros_presupuestales`](#rubros_presupuestales) (`RubroPresupuestal`): Proyección y planificación de rubros presupuestales estimados para la ejecución del evento.
 - [`presupuestos_aprobados`](#presupuestos_aprobados) (`PresupuestoAprobado`): Registro formal de aprobación del presupuesto general asignado al evento con evidencia documental.
 - [`gastos_ejecutados`](#gastos_ejecutados) (`GastoEjecutado`): Registro contable de gastos reales ejecutados con soporte contra rubros presupuestales.
+- [`historial_rubros`](#historial_rubros) (`HistorialRubro`): Historial inmutable de creaciones, ediciones y eliminaciones de rubros del presupuesto preliminar (HU-07).
 
 ### 4. Convocatorias, Ponentes y Propuestas
 - [`convocatorias`](#convocatorias) (`Convocatoria`): Llamados públicos a presentación de propuestas académicas asociadas a un evento.
@@ -365,7 +366,10 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `activo` | `BOOLEAN` | `Boolean` | NO |  | `true` | - |
 
 **Índices Definidos**:
-- UNIQUE Índice `rubros_presupuestales_evento_id_nombre_idx` sobre (`evento_id`, `nombre`)
+- UNIQUE Índice parcial `ux_rubros_presupuestales_nombre_activo` sobre (`evento_id`, `lower(nombre)`) `WHERE activo = true` (HU-07, changeset `hu07-001`; reemplaza a `rubros_presupuestales_evento_id_nombre_idx`)
+- Índice `idx_rubros_presupuestales_evento` sobre (`evento_id`)
+
+> **HU-07**: eliminar un rubro es borrado lógico (`activo = false`). El total del presupuesto preliminar es `SUM(cantidad * valor_unitario_proyectado)` de los rubros activos.
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -413,6 +417,45 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Relaciones Foráneas Salientes**:
 - Columna `rubro_id` -> [`rubros_presupuestales.rubro_id`](#rubros_presupuestales) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `registrado_por` -> [`usuarios.usuario_id`](#usuarios) `DEFERRABLE INITIALLY IMMEDIATE`
+
+---
+
+### `historial_rubros`
+
+**Descripción**: Historial de modificaciones de los rubros del presupuesto preliminar (HU-07, Criterio 2). Creada por el changeset Liquibase `8-hu07-presupuesto-preliminar.sql` (no está en `schema.sql`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.HistorialRubro` (`@Entity @Immutable @Table(name = "historial_rubros")`)  
+**Clave Primaria**: `historial_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `historial_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `rubro_id` | `INT` | `Long` | NO | FK | - | FK -> [`rubros_presupuestales.rubro_id`](#rubros_presupuestales) |
+| `evento_id` | `INT` | `Long` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
+| `tipo_operacion` | `VARCHAR(20)` | `TipoOperacionRubro` | NO |  | - | CHECK `tipo_operacion IN ('creacion','edicion','eliminacion')` |
+| `nombre_anterior` | `VARCHAR(100)` | `String` | SÍ |  | - | NULL en `creacion` |
+| `cantidad_anterior` | `NUMERIC(10,2)` | `BigDecimal` | SÍ |  | - | - |
+| `valor_unitario_anterior` | `NUMERIC(14,2)` | `BigDecimal` | SÍ |  | - | - |
+| `nombre_nuevo` | `VARCHAR(100)` | `String` | SÍ |  | - | NULL en `eliminacion` |
+| `cantidad_nueva` | `NUMERIC(10,2)` | `BigDecimal` | SÍ |  | - | - |
+| `valor_unitario_nuevo` | `NUMERIC(14,2)` | `BigDecimal` | SÍ |  | - | - |
+| `total_presupuesto_anterior` | `NUMERIC(18,2)` | `BigDecimal` | NO |  | - | CHECK `>= 0` |
+| `total_presupuesto_nuevo` | `NUMERIC(18,2)` | `BigDecimal` | NO |  | - | CHECK `>= 0` |
+| `motivo` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
+| `usuario_id` | `INT` | `Long` | SÍ | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
+| `fecha_hora` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+
+**Restricciones adicionales**:
+- CHECK `ck_historial_rubros_valores_por_operacion`: `creacion` solo tiene valores nuevos, `edicion` anteriores y nuevos, `eliminacion` solo anteriores.
+- Trigger `trg_historial_rubros_inmutable`: rechaza cualquier `UPDATE`.
+
+**Índices Definidos**:
+- Índice `idx_historial_rubros_evento` sobre (`evento_id`, `fecha_hora` DESC)
+- Índice `idx_historial_rubros_rubro` sobre (`rubro_id`, `fecha_hora` DESC)
+
+**Relaciones Foráneas Salientes**:
+- Columna `rubro_id` -> [`rubros_presupuestales.rubro_id`](#rubros_presupuestales) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE`
 
 ---
 

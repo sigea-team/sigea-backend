@@ -39,6 +39,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `rubros_presupuestales` ➡️ Planificación y costeo proyectado.
 - `presupuestos_aprobados` ➡️ Aprobación formal y evidencia de presupuesto.
 - `gastos_ejecutados` ➡️ Ejecución de gastos con soportes contra rubros.
+- `historial_rubros` ➡️ Historial inmutable de cambios a rubros del presupuesto preliminar (HU-07, changeset 8).
 
 ### 4. Convocatorias, Ponentes y Propuestas
 - `convocatorias` ➡️ Llamados a presentación de trabajos. Estados: `'borrador'`, `'publicada'`, `'cerrada'`.
