@@ -22,7 +22,7 @@ import java.time.LocalDate;
  * @param nombre      Nombre del evento (máx. 200).
  * @param objetivo    Objetivo general (opcional).
  * @param descripcion Descripción (opcional).
- * @param tipo        Tipo de evento, texto libre (máx. 50).
+ * @param tipoEventoId ID del tipo de evento, elegido del catálogo de tipos de evento.
  * @param modalidad   presencial | virtual | hibrida.
  * @param fechaInicio Fecha de inicio.
  * @param fechaFin    Fecha de fin (≥ fecha de inicio).
@@ -47,10 +47,9 @@ public record EventoRequest(
         @Size(max = 4000, message = "La descripción no puede superar los 4000 caracteres.")
         String descripcion,
 
-        @Schema(description = "Tipo de evento", example = "Congreso")
-        @NotBlank(message = "El tipo de evento es obligatorio.")
-        @Size(max = 50, message = "El tipo no puede superar los 50 caracteres.")
-        String tipo,
+        @Schema(description = "ID del tipo de evento, elegido del catálogo /api/v1/tipos-evento", example = "1")
+        @NotNull(message = "Selecciona el tipo de evento.")
+        Long tipoEventoId,
 
         @Schema(description = "Modalidad del evento", example = "presencial")
         @NotNull(message = "La modalidad es obligatoria (presencial, virtual o hibrida).")

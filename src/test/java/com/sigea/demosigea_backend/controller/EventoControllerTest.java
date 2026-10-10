@@ -57,7 +57,7 @@ class EventoControllerTest {
     }
 
     private EventoResponse respuesta(Long id, Long baseId, EstadoEvento estado) {
-        return new EventoResponse(id, "Congreso", null, null, "Congreso", ModalidadEvento.presencial,
+        return new EventoResponse(id, "Congreso", null, null, "Congreso", 1L, ModalidadEvento.presencial,
                 LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 22), "2026-2", estado, baseId, baseId != null);
     }
 
@@ -68,7 +68,7 @@ class EventoControllerTest {
                 .thenReturn(respuesta(1L, null, EstadoEvento.en_configuracion));
 
         String body = """
-                {"nombre":"Congreso","tipo":"Congreso","modalidad":"presencial",
+                {"nombre":"Congreso","tipoEventoId":1,"modalidad":"presencial",
                  "fechaInicio":"2026-10-20","fechaFin":"2026-10-22"}
                 """;
 
@@ -90,7 +90,7 @@ class EventoControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
                 .andExpect(jsonPath("$.erroresValidacion.nombre").exists())
-                .andExpect(jsonPath("$.erroresValidacion.tipo").exists())
+                .andExpect(jsonPath("$.erroresValidacion.tipoEventoId").exists())
                 .andExpect(jsonPath("$.erroresValidacion.modalidad").exists())
                 .andExpect(jsonPath("$.erroresValidacion.fechaFin").exists());
         verify(eventoService, never()).crear(any());
@@ -100,7 +100,7 @@ class EventoControllerTest {
     @DisplayName("Criterio 5: fecha fin anterior a la de inicio → 400")
     void crear_rangoFechasInvalido_retorna400() throws Exception {
         String body = """
-                {"nombre":"Congreso","tipo":"Congreso","modalidad":"virtual",
+                {"nombre":"Congreso","tipoEventoId":1,"modalidad":"virtual",
                  "fechaInicio":"2026-10-22","fechaFin":"2026-10-20"}
                 """;
 
@@ -165,7 +165,7 @@ class EventoControllerTest {
     @DisplayName("Modalidad inexistente en el JSON → 400")
     void crear_modalidadInvalida_retorna400() throws Exception {
         String body = """
-                {"nombre":"Congreso","tipo":"Congreso","modalidad":"mixta",
+                {"nombre":"Congreso","tipoEventoId":1,"modalidad":"mixta",
                  "fechaInicio":"2026-10-20","fechaFin":"2026-10-22"}
                 """;
 

@@ -17,7 +17,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 
 ---
 
-## 🗺️ Mapa de Módulos y Tablas del Sistema (42 Tablas)
+## 🗺️ Mapa de Módulos y Tablas del Sistema (43 Tablas)
 
 ### 1. Seguridad, Usuarios y Control de Acceso
 - `personas` ➡️ Datos personales y de contacto.
@@ -31,6 +31,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 
 ### 2. Gestión de Eventos y Organización
 - `eventos` ➡️ Eventos académicos. Modalidad: `'presencial'`, `'virtual'`, `'hibrida'`. Estados: `'en_configuracion'`, `'habilitado'`, `'en_ejecucion'`, `'cerrado'`.
+- `tipos_evento` ➡️ Catálogo global de tipos de evento (congreso, seminario, taller...). Referenciado por `eventos.tipo_evento_id`.
 - `comite_organizador` ➡️ Miembros organizadores y sus roles en el evento.
 - `tipos_actividad` ➡️ Tipos de sesiones (conferencia, taller, etc.).
 - `lineas_tematicas` ➡️ Ejes temáticos del evento.

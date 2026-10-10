@@ -15,6 +15,7 @@
     ],
     "2. Gestión de Eventos y Organización": [
       "eventos",
+      "tipos_evento",
       "comite_organizador",
       "tipos_actividad",
       "lineas_tematicas"
@@ -721,15 +722,15 @@
           "raw_definition": "\"descripcion\" TEXT"
         },
         {
-          "name": "tipo",
-          "type": "VARCHAR(50)",
+          "name": "tipo_evento_id",
+          "type": "INT",
           "nullable": true,
           "primary_key": false,
           "unique": false,
           "default": null,
           "check": null,
-          "foreign_key": null,
-          "raw_definition": "\"tipo\" VARCHAR(50)"
+          "foreign_key": "tipos_evento.tipo_evento_id",
+          "raw_definition": "\"tipo_evento_id\" INT"
         },
         {
           "name": "modalidad",
@@ -807,6 +808,12 @@
           "references_table": "eventos",
           "references_column": "evento_id",
           "options": "DEFERRABLE INITIALLY IMMEDIATE"
+        },
+        {
+          "column": "tipo_evento_id",
+          "references_table": "tipos_evento",
+          "references_column": "tipo_evento_id",
+          "options": ""
         }
       ],
       "indexes": [
@@ -824,9 +831,70 @@
             "COALESCE(evento_base_id, evento_id)",
             "semestre"
           ]
+        },
+        {
+          "name": "idx_eventos_tipo_evento",
+          "unique": false,
+          "columns": [
+            "tipo_evento_id"
+          ]
         }
       ],
       "java_entity": "Evento"
+    },
+    "tipos_evento": {
+      "name": "tipos_evento",
+      "description": "Catálogo global de tipos de evento (congreso, seminario, taller, hackatón, etc.) que referencia eventos.tipo_evento_id. Changeset tipos-evento-001.",
+      "primary_key": [
+        "tipo_evento_id"
+      ],
+      "columns": [
+        {
+          "name": "tipo_evento_id",
+          "type": "SERIAL",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"tipo_evento_id\" SERIAL PRIMARY KEY"
+        },
+        {
+          "name": "nombre",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"nombre\" VARCHAR(50) NOT NULL"
+        },
+        {
+          "name": "descripcion",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "default": null,
+          "check": null,
+          "foreign_key": null,
+          "raw_definition": "\"descripcion\" VARCHAR(255)"
+        }
+      ],
+      "table_checks": [],
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "ux_tipos_evento_nombre_ci",
+          "unique": true,
+          "columns": [
+            "LOWER(nombre)"
+          ]
+        }
+      ],
+      "java_entity": "TipoEvento"
     },
     "comite_organizador": {
       "name": "comite_organizador",
@@ -3921,6 +3989,13 @@
       "to_table": "eventos",
       "to_column": "evento_id",
       "options": "DEFERRABLE INITIALLY IMMEDIATE"
+    },
+    {
+      "from_table": "eventos",
+      "from_column": "tipo_evento_id",
+      "to_table": "tipos_evento",
+      "to_column": "tipo_evento_id",
+      "options": ""
     },
     {
       "from_table": "comite_organizador",

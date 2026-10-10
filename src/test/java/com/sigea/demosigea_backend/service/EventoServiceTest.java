@@ -10,13 +10,16 @@ import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.ModalidadEvento;
+import com.sigea.demosigea_backend.model.TipoEvento;
+import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.repository.EventoRepository;
+import com.sigea.demosigea_backend.repository.TipoEventoRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.hibernate.exception.ConstraintViolationException;
@@ -25,7 +28,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +42,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,21 +59,46 @@ class EventoServiceTest {
     @Mock
     private EventoRepository eventoRepository;
 
-    @InjectMocks
+    @Mock
+    private TipoEventoRepository tipoEventoRepository;
+
+    @Mock
+    private AuditoriaService auditoriaService;
+
     private EventoService eventoService;
 
     private static final LocalDate INICIO = LocalDate.of(2026, 10, 20);
     private static final LocalDate FIN = LocalDate.of(2026, 10, 22);
 
+    /** "Hoy" en las pruebas: 10 de octubre de 2026, antes de INICIO. */
+    private static final LocalDate HOY = LocalDate.of(2026, 10, 10);
+    private static final ZoneId BOGOTA = ZoneId.of("America/Bogota");
+
+    private static final TipoEvento CONGRESO = TipoEvento.builder().id(1L).nombre("Congreso").build();
+    private static final TipoEvento SEMINARIO = TipoEvento.builder().id(2L).nombre("Seminario").build();
+
+    @BeforeEach
+    void setUp() {
+        eventoService = conHoy(HOY);
+        lenient().when(tipoEventoRepository.findById(1L)).thenReturn(Optional.of(CONGRESO));
+        lenient().when(tipoEventoRepository.findById(2L)).thenReturn(Optional.of(SEMINARIO));
+    }
+
+    /** Servicio cuyo reloj marca la fecha indicada (al mediodía, hora de Bogotá). */
+    private EventoService conHoy(LocalDate hoy) {
+        Clock reloj = Clock.fixed(hoy.atTime(12, 0).atZone(BOGOTA).toInstant(), BOGOTA);
+        return new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, reloj);
+    }
+
     private EventoRequest requestValido() {
         return new EventoRequest("Congreso de Ingeniería de Sistemas", "Objetivo", "Descripción",
-                "Congreso", ModalidadEvento.presencial, INICIO, FIN, null);
+                1L, ModalidadEvento.presencial, INICIO, FIN, null);
     }
 
     private Evento eventoBase(EstadoEvento estado) {
         return Evento.builder()
                 .id(1L).nombre("Congreso de Ingeniería de Sistemas").objetivo("Objetivo").descripcion("Descripción")
-                .tipo("Congreso").modalidad(ModalidadEvento.presencial)
+                .tipoEvento(CONGRESO).modalidad(ModalidadEvento.presencial)
                 .fechaInicio(INICIO).fechaFin(FIN).semestre("2026-2").estado(estado)
                 .build();
     }
@@ -103,13 +140,14 @@ class EventoServiceTest {
         when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
         when(eventoRepository.saveAndFlush(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        EventoRequest cambios = new EventoRequest("Congreso renombrado", null, null, "Seminario",
+        EventoRequest cambios = new EventoRequest("Congreso renombrado", null, null, 2L,
                 ModalidadEvento.hibrida, INICIO, FIN, null);
 
         EventoResponse response = eventoService.actualizar(1L, cambios);
 
         assertEquals("Congreso renombrado", response.nombre());
         assertEquals("Seminario", response.tipo());
+        assertEquals(2L, response.tipoEventoId());
         assertEquals(ModalidadEvento.hibrida, response.modalidad());
         assertEquals(EstadoEvento.en_configuracion, response.estado());
     }
@@ -130,7 +168,7 @@ class EventoServiceTest {
         when(eventoRepository.existsByIdAndSemestreAndIdNot(1L, "2027-2", 1L)).thenReturn(false);
         when(eventoRepository.existsByEventoBase_IdAndSemestreAndIdNot(1L, "2027-2", 1L)).thenReturn(true);
 
-        EventoRequest cambios = new EventoRequest("Congreso", null, null, "Congreso",
+        EventoRequest cambios = new EventoRequest("Congreso", null, null, 1L,
                 ModalidadEvento.presencial, INICIO, FIN, "2027-2");
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(1L, cambios));
@@ -141,14 +179,14 @@ class EventoServiceTest {
     @DisplayName("Criterio 2: una edición no puede cambiar a un semestre ya usado en su familia")
     void actualizar_edicionConSemestreOcupado_rechaza() {
         Evento raiz = eventoBase(EstadoEvento.cerrado);
-        Evento edicion = Evento.builder().id(2L).nombre("Congreso 2027").tipo("Congreso")
+        Evento edicion = Evento.builder().id(2L).nombre("Congreso 2027").tipoEvento(CONGRESO)
                 .modalidad(ModalidadEvento.presencial).fechaInicio(LocalDate.of(2027, 10, 19))
                 .fechaFin(LocalDate.of(2027, 10, 21)).semestre("2027-2")
                 .estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
         when(eventoRepository.findById(2L)).thenReturn(Optional.of(edicion));
         when(eventoRepository.existsByIdAndSemestreAndIdNot(1L, "2026-2", 2L)).thenReturn(true);
 
-        EventoRequest cambios = new EventoRequest("Congreso 2027", null, null, "Congreso",
+        EventoRequest cambios = new EventoRequest("Congreso 2027", null, null, 1L,
                 ModalidadEvento.presencial, INICIO, FIN, "2026-2");
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.actualizar(2L, cambios));
@@ -241,7 +279,7 @@ class EventoServiceTest {
         assertEquals(base.getNombre(), guardada.getNombre());
         assertEquals(base.getObjetivo(), guardada.getObjetivo());
         assertEquals(base.getDescripcion(), guardada.getDescripcion());
-        assertEquals(base.getTipo(), guardada.getTipo());
+        assertEquals(base.getTipoEvento(), guardada.getTipoEvento());
         assertEquals(base.getModalidad(), guardada.getModalidad());
         // El evento origen no se modifica
         assertEquals(EstadoEvento.cerrado, base.getEstado());
@@ -252,7 +290,7 @@ class EventoServiceTest {
     @DisplayName("Criterio 3: una edición creada desde otra edición queda vinculada al evento raíz")
     void crearEdicion_desdeOtraEdicion_apuntaAlRaiz() {
         Evento raiz = eventoBase(EstadoEvento.cerrado);
-        Evento edicion2026 = Evento.builder().id(5L).nombre("Congreso 2026").tipo("Congreso")
+        Evento edicion2026 = Evento.builder().id(5L).nombre("Congreso 2026").tipoEvento(CONGRESO)
                 .modalidad(ModalidadEvento.virtual).fechaInicio(INICIO).fechaFin(FIN)
                 .semestre("2026-2").estado(EstadoEvento.cerrado).eventoBase(raiz).build();
 
@@ -300,7 +338,7 @@ class EventoServiceTest {
     @DisplayName("Criterio 4: lista las ediciones de la familia aunque se consulte desde una edición")
     void listarEdiciones_desdeEdicion() {
         Evento raiz = eventoBase(EstadoEvento.cerrado);
-        Evento e2 = Evento.builder().id(2L).nombre("Congreso 2027").tipo("Congreso")
+        Evento e2 = Evento.builder().id(2L).nombre("Congreso 2027").tipoEvento(CONGRESO)
                 .fechaInicio(LocalDate.of(2027, 10, 19)).fechaFin(LocalDate.of(2027, 10, 21))
                 .semestre("2027-2").estado(EstadoEvento.en_configuracion).eventoBase(raiz).build();
 
@@ -319,9 +357,9 @@ class EventoServiceTest {
     @Test
     @DisplayName("Un ciclo en la jerarquía (A -> B -> A) se rechaza de forma controlada y sin bloquearse")
     void listarEdiciones_jerarquiaCiclica_seRechaza() {
-        Evento a = Evento.builder().id(10L).nombre("A").tipo("Congreso")
+        Evento a = Evento.builder().id(10L).nombre("A").tipoEvento(CONGRESO)
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).build();
-        Evento b = Evento.builder().id(11L).nombre("B").tipo("Congreso")
+        Evento b = Evento.builder().id(11L).nombre("B").tipoEvento(CONGRESO)
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(a).build();
         a.setEventoBase(b); // A -> B -> A
         when(eventoRepository.findById(10L)).thenReturn(Optional.of(a));
@@ -334,7 +372,7 @@ class EventoServiceTest {
     @Test
     @DisplayName("Un evento que figura como su propio evento base se rechaza de forma controlada")
     void listarEdiciones_autorreferencia_seRechaza() {
-        Evento a = Evento.builder().id(10L).nombre("A").tipo("Congreso")
+        Evento a = Evento.builder().id(10L).nombre("A").tipoEvento(CONGRESO)
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).build();
         a.setEventoBase(a); // A -> A
         when(eventoRepository.findById(10L)).thenReturn(Optional.of(a));
@@ -346,9 +384,9 @@ class EventoServiceTest {
     @DisplayName("No se crea una edición a partir de un evento con jerarquía inválida")
     void crearEdicion_origenConJerarquiaInvalida_seRechaza() {
         Evento raiz = eventoBase(EstadoEvento.cerrado);
-        Evento intermedio = Evento.builder().id(5L).nombre("Intermedio").tipo("Congreso")
+        Evento intermedio = Evento.builder().id(5L).nombre("Intermedio").tipoEvento(CONGRESO)
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(raiz).build();
-        Evento origen = Evento.builder().id(6L).nombre("Origen").tipo("Congreso")
+        Evento origen = Evento.builder().id(6L).nombre("Origen").tipoEvento(CONGRESO)
                 .fechaInicio(INICIO).fechaFin(FIN).estado(EstadoEvento.cerrado).eventoBase(intermedio).build();
         when(eventoRepository.findById(6L)).thenReturn(Optional.of(origen));
 
@@ -422,6 +460,117 @@ class EventoServiceTest {
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.publicar(1L));
         verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Publicar: queda registrado en la auditoría")
+    void publicar_registraAuditoria() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventoService.publicar(1L);
+
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.EVENTO_PUBLICADO), eq("eventos"), eq(1L), anyMap());
+    }
+
+    @Test
+    @DisplayName("Publicar: si ya está dentro de su periodo, pasa directamente a en_ejecucion")
+    void publicar_dentroDelPeriodo_quedaEnEjecucion() {
+        eventoService = conHoy(LocalDate.of(2026, 10, 21));
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoResponse response = eventoService.publicar(1L);
+
+        assertEquals(EstadoEvento.en_ejecucion, response.estado());
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.EVENTO_INICIADO), eq("eventos"), eq(1L), anyMap(), isNull());
+    }
+
+    @Test
+    @DisplayName("Publicar: el mismo día de inicio también pasa a en_ejecucion")
+    void publicar_elDiaDeInicio_quedaEnEjecucion() {
+        eventoService = conHoy(INICIO);
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals(EstadoEvento.en_ejecucion, eventoService.publicar(1L).estado());
+    }
+
+    @Test
+    @DisplayName("Publicar: no se permite si la fecha de fin ya pasó")
+    void publicar_fechaFinPasada_rechaza() {
+        eventoService = conHoy(LocalDate.of(2026, 10, 23));
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.publicar(1L));
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    // ---------------- Cambio automático de estado ----------------
+
+    @Test
+    @DisplayName("Estado automático: pasa a en_ejecucion los habilitados que están en su periodo")
+    void actualizarEstadosPorFecha_iniciaLosHabilitados() {
+        Evento porIniciar = eventoBase(EstadoEvento.habilitado);
+        eventoService = conHoy(INICIO);
+        when(eventoRepository.findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
+                EstadoEvento.habilitado, INICIO, INICIO)).thenReturn(List.of(porIniciar));
+
+        int iniciados = eventoService.actualizarEstadosPorFecha();
+
+        assertEquals(1, iniciados);
+        assertEquals(EstadoEvento.en_ejecucion, porIniciar.getEstado());
+        verify(eventoRepository).saveAll(List.of(porIniciar));
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.EVENTO_INICIADO), eq("eventos"), eq(1L), anyMap(), isNull());
+    }
+
+    @Test
+    @DisplayName("Estado automático: sin eventos por iniciar no cambia nada ni registra auditoría")
+    void actualizarEstadosPorFecha_sinEventos_noCambiaNada() {
+        when(eventoRepository.findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
+                EstadoEvento.habilitado, HOY, HOY)).thenReturn(List.of());
+
+        assertEquals(0, eventoService.actualizarEstadosPorFecha());
+        verify(auditoriaService, never()).registrar(any(), anyString(), anyLong(), anyMap(), any());
+    }
+
+    @Test
+    @DisplayName("Estado automático: la fecha de hoy se toma en la zona horaria del programa, no la del servidor")
+    void actualizarEstadosPorFecha_usaZonaDelPrograma() {
+        // 21 de octubre a las 2:00 a. m. UTC = 20 de octubre a las 9:00 p. m. en Bogotá.
+        Clock utcMadrugada = Clock.fixed(java.time.Instant.parse("2026-10-21T02:00:00Z"), BOGOTA);
+        eventoService = new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, utcMadrugada);
+        when(eventoRepository.findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
+                EstadoEvento.habilitado, INICIO, INICIO)).thenReturn(List.of());
+
+        eventoService.actualizarEstadosPorFecha();
+
+        verify(eventoRepository, times(1)).findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
+                EstadoEvento.habilitado, INICIO, INICIO);
+    }
+
+    // ---------------- Tipo de evento ----------------
+
+    @Test
+    @DisplayName("Tipo de evento: crear con un tipo que no existe en el catálogo responde 404")
+    void crear_tipoInexistente_rechaza() {
+        when(tipoEventoRepository.findById(99L)).thenReturn(Optional.empty());
+        EventoRequest request = new EventoRequest("Congreso", null, null, 99L,
+                ModalidadEvento.presencial, INICIO, FIN, null);
+
+        assertThrows(RecursoNoEncontradoException.class, () -> eventoService.crear(request));
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Tipo de evento: la respuesta trae el nombre y el ID del tipo")
+    void crear_respuestaIncluyeTipo() {
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoResponse response = eventoService.crear(requestValido());
+
+        assertEquals("Congreso", response.tipo());
+        assertEquals(1L, response.tipoEventoId());
     }
 
     // ---------------- Listado ----------------

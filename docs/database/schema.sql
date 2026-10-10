@@ -757,7 +757,7 @@ CREATE TABLE public.eventos (
     nombre character varying(200) NOT NULL,
     objetivo text,
     descripcion text,
-    tipo character varying(50),
+    tipo_evento_id integer,
     modalidad character varying(20),
     fecha_inicio date NOT NULL,
     fecha_fin date NOT NULL,
@@ -771,6 +771,35 @@ CREATE TABLE public.eventos (
 
 
 ALTER TABLE public.eventos OWNER TO neondb_owner;
+
+--
+-- Name: tipos_evento; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Catálogo global de tipos de evento. Changeset tipos-evento-001.
+--
+
+CREATE TABLE public.tipos_evento (
+    tipo_evento_id integer NOT NULL,
+    nombre character varying(50) NOT NULL,
+    descripcion character varying(255)
+);
+
+
+ALTER TABLE public.tipos_evento OWNER TO neondb_owner;
+
+CREATE SEQUENCE public.tipos_evento_tipo_evento_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.tipos_evento_tipo_evento_id_seq OWNED BY public.tipos_evento.tipo_evento_id;
+
+ALTER TABLE ONLY public.tipos_evento ALTER COLUMN tipo_evento_id SET DEFAULT nextval('public.tipos_evento_tipo_evento_id_seq'::regclass);
+
+ALTER TABLE ONLY public.tipos_evento
+    ADD CONSTRAINT tipos_evento_pkey PRIMARY KEY (tipo_evento_id);
 
 --
 -- TOC entry 233 (class 1259 OID 24689)
@@ -3549,6 +3578,22 @@ CREATE INDEX idx_eventos_semestre ON public.eventos USING btree (semestre);
 
 
 --
+-- Name: idx_eventos_tipo_evento; Type: INDEX; Schema: public; Owner: neondb_owner
+-- Changeset tipos-evento-003.
+--
+
+CREATE INDEX idx_eventos_tipo_evento ON public.eventos USING btree (tipo_evento_id);
+
+
+--
+-- Name: ux_tipos_evento_nombre_ci; Type: INDEX; Schema: public; Owner: neondb_owner
+-- Nombre del tipo de evento único sin distinguir mayúsculas. Changeset tipos-evento-001.
+--
+
+CREATE UNIQUE INDEX ux_tipos_evento_nombre_ci ON public.tipos_evento USING btree (lower((nombre)::text));
+
+
+--
 -- Name: ux_eventos_familia_semestre; Type: INDEX; Schema: public; Owner: neondb_owner
 -- HU-04: un semestre por familia de eventos (evento base + ediciones). Changeset 006.
 --
@@ -3912,6 +3957,15 @@ ALTER TABLE ONLY public.evaluaciones
 
 ALTER TABLE ONLY public.eventos
     ADD CONSTRAINT eventos_evento_base_id_fkey FOREIGN KEY (evento_base_id) REFERENCES public.eventos(evento_id) DEFERRABLE;
+
+
+--
+-- Name: eventos eventos_tipo_evento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Changeset tipos-evento-003.
+--
+
+ALTER TABLE ONLY public.eventos
+    ADD CONSTRAINT eventos_tipo_evento_id_fkey FOREIGN KEY (tipo_evento_id) REFERENCES public.tipos_evento(tipo_evento_id);
 
 
 --

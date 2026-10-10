@@ -66,7 +66,7 @@ class TipoActividadServiceTest {
 
     private Evento evento(EstadoEvento estado) {
         return Evento.builder()
-                .id(1L).nombre("Congreso de Ingeniería de Sistemas").tipo("Congreso")
+                .id(1L).nombre("Congreso de Ingeniería de Sistemas")
                 .fechaInicio(LocalDate.of(2026, 10, 20)).fechaFin(LocalDate.of(2026, 10, 22))
                 .semestre("2026-2").estado(estado)
                 .build();

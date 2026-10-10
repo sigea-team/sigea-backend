@@ -60,9 +60,13 @@ public class Evento {
     @Column(name = "descripcion", columnDefinition = "TEXT")
     private String descripcion;
 
-    /** Tipo de evento (congreso, seminario, feria, encuentro de semilleros, etc.). Texto libre para garantizar RNF15. */
-    @Column(name = "tipo", length = 50)
-    private String tipo;
+    /**
+     * Tipo de evento, elegido del catálogo {@code tipos_evento} (congreso, seminario, taller, etc.).
+     * Reemplaza la antigua columna de texto libre {@code tipo} (changeset tipos-evento-003/004).
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "tipo_evento_id")
+    private TipoEvento tipoEvento;
 
     /** Modalidad del evento. */
     @Enumerated(EnumType.STRING)
