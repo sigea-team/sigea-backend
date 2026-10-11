@@ -34,8 +34,11 @@ public enum TipoOperacionAuditoria {
     MIEMBRO_COMITE_AGREGADO("EVENTOS", "Vinculación de una persona al comité organizador de un evento"),
     MIEMBRO_COMITE_RETIRADO("EVENTOS", "Retiro de un miembro del comité organizador vigente de un evento"),
 
-    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
+    // ----- Presupuesto y Finanzas (HU-08) -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),
+    PRESUPUESTO_ACTUALIZADO("PRESUPUESTO", "Actualización del presupuesto aprobado del evento (HU-08)"),
+
+    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
 

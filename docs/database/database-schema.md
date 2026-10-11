@@ -386,6 +386,10 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `aprobado_por` | `INT` | `Integer` | NO | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'aprobado'` | - |
 
+**Índices Definidos**:
+- UNIQUE Índice `ux_presupuestos_aprobados_oficial` sobre (`evento_id`) WHERE `estado = 'aprobado'`: permite exactamente una versión oficial vigente por evento y conservar múltiples versiones previas como `'historico'` (HU-08, changeset 008).
+- Índice `idx_presupuestos_aprobados_evento` sobre (`evento_id`).
+
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `aprobado_por` -> [`usuarios.usuario_id`](#usuarios) `DEFERRABLE INITIALLY IMMEDIATE`
