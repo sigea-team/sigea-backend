@@ -1,5 +1,7 @@
 package com.sigea.demosigea_backend.model;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,8 +18,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.LocalDate;
 
 /**
  * Entidad JPA que representa un evento académico, científico o tecnológico (RF03)
@@ -90,7 +90,7 @@ public class Evento {
     /**
      * Evento raíz del cual esta edición forma parte. Es {@code null} cuando el registro es el evento base.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "evento_base_id")
     private Evento eventoBase;
 

@@ -63,7 +63,7 @@ public class Rol {
     /**
      * Permisos atómicos asociados a este rol mediante la tabla intermedia roles_permisos.
      */
-    @jakarta.persistence.ManyToMany(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.ManyToMany(fetch = jakarta.persistence.FetchType.EAGER)
     @jakarta.persistence.JoinTable(
             name = "roles_permisos",
             joinColumns = @jakarta.persistence.JoinColumn(name = "rol_id"),

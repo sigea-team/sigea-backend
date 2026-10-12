@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
@@ -95,6 +96,9 @@ public class AuthService {
     /** Minutos que dura el bloqueo temporal de la cuenta tras superar los intentos fallidos (HU-01, Criterio 3). */
     @Value("${app.security.minutos-bloqueo:15}")
     private int minutosBloqueo;
+
+    /** Zona horaria usada para mostrar horas al usuario. */
+    private static final ZoneId ZONA_COLOMBIA = ZoneId.of("America/Bogota");
 
     /**
      * Horas de vigencia de un token de recuperación de contraseña (HU-32, Criterio 1).
@@ -390,7 +394,10 @@ public class AuthService {
      * @return mensaje con la hora a partir de la cual podrá volver a intentarlo
      */
     private String mensajeBloqueo(LocalDateTime bloqueadoHasta) {
-        String horaDesbloqueo = bloqueadoHasta.format(DateTimeFormatter.ofPattern("HH:mm"));
+        String horaDesbloqueo = bloqueadoHasta
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(ZONA_COLOMBIA)
+                .format(DateTimeFormatter.ofPattern("HH:mm"));
         return "Su cuenta ha sido bloqueada temporalmente por múltiples intentos fallidos. "
                 + "Podrá intentarlo nuevamente después de las " + horaDesbloqueo + ".";
     }

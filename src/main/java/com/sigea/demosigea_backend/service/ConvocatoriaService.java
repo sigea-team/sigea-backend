@@ -114,13 +114,16 @@ public class ConvocatoriaService {
 
     /**
      * Edita el contenido o fechas de una convocatoria existente (Criterio 3).
-     * Mantiene el estado actual de la convocatoria sin modificarlo (no lo pasa a publicada ni a otro estado).
+     * Solo permite editar convocatorias que se encuentren en estado borrador;
+     * una vez publicadas o cerradas no pueden modificarse para preservar la integridad
+     * de los periodos de recepción ya comunicados.
      *
      * @param id      ID de la convocatoria.
      * @param request Nuevos datos de la convocatoria.
      * @return Convocatoria actualizada.
-     * @throws RecursoNoEncontradoException si la convocatoria o evento no existen.
-     * @throws SolicitudInvalidaException si las fechas o campos son inválidos.
+     * @throws RecursoNoEncontradoException  si la convocatoria o evento no existen.
+     * @throws OperacionNoPermitidaException si la convocatoria no está en estado borrador.
+     * @throws SolicitudInvalidaException    si las fechas o campos son inválidos.
      */
     @Transactional
     public ConvocatoriaResponse actualizar(Long id, ConvocatoriaRequest request) {
@@ -133,6 +136,14 @@ public class ConvocatoriaService {
         validarFechas(request.fechaApertura(), request.fechaCierre());
 
         Convocatoria convocatoria = buscarPorId(id);
+
+        // Criterio 3: solo se editan convocatorias en borrador
+        if (convocatoria.getEstado() != EstadoConvocatoria.borrador) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Solo se pueden editar convocatorias en estado borrador. El estado actual es '%s'.",
+                    convocatoria.getEstado()));
+        }
+
         Evento evento = eventoRepository.findById(request.eventoId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró el evento con ID: " + request.eventoId()));
 
@@ -142,11 +153,34 @@ public class ConvocatoriaService {
         convocatoria.setRequisitos(request.requisitos());
         convocatoria.setFechaApertura(request.fechaApertura());
         convocatoria.setFechaCierre(request.fechaCierre());
-        // Criterio 3: actualiza la información manteniendo el estado que tenía sin cambiarlo a publicada
 
         Convocatoria actualizada = convocatoriaRepository.save(convocatoria);
         log.info("Convocatoria actualizada: ID {}, estado {}", actualizada.getId(), actualizada.getEstado());
         return ConvocatoriaResponse.fromEntity(actualizada);
+    }
+
+    /**
+     * Publica una convocatoria que se encuentra en estado borrador.
+     * Pasa el estado a 'publicada' permitiendo la recepción de propuestas durante su vigencia.
+     *
+     * @param id ID de la convocatoria.
+     * @return Convocatoria actualizada con estado 'publicada'.
+     * @throws RecursoNoEncontradoException si no existe.
+     * @throws OperacionNoPermitidaException si no está en estado borrador.
+     */
+    @Transactional
+    public ConvocatoriaResponse publicar(Long id) {
+        Convocatoria convocatoria = buscarPorId(id);
+        if (convocatoria.getEstado() != EstadoConvocatoria.borrador) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Solo se pueden publicar convocatorias en estado borrador. El estado actual es '%s'.",
+                    convocatoria.getEstado()));
+        }
+
+        convocatoria.setEstado(EstadoConvocatoria.publicada);
+        Convocatoria publicada = convocatoriaRepository.save(convocatoria);
+        log.info("Convocatoria publicada: ID {}, estado {}", publicada.getId(), publicada.getEstado());
+        return ConvocatoriaResponse.fromEntity(publicada);
     }
 
     /**

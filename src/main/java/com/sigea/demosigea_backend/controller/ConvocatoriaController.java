@@ -121,6 +121,22 @@ public class ConvocatoriaController {
         return ResponseEntity.ok(convocatoriaService.actualizar(id, request));
     }
 
+    @Operation(summary = "Publicar convocatoria",
+            description = "Cambia el estado de una convocatoria de 'borrador' a 'publicada', permitiendo la recepción de propuestas.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Convocatoria publicada exitosamente",
+                    content = @Content(schema = @Schema(implementation = ConvocatoriaResponse.class))),
+            @ApiResponse(responseCode = "400", description = "La convocatoria no está en estado borrador",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Convocatoria no encontrada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{id}/publicar")
+    @PreAuthorize("hasAnyAuthority('CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<ConvocatoriaResponse> publicar(@PathVariable Long id) {
+        return ResponseEntity.ok(convocatoriaService.publicar(id));
+    }
+
     @Operation(summary = "Eliminar convocatoria",
             description = "Elimina una convocatoria existente.")
     @ApiResponses({

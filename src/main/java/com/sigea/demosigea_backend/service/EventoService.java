@@ -246,6 +246,33 @@ public class EventoService {
     }
 
     // ------------------------------------------------------------------
+    // Publicación del evento
+    // ------------------------------------------------------------------
+
+    /**
+     * Publica un evento o edición que se encuentra en configuración, cambiando su estado a {@code habilitado}.
+     *
+     * @param id ID del evento a publicar.
+     * @return Evento con su nuevo estado habilitado.
+     */
+    @Transactional
+    public EventoResponse publicar(Long id) {
+        Evento evento = buscarEvento(id);
+
+        if (evento.getEstado() != EstadoEvento.en_configuracion) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Solo se pueden publicar eventos en configuración. El estado actual de '%s' es %s.",
+                    evento.getNombre(), evento.getEstado()));
+        }
+
+        evento.setEstado(EstadoEvento.habilitado);
+        Evento guardado = eventoRepository.save(evento);
+        log.info("Evento publicado exitosamente: ID {}, nombre '{}', nuevo estado {}",
+                guardado.getId(), guardado.getNombre(), guardado.getEstado());
+        return EventoResponse.fromEntity(guardado);
+    }
+
+    // ------------------------------------------------------------------
     // Criterio 5: eliminación con integridad histórica
     // ------------------------------------------------------------------
 

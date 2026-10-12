@@ -16,12 +16,21 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
- * Entidad JPA que representa un rubro presupuestal proyectado o estimado
- * para la planificación financiera de un evento académico.
+ * Entidad JPA que representa un rubro del presupuesto preliminar de un evento (HU-07, RF06).
  * <p>
- * Mapea la tabla {@code rubros_presupuestales}.
+ * Mapea la tabla {@code rubros_presupuestales}. El presupuesto preliminar no es una tabla propia:
+ * es el conjunto de rubros <b>vigentes</b> ({@code activo = true}) del evento, y su total es la suma
+ * de {@code cantidad × valor_unitario_proyectado} de cada uno (Criterio 1).
+ * </p>
+ * <p>
+ * <b>Eliminar = borrado lógico.</b> Un rubro eliminado queda con {@code activo = false}: no cuenta
+ * en el total, pero el registro se conserva para el historial ({@link HistorialRubro}) y para no
+ * arrastrar en cascada los {@code gastos_ejecutados} asociados (Criterio 2). El índice único parcial
+ * {@code ux_rubros_presupuestales_nombre_activo} permite volver a crear un rubro con el mismo nombre
+ * después de eliminarlo.
  * </p>
  *
  * @author SIGEA Development Team
@@ -37,43 +46,65 @@ import java.math.BigDecimal;
 @Builder
 public class RubroPresupuestal {
 
-    /** Identificador único del rubro (PK autonumérico). */
+    /** Escala monetaria usada por las columnas {@code NUMERIC(p, 2)}. */
+    public static final int ESCALA = 2;
+
+    /** Identificador único del rubro. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "rubro_id")
     private Long id;
 
-    /** Evento al cual pertenece la proyección del rubro. */
+    /** Evento al que pertenece el rubro. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "evento_id", nullable = false)
     private Evento evento;
 
-    /** Nombre descriptivo del rubro presupuestal proyectado. */
+    /** Nombre del rubro (ej. "Transporte de conferencistas", "Refrigerios"). */
     @Column(name = "nombre", length = 100, nullable = false)
     private String nombre;
 
-    /** Cantidad proyectada requerida (>= 0). */
+    /** Cantidad proyectada (unidades, días, personas...). */
     @Column(name = "cantidad", precision = 10, scale = 2, nullable = false)
     private BigDecimal cantidad;
 
-    /** Costo unitario proyectado por ítem (>= 0). */
+    /** Valor unitario estimado en pesos. */
     @Column(name = "valor_unitario_proyectado", precision = 14, scale = 2, nullable = false)
     private BigDecimal valorUnitarioProyectado;
 
-    /** Indica si el rubro está activo en la planeación presupuestal del evento. */
+    /** {@code true} = rubro vigente; {@code false} = eliminado (se conserva para el historial). */
     @Builder.Default
     @Column(name = "activo", nullable = false)
     private boolean activo = true;
 
     /**
-     * Calcula el subtotal estimado de este rubro (cantidad * valorUnitarioProyectado).
+     * Subtotal del rubro: {@code cantidad × valorUnitarioProyectado}, redondeado a 2 decimales.
+     * No se persiste; se calcula siempre a partir de los valores guardados.
      *
-     * @return Subtotal proyectado del rubro.
+     * @return Subtotal del rubro (0 si falta algún valor).
      */
-    public BigDecimal getSubtotalProyectado() {
-        if (cantidad == null || valorUnitarioProyectado == null) {
-            return BigDecimal.ZERO;
+    public BigDecimal getSubtotal() {
+        return calcularSubtotal(cantidad, valorUnitarioProyectado);
+    }
+
+    /**
+     * Retira el rubro del presupuesto vigente sin borrar el registro (Criterio 2).
+     */
+    public void desactivar() {
+        this.activo = false;
+    }
+
+    /**
+     * Calcula {@code cantidad × valorUnitario} con la escala monetaria del sistema.
+     *
+     * @param cantidad      Cantidad proyectada.
+     * @param valorUnitario Valor unitario proyectado.
+     * @return Subtotal redondeado a 2 decimales (0 si alguno es {@code null}).
+     */
+    public static BigDecimal calcularSubtotal(BigDecimal cantidad, BigDecimal valorUnitario) {
+        if (cantidad == null || valorUnitario == null) {
+            return BigDecimal.ZERO.setScale(ESCALA);
         }
-        return cantidad.multiply(valorUnitarioProyectado);
+        return cantidad.multiply(valorUnitario).setScale(ESCALA, RoundingMode.HALF_UP);
     }
 }

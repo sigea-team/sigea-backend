@@ -89,10 +89,13 @@ public class Convocatoria {
         if (estado != EstadoConvocatoria.publicada) {
             return false;
         }
+        // El momento debe ser >= fechaApertura
         if (fechaApertura != null && momento.isBefore(fechaApertura)) {
             return false;
         }
-        if (fechaCierre != null && momento.isAfter(fechaCierre)) {
+        // El momento debe ser <= fechaCierre (inclusivo: exactamente en fechaCierre sigue abierta).
+        // Se usa !isBefore en lugar de isAfter para incluir el instante exacto de cierre.
+        if (fechaCierre != null && !momento.isBefore(fechaCierre.plusSeconds(1))) {
             return false;
         }
         return true;

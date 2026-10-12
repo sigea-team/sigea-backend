@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -120,8 +121,17 @@ class ComiteOrganizadorServiceTest {
         assertEquals("Coordinador general", response.rolComite());
         assertTrue(response.activo());
 
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<Map<String, ?>> detalle = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.MIEMBRO_COMITE_AGREGADO),
-                eq(ComiteOrganizadorService.ENTIDAD_COMITE), eq(5L), anyMap());
+                eq(ComiteOrganizadorService.ENTIDAD_COMITE), eq(5L), detalle.capture());
+        // RF56: la auditoría guarda nombres legibles, no IDs de otras tablas
+        assertEquals("Congreso de Ingeniería de Sistemas", detalle.getValue().get("evento"));
+        assertEquals("Ana María Pérez Gómez", detalle.getValue().get("persona"));
+        assertEquals("1090123456", detalle.getValue().get("numeroDocumento"));
+        assertEquals("Coordinador general", detalle.getValue().get("rolComite"));
+        assertFalse(detalle.getValue().containsKey("personaId"));
+        assertFalse(detalle.getValue().containsKey("eventoId"));
     }
 
     @Test
@@ -293,8 +303,14 @@ class ComiteOrganizadorServiceTest {
         assertEquals("Coordinador general", response.rolComite());
         verify(comiteRepository, never()).delete(any());
         verify(comiteRepository, never()).deleteById(anyLong());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<Map<String, ?>> detalle = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.MIEMBRO_COMITE_RETIRADO),
-                eq(ComiteOrganizadorService.ENTIDAD_COMITE), eq(5L), anyMap());
+                eq(ComiteOrganizadorService.ENTIDAD_COMITE), eq(5L), detalle.capture());
+        assertEquals("Congreso de Ingeniería de Sistemas", detalle.getValue().get("evento"));
+        assertEquals("Ana María Pérez Gómez", detalle.getValue().get("persona"));
+        assertNotNull(detalle.getValue().get("fechaRetiro"));
+        assertFalse(detalle.getValue().containsKey("personaId"));
     }
 
     @Test

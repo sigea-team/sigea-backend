@@ -401,6 +401,29 @@ class EventoServiceTest {
         verify(eventoRepository, never()).delete(any(Evento.class));
     }
 
+    // ---------------- Publicación ----------------
+
+    @Test
+    @DisplayName("Publicar: cambia estado de en_configuracion a habilitado exitosamente")
+    void publicar_eventoEnConfiguracion_cambiaAHabilitado() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoResponse response = eventoService.publicar(1L);
+
+        assertEquals(EstadoEvento.habilitado, response.estado());
+        verify(eventoRepository).save(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Publicar: si no está en configuración, lanza OperacionNoPermitidaException")
+    void publicar_noEnConfiguracion_lanzaOperacionNoPermitida() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.habilitado)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.publicar(1L));
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
     // ---------------- Listado ----------------
 
     @Test
