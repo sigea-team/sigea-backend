@@ -42,8 +42,12 @@ public enum TipoOperacionAuditoria {
     LINEA_TEMATICA_ACTUALIZADA("EVENTOS", "Modificación de una línea temática del evento"),
     LINEA_TEMATICA_ELIMINADA("EVENTOS", "Eliminación de una línea temática del evento"),
 
+    // ----- Presupuesto y Finanzas (HU-08) -----
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),
+    PRESUPUESTO_ACTUALIZADO("PRESUPUESTO", "Actualización del presupuesto aprobado del evento (HU-08)"),
+
+    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
 
