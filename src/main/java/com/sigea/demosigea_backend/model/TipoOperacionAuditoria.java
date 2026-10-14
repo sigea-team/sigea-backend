@@ -49,8 +49,12 @@ public enum TipoOperacionAuditoria {
     EVENTO_PUBLICADO("EVENTOS", "Publicación de un evento (pasa a habilitado)"),
     EVENTO_INICIADO("EVENTOS", "Paso automático de un evento a en ejecución al llegar su fecha de inicio"),
 
+    // ----- Presupuesto y Finanzas (HU-08) -----
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),
+    PRESUPUESTO_ACTUALIZADO("PRESUPUESTO", "Actualización del presupuesto aprobado del evento (HU-08)"),
+
+    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
 
