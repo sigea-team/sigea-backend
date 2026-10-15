@@ -9,7 +9,10 @@ import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
+import com.sigea.demosigea_backend.model.TipoEvento;
+import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.repository.EventoRepository;
+import com.sigea.demosigea_backend.repository.TipoEventoRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,6 +49,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class EventoService {
 
+    /** Nombre de la entidad usado en el log de auditoría. */
+    static final String ENTIDAD = "eventos";
+
     /** Índice único de la base de datos: un semestre por familia (changeset 006). */
     static final String INDICE_SEMESTRE_FAMILIA = "ux_eventos_familia_semestre";
 
@@ -52,6 +59,11 @@ public class EventoService {
     static final String SQLSTATE_VIOLACION_UNICIDAD = "23505";
 
     private final EventoRepository eventoRepository;
+    private final TipoEventoRepository tipoEventoRepository;
+    private final AuditoriaService auditoriaService;
+
+    /** Reloj del sistema en la zona horaria del programa (ver SchedulingConfig); en pruebas, uno fijo. */
+    private final Clock clock;
 
     // ------------------------------------------------------------------
     // Consultas
@@ -134,7 +146,7 @@ public class EventoService {
                 .nombre(request.nombre().trim())
                 .objetivo(limpiar(request.objetivo()))
                 .descripcion(limpiar(request.descripcion()))
-                .tipo(request.tipo().trim())
+                .tipoEvento(buscarTipoEvento(request.tipoEventoId()))
                 .modalidad(request.modalidad())
                 .fechaInicio(request.fechaInicio())
                 .fechaFin(request.fechaFin())
@@ -183,7 +195,7 @@ public class EventoService {
         evento.setNombre(request.nombre().trim());
         evento.setObjetivo(limpiar(request.objetivo()));
         evento.setDescripcion(limpiar(request.descripcion()));
-        evento.setTipo(request.tipo().trim());
+        evento.setTipoEvento(buscarTipoEvento(request.tipoEventoId()));
         evento.setModalidad(request.modalidad());
         evento.setFechaInicio(request.fechaInicio());
         evento.setFechaFin(request.fechaFin());
@@ -229,7 +241,7 @@ public class EventoService {
                 .nombre(nombre)
                 .objetivo(origen.getObjetivo())
                 .descripcion(origen.getDescripcion())
-                .tipo(origen.getTipo())
+                .tipoEvento(origen.getTipoEvento())
                 .modalidad(origen.getModalidad())
                 .fechaInicio(request.fechaInicio())
                 .fechaFin(request.fechaFin())
@@ -251,9 +263,14 @@ public class EventoService {
 
     /**
      * Publica un evento o edición que se encuentra en configuración, cambiando su estado a {@code habilitado}.
+     * <p>
+     * Si ese mismo día ya está dentro de su periodo, pasa directamente a {@code en_ejecucion}, sin esperar
+     * a la siguiente ejecución automática ({@link #actualizarEstadosPorFecha()}). No se permite publicar un
+     * evento cuya fecha de fin ya pasó, porque ya no se va a realizar.
+     * </p>
      *
      * @param id ID del evento a publicar.
-     * @return Evento con su nuevo estado habilitado.
+     * @return Evento con su nuevo estado.
      */
     @Transactional
     public EventoResponse publicar(Long id) {
@@ -265,11 +282,65 @@ public class EventoService {
                     evento.getNombre(), evento.getEstado()));
         }
 
+        LocalDate hoy = LocalDate.now(clock);
+        if (evento.getFechaFin().isBefore(hoy)) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No es posible publicar '%s' porque su fecha de fin (%s) ya pasó. "
+                            + "Actualice las fechas del evento antes de publicarlo.",
+                    evento.getNombre(), evento.getFechaFin()));
+        }
+
         evento.setEstado(EstadoEvento.habilitado);
+        auditoriaService.registrar(TipoOperacionAuditoria.EVENTO_PUBLICADO, ENTIDAD, evento.getId(),
+                DetalleAuditoria.de("nombre", evento.getNombre(), "estado", EstadoEvento.habilitado.name()));
+
+        if (!evento.getFechaInicio().isAfter(hoy)) {
+            iniciar(evento, hoy);
+        }
+
         Evento guardado = eventoRepository.save(evento);
         log.info("Evento publicado exitosamente: ID {}, nombre '{}', nuevo estado {}",
                 guardado.getId(), guardado.getNombre(), guardado.getEstado());
         return EventoResponse.fromEntity(guardado);
+    }
+
+    // ------------------------------------------------------------------
+    // Cambio automático de estado por fechas
+    // ------------------------------------------------------------------
+
+    /**
+     * Pasa a {@code en_ejecucion} los eventos {@code habilitado} cuyo periodo incluye la fecha de hoy
+     * ({@code fechaInicio <= hoy <= fechaFin}), según la zona horaria del programa.
+     * <p>
+     * Los eventos en configuración no cambian: no han sido publicados. El cierre del evento
+     * ({@code cerrado}) no se hace aquí: corresponde al cierre formal del evento (CU-32). La invoca
+     * {@code EventoEstadoScheduler}; es idempotente, así que ejecutarla varias veces el mismo día no
+     * repite cambios. Cada cambio queda en la auditoría como hecho por el sistema (sin usuario).
+     * </p>
+     *
+     * @return Cantidad de eventos que pasaron a {@code en_ejecucion}.
+     */
+    @Transactional
+    public int actualizarEstadosPorFecha() {
+        LocalDate hoy = LocalDate.now(clock);
+
+        List<Evento> porIniciar = eventoRepository
+                .findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(EstadoEvento.habilitado, hoy, hoy);
+        porIniciar.forEach(evento -> iniciar(evento, hoy));
+        eventoRepository.saveAll(porIniciar);
+
+        if (!porIniciar.isEmpty()) {
+            log.info("Eventos que pasaron a en ejecución el {}: {}.", hoy, porIniciar.size());
+        }
+        return porIniciar.size();
+    }
+
+    private void iniciar(Evento evento, LocalDate hoy) {
+        evento.setEstado(EstadoEvento.en_ejecucion);
+        auditoriaService.registrar(TipoOperacionAuditoria.EVENTO_INICIADO, ENTIDAD, evento.getId(),
+                DetalleAuditoria.de("nombre", evento.getNombre(), "fecha", hoy.toString(),
+                        "fechaInicio", evento.getFechaInicio().toString()),
+                null);
     }
 
     // ------------------------------------------------------------------
@@ -321,6 +392,12 @@ public class EventoService {
     // ------------------------------------------------------------------
     // Utilidades
     // ------------------------------------------------------------------
+
+    private TipoEvento buscarTipoEvento(Long id) {
+        return tipoEventoRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "No se encontró el tipo de evento con ID: " + id + ". Selecciona un tipo del catálogo."));
+    }
 
     private Evento buscarEvento(Long id) {
         return eventoRepository.findById(id)

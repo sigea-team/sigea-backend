@@ -21,3 +21,5 @@ databaseChangeLog:
       file: db/changelog/changes/9-hu05-parametros-evento.sql
   - include:
       file: db/changelog/changes/10-hu07-presupuesto-preliminar.sql
+  - include:
+      file: db/changelog/changes/9-tipos-evento.sql

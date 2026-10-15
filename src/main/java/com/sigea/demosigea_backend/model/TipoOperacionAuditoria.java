@@ -42,6 +42,13 @@ public enum TipoOperacionAuditoria {
     LINEA_TEMATICA_ACTUALIZADA("EVENTOS", "Modificación de una línea temática del evento"),
     LINEA_TEMATICA_ELIMINADA("EVENTOS", "Eliminación de una línea temática del evento"),
 
+    // ----- Catálogo de tipos de evento y ciclo de vida del evento -----
+    TIPO_EVENTO_CREADO("EVENTOS", "Creación de un tipo de evento en el catálogo"),
+    TIPO_EVENTO_ACTUALIZADO("EVENTOS", "Modificación de un tipo de evento del catálogo"),
+    TIPO_EVENTO_ELIMINADO("EVENTOS", "Eliminación de un tipo de evento del catálogo"),
+    EVENTO_PUBLICADO("EVENTOS", "Publicación de un evento (pasa a habilitado)"),
+    EVENTO_INICIADO("EVENTOS", "Paso automático de un evento a en ejecución al llegar su fecha de inicio"),
+
     // ----- Presupuesto y Finanzas (HU-08) -----
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),

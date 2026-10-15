@@ -1,10 +1,13 @@
 package com.sigea.demosigea_backend.repository;
 
+import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -38,4 +41,20 @@ public interface EventoRepository extends JpaRepository<Evento, Long>, JpaSpecif
 
     /** Como {@link #existsByEventoBase_IdAndSemestre}, pero sin contar el evento {@code excluirId} (usado al actualizar). */
     boolean existsByEventoBase_IdAndSemestreAndIdNot(Long eventoBaseId, String semestre, Long excluirId);
+
+    /** Eventos que usan el tipo de evento indicado (antes de eliminarlo del catálogo). */
+    long countByTipoEvento_Id(Long tipoEventoId);
+
+    /**
+     * Eventos en un estado cuyo periodo incluye la fecha dada: {@code fechaInicio <= hoy <= fechaFin}.
+     * Se usa para pasar los eventos habilitados a {@code en_ejecucion}.
+     */
+    List<Evento> findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
+            EstadoEvento estado, LocalDate inicioHasta, LocalDate finDesde);
+
+    /**
+     * Eventos en alguno de los estados dados cuya fecha de fin es anterior a la fecha indicada.
+     * Sirve para identificar los eventos cuyo periodo ya terminó (por ejemplo, para el cierre formal, CU-32).
+     */
+    List<Evento> findByEstadoInAndFechaFinBefore(Collection<EstadoEvento> estados, LocalDate fecha);
 }

@@ -65,12 +65,18 @@ CREATE TABLE "auditoria" (
   "detalle" TEXT
 );
 
+CREATE TABLE "tipos_evento" (
+  "tipo_evento_id" SERIAL PRIMARY KEY,
+  "nombre" VARCHAR(50) NOT NULL,
+  "descripcion" VARCHAR(255)
+);
+
 CREATE TABLE "eventos" (
   "evento_id" SERIAL PRIMARY KEY,
   "nombre" VARCHAR(200) NOT NULL,
   "objetivo" TEXT,
   "descripcion" TEXT,
-  "tipo" VARCHAR(50),
+  "tipo_evento_id" INT,
   "modalidad" VARCHAR(20) CHECK (modalidad IN ('presencial','virtual','hibrida')),
   "fecha_inicio" DATE NOT NULL,
   "fecha_fin" DATE NOT NULL,
@@ -374,6 +380,10 @@ CREATE TABLE "memorias_historicas" (
 
 CREATE INDEX "idx_eventos_semestre" ON "eventos" ("semestre");
 
+CREATE INDEX "idx_eventos_tipo_evento" ON "eventos" ("tipo_evento_id");
+
+CREATE UNIQUE INDEX "ux_tipos_evento_nombre_ci" ON "tipos_evento" (LOWER("nombre"));
+
 CREATE UNIQUE INDEX "ux_eventos_familia_semestre" ON "eventos" ((COALESCE("evento_base_id", "evento_id")), "semestre");
 
 CREATE UNIQUE INDEX ON "comite_organizador" ("evento_id", "persona_id", "rol_comite");
@@ -427,6 +437,8 @@ ALTER TABLE "tokens_recuperacion" ADD FOREIGN KEY ("usuario_id") REFERENCES "usu
 ALTER TABLE "auditoria" ADD FOREIGN KEY ("usuario_id") REFERENCES "usuarios" ("usuario_id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "eventos" ADD FOREIGN KEY ("evento_base_id") REFERENCES "eventos" ("evento_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "eventos" ADD FOREIGN KEY ("tipo_evento_id") REFERENCES "tipos_evento" ("tipo_evento_id");
 
 ALTER TABLE "comite_organizador" ADD FOREIGN KEY ("evento_id") REFERENCES "eventos" ("evento_id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 

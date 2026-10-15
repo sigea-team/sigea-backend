@@ -23,6 +23,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### 2. Gestión de Eventos y Organización
 - [`eventos`](#eventos) (`Evento`): Entidad principal que almacena los eventos académicos organizados por la institución.
+- [`tipos_evento`](#tipos_evento) (`TipoEvento`): Catálogo global de tipos de evento (ej. Congreso, Seminario, Taller, Hackatón) que se elige al crear un evento.
 - [`comite_organizador`](#comite_organizador) (`ComiteOrganizador`): Integrantes del comité organizador asignados a un evento específico con sus respectivos roles.
 - [`tipos_actividad`](#tipos_actividad) (`TipoActividad`): Tipologías de actividades académicas configuradas para un evento (ej. Conferencia, Taller, Panel, Póster).
 - [`lineas_tematicas`](#lineas_tematicas) (`LineaTematica`): Ejes temáticos o áreas disciplinares en las que se enmarcan las actividades y propuestas del evento.
@@ -260,7 +261,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `nombre` | `VARCHAR(200)` | `String` | NO |  | - | - |
 | `objetivo` | `TEXT` | `String` | SÍ |  | - | - |
 | `descripcion` | `TEXT` | `String` | SÍ |  | - | - |
-| `tipo` | `VARCHAR(50)` | `String` | SÍ |  | - | - |
+| `tipo_evento_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`tipos_evento.tipo_evento_id`](#tipos_evento). Reemplaza la antigua columna de texto `tipo` (changeset tipos-evento-003/004). La API lo exige al crear o editar. |
 | `modalidad` | `VARCHAR(20)` | `String` | SÍ |  | - | CHECK `modalidad IN ('presencial','virtual','hibrida'` |
 | `fecha_inicio` | `DATE` | `LocalDate` | NO |  | - | - |
 | `fecha_fin` | `DATE` | `LocalDate` | NO |  | - | - |
@@ -274,9 +275,37 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Índices Definidos**:
 - Índice `idx_eventos_semestre` sobre (`semestre`)
 - Índice ÚNICO `ux_eventos_familia_semestre` sobre (`COALESCE(evento_base_id, evento_id)`, `semestre`): un semestre por familia de eventos (evento base + ediciones). HU-04, changeset 006.
+- Índice `idx_eventos_tipo_evento` sobre (`tipo_evento_id`): cuenta los eventos que usan un tipo antes de eliminarlo. Changeset tipos-evento-003.
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_base_id` -> [`eventos.evento_id`](#eventos) `DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `tipo_evento_id` -> [`tipos_evento.tipo_evento_id`](#tipos_evento) (sin cascada: un tipo en uso no se puede eliminar)
+
+**Ciclo de vida (`estado`)**:
+- `en_configuracion` → `habilitado`: al publicar el evento (`POST /api/v1/eventos/{id}/publicar`). Si ese día ya está dentro de su periodo, pasa directamente a `en_ejecucion`. No se publica un evento cuya `fecha_fin` ya pasó.
+- `habilitado` → `en_ejecucion`: automático cuando `fecha_inicio <= hoy <= fecha_fin`.
+- `en_ejecucion` → `cerrado`: en el cierre formal del evento (CU-32); no es automático.
+- El cambio automático lo hace `EventoEstadoScheduler` (al arrancar y todos los días a las 00:01), con la fecha en la zona `app.zona-horaria` (America/Bogota), y queda en `auditoria` como `EVENTO_INICIADO` sin usuario.
+
+---
+
+### `tipos_evento`
+
+**Descripción**: Catálogo global de tipos de evento (ej. Congreso, Seminario, Taller, Hackatón). Lo comparten todos los eventos; se administra en `/api/v1/tipos-evento`. Creado en el changeset tipos-evento-001, con los tipos que ya tenían los eventos y los que menciona el documento del proyecto.  
+**Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.TipoEvento` (anotada con `@Entity @Table(name = "tipos_evento")`)  
+**Clave Primaria**: `tipo_evento_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `tipo_evento_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
+| `nombre` | `VARCHAR(50)` | `String` | NO |  | - | - |
+| `descripcion` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
+
+**Índices Definidos**:
+- Índice ÚNICO `ux_tipos_evento_nombre_ci` sobre (`LOWER(nombre)`): nombre único sin distinguir mayúsculas.
+
+**Referenciada por**:
+- [`eventos.tipo_evento_id`](#eventos). Un tipo que usa algún evento no se puede eliminar.
 
 ---
 
