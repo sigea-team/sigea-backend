@@ -54,6 +54,9 @@ public enum TipoOperacionAuditoria {
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),
     PRESUPUESTO_ACTUALIZADO("PRESUPUESTO", "Actualización del presupuesto aprobado del evento (HU-08)"),
 
+    // ----- Ejecución presupuestal (HU-09) -----
+    GASTO_REGISTRADO("PRESUPUESTO", "Registro de un gasto ejecutado contra un rubro del evento (HU-09)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");

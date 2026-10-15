@@ -451,6 +451,12 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - Columna `rubro_id` -> [`rubros_presupuestales.rubro_id`](#rubros_presupuestales) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `registrado_por` -> [`usuarios.usuario_id`](#usuarios) `DEFERRABLE INITIALLY IMMEDIATE`
 
+**Índices Definidos**:
+- Índice `idx_gastos_ejecutados_rubro` sobre (`rubro_id`, `fecha_gasto` DESC) (HU-09, changeset `hu09-001`)
+- Índice `idx_gastos_ejecutados_registrado_por` sobre (`registrado_por`) (HU-09, changeset `hu09-001`)
+
+> **HU-09**: el acumulado ejecutado de un rubro es `SUM(valor)` de sus gastos y su disponible es `cantidad * valor_unitario_proyectado - acumulado`. El porcentaje de ejecución del evento es `SUM(valor) / presupuestos_aprobados.valor_total_aprobado * 100` (versión con `estado = 'aprobado'`); sin gastos es 0. Ninguno se persiste. `valor` puede ser 0 (no negativo) y `soporte_url` es opcional. Un gasto puede superar el disponible del rubro: se registra y la respuesta lo marca como excedido.
+
 ---
 
 ### `historial_rubros`
