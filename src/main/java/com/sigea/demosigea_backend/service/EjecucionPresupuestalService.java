@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  *   <li><b>Criterio 1:</b> con un presupuesto aprobado vigente (HU-08), registrar un gasto contra un
  *       rubro vigente lo guarda y devuelve el acumulado actualizado del rubro y el porcentaje de
  *       ejecución recalculado del evento.</li>
- *   <li><b>Gastos que superan el rubro:</b> se permiten siempre. El gasto se registra y la respuesta
+ *   <li><b>Criterio 2:</b> un gasto que supera el disponible del rubro se permite. El gasto se registra y la respuesta
  *       lo marca ({@code excedioDisponible}, {@code advertencia} y {@code excedido} en el rubro) solo
  *       como información.</li>
  *   <li><b>Criterio 3:</b> gasto sin valor (o con valor negativo) → 400. El valor 0 se acepta y el soporte es opcional. Bean
@@ -87,7 +87,7 @@ public class EjecucionPresupuestalService {
     private final AuditoriaService auditoriaService;
 
     // ------------------------------------------------------------------
-    // Criterios 1 y 3: registrar gasto
+    // Criterios 1, 2 y 3: registrar gasto
     // ------------------------------------------------------------------
 
     /**
@@ -150,7 +150,7 @@ public class EjecucionPresupuestalService {
         BigDecimal totalEjecutado = escalar(gastoRepository.sumarPorEvento(eventoId));
         BigDecimal porcentaje = porcentaje(totalEjecutado, valorAprobado);
 
-        // Exceso sobre lo presupuestado en el rubro: permitido, solo se informa.
+        // Criterio 2: exceso sobre lo presupuestado en el rubro. Se permite y solo se informa.
         // El exceso es el total acumulado del rubro (ejecutado − presupuestado), no solo la parte de
         // este gasto: si el rubro ya estaba sobregirado, se informa cuánto lo estaba y cuánto queda.
         BigDecimal exceso = ejecutadoRubro.subtract(presupuestado).max(BigDecimal.ZERO);

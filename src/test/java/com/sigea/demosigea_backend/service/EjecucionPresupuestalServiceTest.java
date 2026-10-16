@@ -264,11 +264,11 @@ class EjecucionPresupuestalServiceTest {
     }
 
     // ==================================================================
-    // Gasto que supera el disponible del rubro: siempre se permite
+    // Criterio 2: gasto que supera el disponible del rubro (se permite y se advierte)
     // ==================================================================
 
     @Test
-    @DisplayName("Exceso: un gasto que supera el disponible se registra y la respuesta lo informa")
+    @DisplayName("Criterio 2: un gasto que supera el disponible se registra y la respuesta lo informa")
     void registrar_exceso_seRegistraEInforma() {
         prepararRegistro(evento(EstadoEvento.en_ejecucion), "200000.00");
         prepararGuardado("1100000.00", 2);
@@ -290,7 +290,7 @@ class EjecucionPresupuestalServiceTest {
     }
 
     @Test
-    @DisplayName("Exceso: si el rubro ya estaba sobregirado, se informa el exceso total acumulado")
+    @DisplayName("Criterio 2: si el rubro ya estaba sobregirado, se informa el exceso total acumulado")
     void registrar_rubroYaSobregirado_informaExcesoTotal() {
         // Presupuestado 1.000.000, ya ejecutado 1.050.000 (disponible −50.000); nuevo gasto de 10.000.
         prepararRegistro(evento(EstadoEvento.en_ejecucion), "1050000.00");
@@ -308,7 +308,7 @@ class EjecucionPresupuestalServiceTest {
     }
 
     @Test
-    @DisplayName("Exceso: un gasto igual al disponible no se marca como exceso")
+    @DisplayName("Criterio 2: un gasto igual al disponible no se marca como exceso")
     void registrar_igualAlDisponible_noEsExceso() {
         prepararRegistro(evento(EstadoEvento.en_ejecucion), "200000.00");
         prepararGuardado("1000000.00", 2);
@@ -322,7 +322,7 @@ class EjecucionPresupuestalServiceTest {
     }
 
     // ==================================================================
-    // Criterio 3: sin valor o sin soporte
+    // Criterio 3: sin valor o con valor negativo (el 0 y la falta de soporte se aceptan)
     // ==================================================================
 
     @Test

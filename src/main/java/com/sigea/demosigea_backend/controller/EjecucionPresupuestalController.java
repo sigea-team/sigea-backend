@@ -75,7 +75,7 @@ public class EjecucionPresupuestalController {
     @Operation(summary = "Registrar gasto ejecutado",
             description = "Registra un gasto contra un rubro vigente y devuelve el acumulado del rubro y el porcentaje de "
                     + "ejecución recalculados (Criterio 1). Requiere presupuesto aprobado. Un gasto que supera el "
-                    + "disponible del rubro se registra igual y la respuesta lo marca con excedioDisponible=true. "
+                    + "disponible del rubro se registra igual y la respuesta lo marca con excedioDisponible=true (Criterio 2). "
                     + "Sin valor o con valor negativo → 400 VALIDACION_FALLIDA (Criterio 3). El valor 0 y la falta de soporte se aceptan.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Gasto registrado",
