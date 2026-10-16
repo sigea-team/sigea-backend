@@ -150,13 +150,21 @@ public class EjecucionPresupuestalService {
         BigDecimal totalEjecutado = escalar(gastoRepository.sumarPorEvento(eventoId));
         BigDecimal porcentaje = porcentaje(totalEjecutado, valorAprobado);
 
-        // Exceso sobre el disponible del rubro: permitido, solo se informa
-        boolean excede = valor.compareTo(disponibleAntes) > 0;
+        // Exceso sobre lo presupuestado en el rubro: permitido, solo se informa.
+        // El exceso es el total acumulado del rubro (ejecutado − presupuestado), no solo la parte de
+        // este gasto: si el rubro ya estaba sobregirado, se informa cuánto lo estaba y cuánto queda.
+        BigDecimal exceso = ejecutadoRubro.subtract(presupuestado).max(BigDecimal.ZERO);
+        boolean excede = exceso.signum() > 0;
         String advertencia = null;
         if (excede) {
-            BigDecimal exceso = valor.subtract(disponibleAntes.max(BigDecimal.ZERO));
-            advertencia = "El gasto de $" + pesos(valor) + " supera el disponible del rubro '" + rubro.getNombre()
-                    + "' ($" + pesos(disponibleAntes) + ") en $" + pesos(exceso) + ".";
+            String nombre = rubro.getNombre();
+            advertencia = disponibleAntes.signum() < 0
+                    ? "El rubro '" + nombre + "' ya superaba lo presupuestado ($" + pesos(presupuestado) + ") en $"
+                            + pesos(disponibleAntes.negate()) + ". Con este gasto de $" + pesos(valor)
+                            + " lo supera en $" + pesos(exceso) + "."
+                    : "El gasto de $" + pesos(valor) + " supera el disponible del rubro '" + nombre + "' ($"
+                            + pesos(disponibleAntes) + "). El rubro supera lo presupuestado ($" + pesos(presupuestado)
+                            + ") en $" + pesos(exceso) + ".";
         }
 
         auditoriaService.registrar(
@@ -174,6 +182,7 @@ public class EjecucionPresupuestalService {
                         "ejecutadoRubroNuevo", ejecutadoRubro,
                         "presupuestadoRubro", presupuestado,
                         "excedioDisponible", excede,
+                        "excesoRubro", exceso,
                         "totalEjecutadoEvento", totalEjecutado,
                         "porcentajeEjecucionEvento", porcentaje
                 )

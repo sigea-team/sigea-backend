@@ -279,7 +279,7 @@ class EjecucionPresupuestalServiceTest {
         assertTrue(r.excedioDisponible());
         assertNotNull(r.advertencia());
         assertTrue(r.advertencia().contains("800.000"), r.advertencia());   // disponible
-        assertTrue(r.advertencia().contains("100.000"), r.advertencia());   // exceso
+        assertTrue(r.advertencia().contains("100.000"), r.advertencia());   // exceso total del rubro
         assertTrue(r.rubro().excedido());
         assertEquals(bd("1100000.00"), r.rubro().ejecutado());
         assertEquals(bd("-100000.00"), r.rubro().disponible());
@@ -287,6 +287,24 @@ class EjecucionPresupuestalServiceTest {
         assertEquals(bd("22.00"), r.porcentajeEjecucion());
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.GASTO_REGISTRADO),
                 eq(EjecucionPresupuestalService.ENTIDAD_GASTO), eq(15L), anyMap());
+    }
+
+    @Test
+    @DisplayName("Exceso: si el rubro ya estaba sobregirado, se informa el exceso total acumulado")
+    void registrar_rubroYaSobregirado_informaExcesoTotal() {
+        // Presupuestado 1.000.000, ya ejecutado 1.050.000 (disponible −50.000); nuevo gasto de 10.000.
+        prepararRegistro(evento(EstadoEvento.en_ejecucion), "1050000.00");
+        prepararGuardado("1060000.00", 3);
+
+        GastoRegistradoResponse r = service.registrarGasto(1L, request("10000"));
+
+        assertTrue(r.excedioDisponible());
+        assertTrue(r.advertencia().contains("ya superaba"), r.advertencia());
+        assertTrue(r.advertencia().contains("50.000"), r.advertencia());   // exceso previo
+        assertTrue(r.advertencia().contains("60.000"), r.advertencia());   // exceso total tras el gasto
+        assertEquals(bd("1060000.00"), r.rubro().ejecutado());
+        assertEquals(bd("-60000.00"), r.rubro().disponible());
+        assertTrue(r.rubro().excedido());
     }
 
     @Test
