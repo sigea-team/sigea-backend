@@ -101,10 +101,10 @@ class EjecucionPresupuestalControllerTest {
                 .andExpect(jsonPath("$.excedioDisponible").value(false));
     }
 
-    // ---------------- Gasto que supera el rubro: permitido ----------------
+    // ---------------- Criterio 2: gasto que supera el rubro (se permite y se advierte) ----------------
 
     @Test
-    @DisplayName("Exceso: el gasto que supera el rubro → 201 con excedioDisponible=true")
+    @DisplayName("Criterio 2: el gasto que supera el rubro → 201 con excedioDisponible=true")
     void registrar_exceso_201() throws Exception {
         when(ejecucionService.registrarGasto(eq(1L), any(GastoEjecutadoRequest.class)))
                 .thenReturn(registrado(true));
