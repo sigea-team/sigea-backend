@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/changes/9-tipos-evento.sql
   - include:
       file: db/changelog/changes/11-hu09-gastos-ejecutados.sql
+  - include:
+      file: db/changelog/changes/12-hu11-notificaciones.sql

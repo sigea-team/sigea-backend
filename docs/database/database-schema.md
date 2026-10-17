@@ -20,6 +20,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`usuarios_roles`](#usuarios_roles) (`UsuarioRol`): Asignación de roles a usuarios con registro de fecha.
 - [`tokens_recuperacion`](#tokens_recuperacion) (`TokenRecuperacion`): Tokens temporales para verificación de correo electrónico o recuperación de credenciales.
 - [`auditoria`](#auditoria) (`Auditoria`): Registro de eventos, trazabilidad y acciones críticas realizadas por los usuarios en el sistema.
+- [`notificaciones`](#notificaciones) (`Notificacion`): Notificaciones de cada usuario, visibles en la campana del frontend (HU-11).
 
 ### 2. Gestión de Eventos y Organización
 - [`eventos`](#eventos) (`Evento`): Entidad principal que almacena los eventos académicos organizados por la institución.
@@ -456,6 +457,36 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - Índice `idx_gastos_ejecutados_registrado_por` sobre (`registrado_por`) (HU-09, changeset `hu09-001`)
 
 > **HU-09**: el acumulado ejecutado de un rubro es `SUM(valor)` de sus gastos y su disponible es `cantidad * valor_unitario_proyectado - acumulado`. El porcentaje de ejecución del evento es `SUM(valor) / presupuestos_aprobados.valor_total_aprobado * 100` (versión con `estado = 'aprobado'`); sin gastos es 0. Ninguno se persiste. `valor` puede ser 0 (no negativo) y `soporte_url` es opcional. Un gasto puede superar el disponible del rubro: se registra y la respuesta lo marca como excedido.
+
+---
+
+### `notificaciones`
+
+**Descripción**: Notificaciones dirigidas a un usuario, que el frontend muestra en la campana (HU-11, Criterio 2: cambio de fecha límite de una convocatoria publicada). Una fila por usuario destinatario. Creada por el changeset Liquibase `12-hu11-notificaciones.sql` (no está en `schema.sql`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.Notificacion` (`@Entity @Table(name = "notificaciones")`)  
+**Clave Primaria**: `notificacion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `notificacion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `usuario_id` | `INT` | `Usuario` | NO | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
+| `tipo` | `VARCHAR(50)` | `TipoNotificacion` | NO |  | - | Sin CHECK: los valores los define el enum `TipoNotificacion` (`CONVOCATORIA_FECHA_MODIFICADA`) |
+| `titulo` | `VARCHAR(150)` | `String` | NO |  | - | - |
+| `mensaje` | `TEXT` | `String` | NO |  | - | - |
+| `entidad` | `VARCHAR(50)` | `String` | SÍ |  | - | Recurso relacionado (ej. `convocatorias`) |
+| `entidad_id` | `INT` | `Long` | SÍ |  | - | ID del recurso relacionado |
+| `leida` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
+| `fecha_creacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+| `fecha_lectura` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | Se llena al marcarla como leída |
+
+**Índices Definidos**:
+- Índice `idx_notificaciones_usuario_fecha` sobre (`usuario_id`, `fecha_creacion` DESC)
+- Índice parcial `idx_notificaciones_usuario_no_leidas` sobre (`usuario_id`) `WHERE leida = false`
+
+**Relaciones Foráneas Salientes**:
+- Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+
+> **HU-11**: al modificar la fecha límite de una convocatoria publicada se crea, en la misma transacción y con un solo `INSERT ... SELECT`, una notificación para cada usuario con `estado = 'activo'` y `correo_verificado = true`.
 
 ---
 

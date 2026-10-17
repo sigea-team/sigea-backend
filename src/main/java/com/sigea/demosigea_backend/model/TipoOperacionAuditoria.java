@@ -57,8 +57,11 @@ public enum TipoOperacionAuditoria {
     // ----- Ejecución presupuestal (HU-09) -----
     GASTO_REGISTRADO("PRESUPUESTO", "Registro de un gasto ejecutado contra un rubro del evento (HU-09)"),
 
-    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
+    // ----- Convocatorias (HU-11) -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
+    CONVOCATORIA_FECHA_CIERRE_MODIFICADA("CONVOCATORIAS", "Modificación de la fecha límite de una convocatoria publicada (HU-11)"),
+
+    // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
 
     /** Módulo funcional al que pertenece la operación. */
