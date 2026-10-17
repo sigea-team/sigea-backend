@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repositorio Spring Data JPA para la entidad {@link Convocatoria}.
@@ -24,4 +25,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Long
     List<Convocatoria> findByEvento_IdAndEstadoOrderByIdDesc(Long eventoId, EstadoConvocatoria estado);
 
     List<Convocatoria> findAllByOrderByIdDesc();
+
+    /** HU-11, Criterio 1: consulta pública de una convocatoria solo si está en el estado indicado. */
+    Optional<Convocatoria> findByIdAndEstado(Long id, EstadoConvocatoria estado);
 }

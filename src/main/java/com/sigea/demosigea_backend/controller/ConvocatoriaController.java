@@ -1,8 +1,10 @@
 package com.sigea.demosigea_backend.controller;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
+import com.sigea.demosigea_backend.dto.convocatoria.CambioFechaCierreResponse;
 import com.sigea.demosigea_backend.dto.convocatoria.ConvocatoriaRequest;
 import com.sigea.demosigea_backend.dto.convocatoria.ConvocatoriaResponse;
+import com.sigea.demosigea_backend.dto.convocatoria.FechaCierreRequest;
 import com.sigea.demosigea_backend.model.EstadoConvocatoria;
 import com.sigea.demosigea_backend.service.ConvocatoriaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -121,12 +124,16 @@ public class ConvocatoriaController {
         return ResponseEntity.ok(convocatoriaService.actualizar(id, request));
     }
 
-    @Operation(summary = "Publicar convocatoria",
-            description = "Cambia el estado de una convocatoria de 'borrador' a 'publicada', permitiendo la recepción de propuestas.")
+    @Operation(summary = "Publicar convocatoria (HU-11)",
+            description = "Cambia el estado de una convocatoria completa de 'borrador' a 'publicada', la hace visible en la consulta "
+                    + "pública y habilita la recepción de propuestas (Criterio 1). Si falta la fecha límite de recepción u otro dato "
+                    + "obligatorio, responde 400 CONVOCATORIA_INCOMPLETA indicando los campos a completar (Criterio 3).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Convocatoria publicada exitosamente",
                     content = @Content(schema = @Schema(implementation = ConvocatoriaResponse.class))),
-            @ApiResponse(responseCode = "400", description = "La convocatoria no está en estado borrador",
+            @ApiResponse(responseCode = "400", description = "Datos obligatorios sin completar (CONVOCATORIA_INCOMPLETA) o fechas inválidas",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "No está en borrador, su fecha límite ya pasó o el evento no está publicado",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Convocatoria no encontrada",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -135,6 +142,26 @@ public class ConvocatoriaController {
     @PreAuthorize("hasAnyAuthority('CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')")
     public ResponseEntity<ConvocatoriaResponse> publicar(@PathVariable Long id) {
         return ResponseEntity.ok(convocatoriaService.publicar(id));
+    }
+
+    @Operation(summary = "Modificar fecha límite de una convocatoria publicada (HU-11)",
+            description = "Actualiza la fecha límite de recepción de propuestas de una convocatoria publicada que aún no ha expirado "
+                    + "y crea una notificación (campana) para todos los usuarios activos, avisando que aún pueden enviar propuestas (Criterio 2).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fecha límite actualizada y usuarios notificados",
+                    content = @Content(schema = @Schema(implementation = CambioFechaCierreResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Nueva fecha inválida, o la convocatoria ya expiró (CONVOCATORIA_CERRADA)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Convocatoria no encontrada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "La convocatoria no está publicada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PatchMapping("/{id}/fecha-cierre")
+    @PreAuthorize("hasAnyAuthority('CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<CambioFechaCierreResponse> actualizarFechaCierre(@PathVariable Long id,
+                                                                           @Valid @RequestBody FechaCierreRequest request) {
+        return ResponseEntity.ok(convocatoriaService.actualizarFechaCierre(id, request.fechaCierre()));
     }
 
     @Operation(summary = "Eliminar convocatoria",
