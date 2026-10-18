@@ -606,7 +606,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `propuestas_autores`
 
-**Descripción**: Autores y coautores vinculados a una propuesta académica con orden de autoría.  
+**Descripción**: Autores y coautores vinculados a una propuesta académica con orden de autoría y rol de participación (HU-13).  
 **Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.PropuestaAutor` (anotada con `@Entity @Table(name = "propuestas_autores")`)  
 **Clave Primaria**: `propuesta_id, persona_id`
 
@@ -615,6 +615,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `propuesta_id` | `INT` | `Integer` | NO | PK | - | FK -> [`propuestas.propuesta_id`](#propuestas) |
 | `persona_id` | `INT` | `Integer` | NO | PK | - | FK -> [`personas.persona_id`](#personas) |
 | `orden` | `INT` | `Integer` | NO |  | `1` | - |
+| `rol` | `VARCHAR(20)` | `String` | NO |  | `'autor_principal'` | CHECK `rol IN ('autor_principal','coautor','ponente')` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1156,6 +1157,7 @@ Lista de todas las columnas con restricciones de tipo `CHECK (columna IN (...))`
 | `convocatorias` | `estado` | `EstadoConvocatoria` | `'borrador'`, `'publicada'`, `'cerrada'` | Estado de la convocatoria académica (Default: `'borrador'`) |
 | `participaciones_conferencista` | `tipo_participacion` | `TipoParticipacion` | `'conferencista'`, `'ponente'` | Rol académico del expositor invitado |
 | `propuestas` | `estado` | `EstadoPropuesta` | `'recibida'`, `'en_evaluacion'`, `'aprobada'`, `'ajustes'`, `'rechazada'` | Estado editorial/académico de la propuesta (Default: `'recibida'`) |
+| `propuestas_autores` | `rol` | `RolAutor` | `'autor_principal'`, `'coautor'`, `'ponente'` | Rol específico del autor o ponente en la propuesta (Default: `'autor_principal'`) |
 | `asignaciones_evaluacion` | `estado` | `EstadoAsignacion` | `'pendiente'`, `'en_proceso'`, `'completada'` | Estado de la tarea de arbitraje (Default: `'pendiente'`) |
 | `resultados_evaluacion` | `clasificacion` | `ClasificacionPropuesta` | `'aprobada'`, `'aprobada_con_ajustes'`, `'rechazada'` | Decisión final de la propuesta |
 | `salas` | `tipo` | `TipoSala` | `'fisica'`, `'virtual'` | Infraestructura del espacio |

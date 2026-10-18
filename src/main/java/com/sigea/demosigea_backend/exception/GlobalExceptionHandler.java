@@ -48,6 +48,11 @@ public class GlobalExceptionHandler {
         Map<String, String> errores = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             errores.put(error.getField(), error.getDefaultMessage());
+            String field = error.getField();
+            if (field.contains(".")) {
+                String subField = field.substring(field.lastIndexOf('.') + 1);
+                errores.putIfAbsent(subField, error.getDefaultMessage());
+            }
         }
 
         ErrorResponse response = new ErrorResponse(
