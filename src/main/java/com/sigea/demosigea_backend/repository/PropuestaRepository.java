@@ -4,15 +4,20 @@ import com.sigea.demosigea_backend.model.Propuesta;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+import java.util.Optional;
+
 /**
  * Repositorio Spring Data JPA para {@link Propuesta}.
  * <p>
- * En la HU-05 solo se usa el conteo para el Criterio 2. HU-14 y siguientes agregarán aquí las
- * consultas de recepción y evaluación.
+ * Proporciona consultas sobre propuestas postuladas a convocatorias y líneas temáticas (HU-05, HU-13).
  * </p>
  *
  * @author SIGEA Development Team
- * @version 1.0
+ * @version 1.1
  * @since 2026
  */
 @Repository
@@ -20,4 +25,15 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
 
     /** HU-05, Criterio 2: propuestas postuladas en la línea temática. */
     long countByLineaTematica_Id(Long lineaTematicaId);
+
+    /** Lista propuestas enviadas a una convocatoria ordenadas por fecha de envío descendente. */
+    List<Propuesta> findByConvocatoria_IdOrderByFechaEnvioDesc(Long convocatoriaId);
+
+    /** Cuenta propuestas enviadas a una convocatoria. */
+    long countByConvocatoria_Id(Long convocatoriaId);
+
+    /** Obtiene una propuesta cargando sus autores y personas asociadas en una sola consulta. */
+    @Query("SELECT DISTINCT p FROM Propuesta p LEFT JOIN FETCH p.autores a LEFT JOIN FETCH a.persona WHERE p.id = :id")
+    Optional<Propuesta> findByIdWithAutores(@Param("id") Long id);
 }
+
