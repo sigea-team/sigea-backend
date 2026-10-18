@@ -28,6 +28,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `usuarios_roles` ➡️ Relación N:M entre usuarios y roles.
 - `tokens_recuperacion` ➡️ Tokens temporales. Tipos: `'verificacion'`, `'recuperacion'`.
 - `auditoria` ➡️ Trazabilidad de operaciones del sistema.
+- `notificaciones` ➡️ Notificaciones de cada usuario para la campana del frontend (HU-11, changeset 12).
 
 ### 2. Gestión de Eventos y Organización
 - `eventos` ➡️ Eventos académicos. Modalidad: `'presencial'`, `'virtual'`, `'hibrida'`. Estados: `'en_configuracion'`, `'habilitado'`, `'en_ejecucion'`, `'cerrado'`.

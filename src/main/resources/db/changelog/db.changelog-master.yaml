@@ -27,3 +27,5 @@ databaseChangeLog:
       file: db/changelog/changes/11-hu09-gastos-ejecutados.sql
   - include:
       file: db/changelog/changes/12-hu13-autores-propuestas.sql
+  - include:
+      file: db/changelog/changes/12-hu11-notificaciones.sql

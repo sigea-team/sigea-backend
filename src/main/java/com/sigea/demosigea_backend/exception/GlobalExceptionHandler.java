@@ -282,6 +282,30 @@ public class GlobalExceptionHandler {
 
 
     /**
+     * HU-11, Criterio 3: se intenta publicar una convocatoria con datos obligatorios sin completar
+     * (p. ej. sin fecha límite de recepción de propuestas). En {@code erroresValidacion} se indican
+     * los campos que el organizador debe completar.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST y código CONVOCATORIA_INCOMPLETA.
+     */
+    @ExceptionHandler(ConvocatoriaIncompletaException.class)
+    public ResponseEntity<ErrorResponse> handleConvocatoriaIncompleta(ConvocatoriaIncompletaException ex,
+                                                                      HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                "CONVOCATORIA_INCOMPLETA",
+                null,
+                ex.getCamposFaltantes(),
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
      * Operaciones que requieren confirmación explícita del usuario (HU-04, Criterio 5).
      *
      * @return {@link ResponseEntity} con estado 409 CONFLICT y código CONFIRMACION_REQUERIDA.
