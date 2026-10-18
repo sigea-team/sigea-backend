@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,6 +11,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -19,22 +22,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Entidad JPA que representa una propuesta académica postulada a una convocatoria.
  * <p>
- * Mapea la tabla {@code propuestas} tal como existe en la base de datos. Se creó en la HU-05
- * únicamente para consultar si una línea temática está en uso (Criterio 2); <b>la lógica de
- * negocio de las propuestas (envío, versiones, evaluación) pertenece a HU-14 y siguientes</b>.
- * </p>
- * <p>
- * {@code convocatoria_id} se mapea como columna escalar porque la entidad {@code Convocatoria}
- * aún no existe. Cuando se implemente (HU-10), puede reemplazarse por
- * {@code @ManyToOne Convocatoria convocatoria} con el mismo {@code @JoinColumn}, sin tocar la tabla.
+ * Mapea la tabla {@code propuestas} tal como existe en la base de datos.
+ * Vincula los autores y ponentes que postulan el trabajo (HU-13) y la convocatoria correspondiente.
  * </p>
  *
  * @author SIGEA Development Team
- * @version 1.0
+ * @version 1.1
  * @since 2026
  */
 @Entity
@@ -52,9 +51,10 @@ public class Propuesta {
     @Column(name = "propuesta_id")
     private Long id;
 
-    /** ID de la convocatoria a la que se postula (FK a {@code convocatorias}). */
-    @Column(name = "convocatoria_id", nullable = false)
-    private Long convocatoriaId;
+    /** Convocatoria a la que se postula la propuesta (FK a {@code convocatorias}). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "convocatoria_id", nullable = false)
+    private Convocatoria convocatoria;
 
     /** Título de la propuesta. */
     @Column(name = "titulo", length = 200, nullable = false)
@@ -83,10 +83,37 @@ public class Propuesta {
     @Column(name = "fecha_envio", nullable = false, updatable = false)
     private LocalDateTime fechaEnvio;
 
+    /** Autores y ponentes asociados a la propuesta (HU-13). */
+    @OneToMany(mappedBy = "propuesta", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    @Builder.Default
+    private List<PropuestaAutor> autores = new ArrayList<>();
+
     @PrePersist
     void antesDeInsertar() {
         if (fechaEnvio == null) {
             fechaEnvio = LocalDateTime.now();
         }
     }
+
+    /**
+     * ID de la convocatoria para compatibilidad con código existente.
+     */
+    public Long getConvocatoriaId() {
+        return convocatoria != null ? convocatoria.getId() : null;
+    }
+
+    /**
+     * Agrega un autor a la propuesta manteniendo la consistencia bidireccional.
+     *
+     * @param autor Relación autor-propuesta a agregar.
+     */
+    public void agregarAutor(PropuestaAutor autor) {
+        if (this.autores == null) {
+            this.autores = new ArrayList<>();
+        }
+        this.autores.add(autor);
+        autor.setPropuesta(this);
+    }
 }
+

@@ -57,6 +57,10 @@ public enum TipoOperacionAuditoria {
     // ----- Ejecución presupuestal (HU-09) -----
     GASTO_REGISTRADO("PRESUPUESTO", "Registro de un gasto ejecutado contra un rubro del evento (HU-09)"),
 
+    // ----- Convocatorias y Propuestas (HU-13) -----
+    PROPUESTA_REGISTRADA("PROPUESTAS", "Registro o envío de una propuesta académica (HU-13)"),
+    AUTOR_PROPUESTA_REGISTRADO("PROPUESTAS", "Registro o vinculación de un autor o ponente a una propuesta (HU-13)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");

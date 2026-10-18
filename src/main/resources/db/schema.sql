@@ -174,6 +174,7 @@ CREATE TABLE "propuestas_autores" (
   "propuesta_id" INT NOT NULL,
   "persona_id" INT NOT NULL,
   "orden" INT NOT NULL DEFAULT 1,
+  "rol" VARCHAR(20) NOT NULL CHECK (rol IN ('autor_principal','coautor','ponente')) DEFAULT 'autor_principal',
   PRIMARY KEY ("propuesta_id", "persona_id")
 );
 

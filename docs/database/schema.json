@@ -1819,9 +1819,22 @@
           "check": null,
           "foreign_key": null,
           "raw_definition": "\"orden\" INT NOT NULL DEFAULT 1"
+        },
+        {
+          "name": "rol",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "default": "'autor_principal'",
+          "check": "rol IN ('autor_principal','coautor','ponente')",
+          "foreign_key": null,
+          "raw_definition": "\"rol\" VARCHAR(20) NOT NULL CHECK (rol IN ('autor_principal','coautor','ponente')) DEFAULT 'autor_principal'"
         }
       ],
-      "table_checks": [],
+      "table_checks": [
+        "rol IN ('autor_principal','coautor','ponente')"
+      ],
       "foreign_keys": [
         {
           "column": "propuesta_id",

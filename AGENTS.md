@@ -45,7 +45,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `convocatorias` ➡️ Llamados a presentación de trabajos. Estados: `'borrador'`, `'publicada'`, `'cerrada'`.
 - `participaciones_conferencista` ➡️ Invitación a expositores (`'conferencista'`, `'ponente'`).
 - `propuestas` ➡️ Trabajos académicos postulados. Estados: `'recibida'`, `'en_evaluacion'`, `'aprobada'`, `'ajustes'`, `'rechazada'`.
-- `propuestas_autores` ➡️ Autores y coautores con orden de autoría.
+- `propuestas_autores` ➡️ Autores y coautores con orden de autoría y rol ('autor_principal', 'coautor', 'ponente') (HU-13).
 - `versiones_propuesta` ➡️ Historial de versiones y archivos de la propuesta.
 
 ### 5. Sistema de Evaluación por Pares

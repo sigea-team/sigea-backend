@@ -1358,7 +1358,9 @@ ALTER TABLE public.propuestas OWNER TO neondb_owner;
 CREATE TABLE public.propuestas_autores (
     propuesta_id integer NOT NULL,
     persona_id integer NOT NULL,
-    orden integer DEFAULT 1 NOT NULL
+    orden integer DEFAULT 1 NOT NULL,
+    rol character varying(20) DEFAULT 'autor_principal'::character varying NOT NULL,
+    CONSTRAINT propuestas_autores_rol_check CHECK (((rol)::text = ANY ((ARRAY['autor_principal'::character varying, 'coautor'::character varying, 'ponente'::character varying])::text[])))
 );
 
 
