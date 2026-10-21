@@ -17,7 +17,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -90,12 +92,23 @@ public class AuditoriaRepositoryCustomImpl implements AuditoriaRepositoryCustom 
             p.add(cb.equal(cb.lower(root.<String>get("entidad")), f.entidad().trim().toLowerCase()));
         }
         if (f.desde() != null) {
-            p.add(cb.greaterThanOrEqualTo(root.<LocalDateTime>get("fechaHora"), f.desde().atStartOfDay()));
+            p.add(cb.greaterThanOrEqualTo(root.<LocalDateTime>get("fechaHora"), inicioDiaColombia(f.desde())));
         }
         if (f.hasta() != null) {
-            // "hasta" inclusivo: todo el día, es decir < (hasta + 1 día) a las 00:00
-            p.add(cb.lessThan(root.<LocalDateTime>get("fechaHora"), f.hasta().plusDays(1).atStartOfDay()));
+            // "hasta" inclusivo: todo el día, es decir < (hasta + 1 día) a las 00:00 (hora Colombia)
+            p.add(cb.lessThan(root.<LocalDateTime>get("fechaHora"), inicioDiaColombia(f.hasta().plusDays(1))));
         }
         return p.toArray(new Predicate[0]);
+    }
+
+    /**
+     * Las fechas del filtro son días en hora de Colombia, pero {@code fecha_hora} se guarda con la
+     * hora del servidor (UTC en el despliegue). Se convierte el inicio del día a la zona del servidor
+     * para no perder ni sumar registros entre las 19:00 y la medianoche.
+     */
+    private static LocalDateTime inicioDiaColombia(LocalDate dia) {
+        return dia.atStartOfDay(ZoneId.of("America/Bogota"))
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime();
     }
 }
