@@ -7,6 +7,7 @@ import com.sigea.demosigea_backend.model.Usuario;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 
 /**
@@ -28,6 +29,23 @@ public record AuditoriaResponse(
         String detalle
 ) {
 
+    /** Zona horaria en la que se muestran las fechas al usuario. */
+    public static final ZoneId ZONA_COLOMBIA = ZoneId.of("America/Bogota");
+
+    /**
+     * Convierte una fecha guardada con la hora del servidor (UTC en el despliegue)
+     * a la hora de Colombia, igual que el mensaje de bloqueo de cuenta.
+     */
+    public static LocalDateTime aHoraColombia(LocalDateTime fechaServidor) {
+        if (fechaServidor == null) {
+            return null;
+        }
+        return fechaServidor
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(ZONA_COLOMBIA)
+                .toLocalDateTime();
+    }
+
     public static AuditoriaResponse fromEntity(Auditoria a) {
         Usuario u = a.getUsuario();
         Persona p = u != null ? u.getPersona() : null;
@@ -38,7 +56,7 @@ public record AuditoriaResponse(
                 .orElse(a.getAccion());
         return new AuditoriaResponse(
                 a.getId(),
-                a.getFechaHora(),
+                aHoraColombia(a.getFechaHora()),
                 u != null ? u.getId() : null,
                 p != null ? p.getCorreo() : null,
                 p != null ? (p.getNombres() + " " + p.getApellidos()).trim() : "Sistema",
