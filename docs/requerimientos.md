@@ -1,8 +1,10 @@
-# Documento de Requerimientos – SIGEA (Sprint 1)
+# Documento de Requerimientos – SIGEA
 
 **Asignatura:** Análisis y Diseño de Sistemas
 **Tablero Jira:** [ufps-team-sigea / SCRUM](https://ufps-team-sigea.atlassian.net/jira/software/projects/SCRUM/boards/1)
-**Sprint:** SCRUM Sprint 1 — *Establecer la base de seguridad y planeación de eventos* (15/09/2026 – 05/10/2026)
+**Sprints documentados:**
+- SCRUM Sprint 1 — *Establecer la base de seguridad y planeación de eventos* (15/09/2026 – 05/10/2026)
+- SCRUM Sprint 2 — *Planear los recursos financieros del evento y abrir su participación externa* (05/10/2026 – 19/10/2026)
 **Fuentes:** EP2 – Documento de requisitos (SRS), D7 – Descripción de requisitos, EP3 – Casos de uso de alto nivel, HU vs Casos de uso.
 
 ---
@@ -12,8 +14,11 @@
 | Versión | Fecha      | Autor        | Descripción del cambio                                         |
 |---------|------------|--------------|----------------------------------------------------------------|
 | 1.0     | 2026-10-08 | Equipo SIGEA | Versión inicial: casos de uso, RF y RNF abordados en el Sprint 1 |
+| 2.0     | 2026-10-22 | Equipo SIGEA | Se agregan actores, casos de uso, RF y RNF del Sprint 2, con PR y pruebas que los verifican |
 
 ---
+
+# Sprint 1
 
 ## 1. Actores
 
@@ -71,6 +76,61 @@
 
 ---
 
-## 5. Trazabilidad
+# Sprint 2
 
-Cada RF se asocia a un caso de uso, a una historia de usuario y a su historia en Jira; cada RNF tiene una métrica y una forma de verificación. Los cambios a este documento se registran en el historial de versiones y en los commits del repositorio, mencionando la clave de Jira afectada (por ejemplo, `SCRUM-6`).
+## 1. Actores
+
+| Actor | Descripción |
+|---|---|
+| Administrador / Organizador | Elabora el presupuesto, registra gastos, crea y publica convocatorias, gestiona conferencistas, roles y parámetros. |
+| Conferencista | Registra sus datos y trayectoria desde el enlace de invitación (HU-12). |
+| Autor / Ponente | Registra sus datos al enviar una propuesta (HU-13). |
+
+---
+
+## 2. Casos de uso de alto nivel cubiertos en el Sprint
+
+| ID | Caso de uso | Actor principal |
+|---|---|---|
+| CU-02 | Gestionar Roles y Permisos (continúa del Sprint 1) | Administrador |
+| CU-05 | Configurar Parámetros del Evento (continúa del Sprint 1) | Administrador / Organizador |
+| CU-07 | Elaborar Presupuesto Preliminar | Administrador / Organizador |
+| CU-29 | Registrar Presupuesto Aprobado | Administrador / Organizador |
+| CU-08 | Registrar Gastos y Ejecución Presupuestal | Administrador / Organizador |
+| CU-09 | Crear y Configurar Convocatoria | Administrador / Organizador |
+| CU-30 | Publicar Convocatoria (extiende CU-09) | Administrador / Organizador |
+| CU-10 | Gestionar Conferencistas | Administrador / Organizador, Conferencista |
+| CU-11 | Registrar Autores y Ponentes | Autor / Ponente |
+
+---
+
+## 3. Requerimientos funcionales
+
+| ID | Requerimiento funcional | Caso de uso | Historia de usuario | Historia Jira | Estado | Pull requests | Prueba que lo verifica |
+|---|---|---|---|---|---|---|---|
+| RF02 | Administración de roles y permisos | CU-02 | HU-02 | [SCRUM-7](https://ufps-team-sigea.atlassian.net/browse/SCRUM-7) | En revisión* | [back #12](https://github.com/sigea-team/sigea-backend/pull/12) · [front #5](https://github.com/sigea-team/sigea-front/pull/5), [front #6](https://github.com/sigea-team/sigea-front/pull/6), [front #8](https://github.com/sigea-team/sigea-front/pull/8) | RolServiceTest, RolSincronizacionPermisosE2ETest |
+| RF06 · RF07 | Tipos de actividades · Líneas temáticas | CU-05 | HU-05 | [SCRUM-9](https://ufps-team-sigea.atlassian.net/browse/SCRUM-9) | Finalizado | [back #21](https://github.com/sigea-team/sigea-backend/pull/21) · [front #17](https://github.com/sigea-team/sigea-front/pull/17) | TipoActividadServiceTest, LineaTematicaServiceTest, ParametroEventoReglasTest |
+| RF08 · RF09 | Presupuesto preliminar · Rubros presupuestales | CU-07 | HU-07 | [SCRUM-18](https://ufps-team-sigea.atlassian.net/browse/SCRUM-18) | Finalizado | [back #31](https://github.com/sigea-team/sigea-backend/pull/31) · [front #21](https://github.com/sigea-team/sigea-front/pull/21) | PresupuestoPreliminarServiceTest |
+| RF10 | Registro del presupuesto aprobado | CU-29 | HU-08 | [SCRUM-20](https://ufps-team-sigea.atlassian.net/browse/SCRUM-20) | Finalizado | [back #34](https://github.com/sigea-team/sigea-backend/pull/34) · [front #23](https://github.com/sigea-team/sigea-front/pull/23) | PresupuestoAprobadoServiceTest |
+| RF11 · RF12 | Gastos ejecutados · Ejecución presupuestal | CU-08 | HU-09 | [SCRUM-21](https://ufps-team-sigea.atlassian.net/browse/SCRUM-21) | Finalizado | [back #35](https://github.com/sigea-team/sigea-backend/pull/35), [back #36](https://github.com/sigea-team/sigea-backend/pull/36) · [front #24](https://github.com/sigea-team/sigea-front/pull/24) | EjecucionPresupuestalServiceTest |
+| RF13 · RF15 | Crear convocatoria · Fechas de apertura y cierre | CU-09 | HU-10 | [SCRUM-16](https://ufps-team-sigea.atlassian.net/browse/SCRUM-16) | Finalizado | [back #25](https://github.com/sigea-team/sigea-backend/pull/25), [back #27](https://github.com/sigea-team/sigea-backend/pull/27) · [front #15](https://github.com/sigea-team/sigea-front/pull/15), [front #20](https://github.com/sigea-team/sigea-front/pull/20), [front #28](https://github.com/sigea-team/sigea-front/pull/28) | ConvocatoriaServiceTest |
+| RF14 | Publicar convocatorias | CU-30 | HU-11 | [SCRUM-25](https://ufps-team-sigea.atlassian.net/browse/SCRUM-25) | Finalizado | [back #37](https://github.com/sigea-team/sigea-backend/pull/37) · [front #25](https://github.com/sigea-team/sigea-front/pull/25) | ConvocatoriaPublicaControllerTest |
+| RF16 · RF17 | Conferencistas · Trayectoria del conferencista | CU-10 | HU-12 | [SCRUM-27](https://ufps-team-sigea.atlassian.net/browse/SCRUM-27) | En revisión* | Rama feature/HU12-conferencistas (sin integrar) | Pendiente |
+| RF18 | Registro de autores y ponentes | CU-11 | HU-13 | [SCRUM-28](https://ufps-team-sigea.atlassian.net/browse/SCRUM-28) | Finalizado | [back #38](https://github.com/sigea-team/sigea-backend/pull/38) · [front #26](https://github.com/sigea-team/sigea-front/pull/26) | PropuestaServiceTest |
+
+> \* SCRUM-7 (HU-02) y SCRUM-27 (HU-12) no se cerraron en el Sprint 2 y continúan en el Sprint 3. SCRUM-9 (HU-05), que venía del Sprint 1, quedó Finalizado.
+
+---
+
+## 4. Requerimientos no funcionales asociados al Sprint
+
+| ID | Requerimiento no funcional (SRS) | Categoría | RF asociados | Métrica | Verificación |
+|---|---|---|---|---|---|
+| RNF09 | Integridad del presupuesto | Integridad | RF08, RF09, RF11, RF12 | Total y % de ejecución recalculados en el 100 % de las altas, ediciones y eliminaciones | Criterios CA-1 y CA-2 de HU-07, CA-1 y CA-4 de HU-09; PresupuestoPreliminarServiceTest, EjecucionPresupuestalServiceTest |
+| RNF06 | Control de acceso por roles | Seguridad | RF02 | 0 accesos a funciones no permitidas por el rol | CA-4 de HU-02: acción no autorizada → acceso denegado (403) |
+
+---
+
+# Trazabilidad
+
+Cada RF se asocia a un caso de uso, a una historia de usuario, a su historia en Jira y, desde el Sprint 2, a los pull requests y a la prueba que lo verifica; cada RNF tiene una métrica y una forma de verificación. Los cambios a este documento se registran en el historial de versiones y en los commits del repositorio, mencionando la clave de Jira afectada (por ejemplo, `SCRUM-6`).
