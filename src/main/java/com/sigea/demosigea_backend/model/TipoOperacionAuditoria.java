@@ -63,6 +63,10 @@ public enum TipoOperacionAuditoria {
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     CONVOCATORIA_FECHA_CIERRE_MODIFICADA("CONVOCATORIAS", "Modificación de la fecha límite de una convocatoria publicada (HU-11)"),
 
+    // ----- Evaluaciones y puntuación ponderada (HU-17) -----
+    EVALUACION_REGISTRADA("EVALUACION", "Registro de calificaciones de evaluación de una propuesta (HU-17)"),
+    PUNTUACION_CALCULADA("EVALUACION", "Cálculo automático de puntuación ponderada de una propuesta (HU-17)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
 

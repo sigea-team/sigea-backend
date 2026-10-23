@@ -18,6 +18,7 @@ import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -267,6 +268,49 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOperacionNoPermitida(OperacionNoPermitidaException ex,
                                                                     HttpServletRequest request) {
         return construir(HttpStatus.CONFLICT, ex.getMessage(), "OPERACION_NO_PERMITIDA", request);
+    }
+
+    /**
+     * HU-17, Criterio 4: el evaluador intenta modificar una evaluación ya enviada cuando el
+     * periodo de evaluación de la convocatoria está cerrado.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código EVALUACION_CERRADA.
+     */
+    @ExceptionHandler(EvaluacionCerradaException.class)
+    public ResponseEntity<ErrorResponse> handleEvaluacionCerrada(EvaluacionCerradaException ex,
+                                                                 HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "EVALUACION_CERRADA", request);
+    }
+
+    /**
+     * HU-17, Criterios 2 y 3: se intentó enviar una evaluación con criterios sin calificar,
+     * o la propuesta tiene asignaciones de evaluación pendientes.
+     * <p>
+     * Incluye el detalle de los criterios faltantes en {@code erroresValidacion}.
+     * </p>
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST y código EVALUACION_INCOMPLETA.
+     */
+    @ExceptionHandler(EvaluacionIncompletaException.class)
+    public ResponseEntity<ErrorResponse> handleEvaluacionIncompleta(EvaluacionIncompletaException ex,
+                                                                    HttpServletRequest request) {
+        Map<String, String> errores = new LinkedHashMap<>();
+        if (ex.getCriteriosFaltantes() != null) {
+            for (int i = 0; i < ex.getCriteriosFaltantes().size(); i++) {
+                errores.put("criterioFaltante[" + i + "]", ex.getCriteriosFaltantes().get(i));
+            }
+        }
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                "EVALUACION_INCOMPLETA",
+                null,
+                errores,
+                request.getRequestURI(),
+                null);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
