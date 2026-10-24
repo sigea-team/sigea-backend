@@ -45,6 +45,10 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 ### 4. Convocatorias, Ponentes y Propuestas
 - `convocatorias` ➡️ Llamados a presentación de trabajos. Estados: `'borrador'`, `'publicada'`, `'cerrada'`.
 - `participaciones_conferencista` ➡️ Invitación a expositores (`'conferencista'`, `'ponente'`).
+- `perfiles_conferencista` ➡️ Trayectoria del conferencista, una por persona (HU-12, changeset 13).
+- `estudios_conferencista` ➡️ Estudios de la trayectoria. Niveles: `'pregrado'`, `'especializacion'`, `'maestria'`, `'doctorado'`, `'posdoctorado'`, `'otro'`.
+- `publicaciones_conferencista` ➡️ Publicaciones de la trayectoria. Tipos: `'articulo'`, `'libro'`, `'capitulo'`, `'ponencia'`, `'otro'`.
+- `invitaciones_conferencista` ➡️ Invitaciones por correo a conferencistas nuevos. Estados: `'pendiente'`, `'completada'`, `'cancelada'` (HU-12, changeset 14).
 - `propuestas` ➡️ Trabajos académicos postulados. Estados: `'recibida'`, `'en_evaluacion'`, `'aprobada'`, `'ajustes'`, `'rechazada'`.
 - `propuestas_autores` ➡️ Autores y coautores con orden de autoría y rol ('autor_principal', 'coautor', 'ponente') (HU-13).
 - `versiones_propuesta` ➡️ Historial de versiones y archivos de la propuesta.

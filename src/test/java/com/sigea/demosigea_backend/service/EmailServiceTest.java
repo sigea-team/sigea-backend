@@ -14,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -88,5 +89,20 @@ class EmailServiceTest {
         assertDoesNotThrow(() ->
                 emailService.enviarCorreoVerificacion("usuario@ejemplo.com", "Juan Perez", "token-789")
         );
+    }
+
+    @Test
+    @DisplayName("HU-12: el enlace de invitación usa la URL del frontend y la ruta de invitación")
+    void enlaceInvitacionConferencista_formato() {
+        assertEquals("http://localhost:5173/#/conferencista/invitacion?token=tok-1",
+                emailService.enlaceInvitacionConferencista("tok-1"));
+    }
+
+    @Test
+    @DisplayName("HU-12: debe ejecutar el envío de la invitación a conferencista sin lanzar excepciones")
+    void enviarInvitacionConferencista_exito() {
+        assertDoesNotThrow(() -> emailService.enviarInvitacionConferencista("conf@ejemplo.com", "Ana Pérez",
+                "Congreso de Ingeniería de Sistemas", emailService.enlaceInvitacionConferencista("tok-2"),
+                java.time.LocalDateTime.of(2026, 10, 22, 9, 30)));
     }
 }
