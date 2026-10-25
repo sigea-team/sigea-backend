@@ -3,6 +3,8 @@ package com.sigea.demosigea_backend.repository;
 import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.EstadoAsignacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -51,4 +53,62 @@ public interface AsignacionEvaluacionRepository extends JpaRepository<Asignacion
      * @return {@code true} si existe al menos una asignación con un estado diferente al indicado.
      */
     boolean existsByPropuesta_IdAndEstadoNot(Long propuestaId, EstadoAsignacion estado);
+
+    /**
+     * Asignaciones de una propuesta con el evaluador, su persona y la convocatoria ya cargados (HU-16).
+     *
+     * @param propuestaId ID de la propuesta.
+     * @return asignaciones de la propuesta, de la más reciente a la más antigua.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a "
+            + "JOIN FETCH a.propuesta p JOIN FETCH p.convocatoria "
+            + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona "
+            + "WHERE p.id = :propuestaId ORDER BY a.fechaAsignacion DESC, a.id DESC")
+    List<AsignacionEvaluacion> findDetalleByPropuestaId(@Param("propuestaId") Long propuestaId);
+
+    /**
+     * Bandeja del evaluador: asignaciones de todos los comités en los que participa la persona (HU-16, Criterio 1).
+     *
+     * @param personaId ID de la persona evaluadora.
+     * @return asignaciones de la más reciente a la más antigua.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a "
+            + "JOIN FETCH a.propuesta p JOIN FETCH p.convocatoria "
+            + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona per "
+            + "WHERE per.id = :personaId ORDER BY a.fechaAsignacion DESC, a.id DESC")
+    List<AsignacionEvaluacion> findBandejaByPersonaId(@Param("personaId") Long personaId);
+
+    /**
+     * Bandeja del evaluador con solo el trabajo actual: excluye las asignaciones en el estado indicado
+     * (normalmente {@code completada}) (HU-16, Criterio 1).
+     *
+     * @param personaId ID de la persona evaluadora.
+     * @param estado    Estado excluido.
+     * @return asignaciones de la más reciente a la más antigua.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a "
+            + "JOIN FETCH a.propuesta p JOIN FETCH p.convocatoria "
+            + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona per "
+            + "WHERE per.id = :personaId AND a.estado <> :estado "
+            + "ORDER BY a.fechaAsignacion DESC, a.id DESC")
+    List<AsignacionEvaluacion> findBandejaByPersonaIdAndEstadoNot(@Param("personaId") Long personaId,
+                                                                  @Param("estado") EstadoAsignacion estado);
+
+    /**
+     * Indica si el evaluador ya tiene asignada la propuesta (índice único propuesta_id + comite_evaluador_id).
+     *
+     * @param propuestaId       ID de la propuesta.
+     * @param comiteEvaluadorId ID del miembro evaluador.
+     * @return {@code true} si la asignación ya existe.
+     */
+    boolean existsByPropuesta_IdAndComiteEvaluador_Id(Long propuestaId, Long comiteEvaluadorId);
+
+    /**
+     * Carga de trabajo del evaluador: asignaciones que aún no ha completado (HU-16).
+     *
+     * @param comiteEvaluadorId ID del miembro evaluador.
+     * @param estado            Estado excluido (normalmente {@code completada}).
+     * @return número de asignaciones abiertas.
+     */
+    long countByComiteEvaluador_IdAndEstadoNot(Long comiteEvaluadorId, EstadoAsignacion estado);
 }

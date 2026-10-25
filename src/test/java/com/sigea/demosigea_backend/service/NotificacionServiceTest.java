@@ -198,4 +198,21 @@ class NotificacionServiceTest {
     void contarNoLeidas_sinSesion_lanzaAccessDenied() {
         assertThrows(AccessDeniedException.class, () -> notificacionService.contarNoLeidas());
     }
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: notificar a un usuario guarda una notificación no leída con la fecha del reloj")
+    void notificarAUsuario_guardaNotificacionNoLeida() {
+        when(notificacionRepository.save(any(Notificacion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Notificacion creada = notificacionService.notificarAUsuario(usuario, TipoNotificacion.PROPUESTA_ASIGNADA,
+                "x".repeat(200), "Se te asignó la propuesta", "asignaciones_evaluacion", 12L);
+
+        assertEquals(usuario, creada.getUsuario());
+        assertEquals(TipoNotificacion.PROPUESTA_ASIGNADA, creada.getTipo());
+        assertEquals(150, creada.getTitulo().length());
+        assertEquals(AHORA, creada.getFechaCreacion());
+        assertEquals("asignaciones_evaluacion", creada.getEntidad());
+        assertEquals(12L, creada.getEntidadId());
+        assertEquals(Boolean.FALSE, creada.getLeida());
+    }
 }

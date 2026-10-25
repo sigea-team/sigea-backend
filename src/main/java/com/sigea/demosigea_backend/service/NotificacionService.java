@@ -65,6 +65,32 @@ public class NotificacionService {
     }
 
     /**
+     * Crea una notificación para un único usuario (p. ej. el evaluador al que se asigna una propuesta, HU-16).
+     * Debe llamarse dentro de la transacción de la operación que la origina.
+     *
+     * @param destinatario Usuario que verá la notificación en su campana.
+     * @return La notificación guardada.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Notificacion notificarAUsuario(Usuario destinatario, TipoNotificacion tipo, String titulo, String mensaje,
+                                          String entidad, Long entidadId) {
+        String tituloAjustado = titulo.length() > LARGO_TITULO ? titulo.substring(0, LARGO_TITULO - 1) + "…" : titulo;
+        Notificacion notificacion = Notificacion.builder()
+                .usuario(destinatario)
+                .tipo(tipo)
+                .titulo(tituloAjustado)
+                .mensaje(mensaje)
+                .entidad(entidad)
+                .entidadId(entidadId)
+                .leida(false)
+                .fechaCreacion(LocalDateTime.now(clock))
+                .build();
+        Notificacion guardada = notificacionRepository.save(notificacion);
+        log.info("Notificación {} creada para el usuario {} ({} #{})", tipo, destinatario.getId(), entidad, entidadId);
+        return guardada;
+    }
+
+    /**
      * Notificaciones del usuario autenticado, de la más reciente a la más antigua.
      *
      * @param soloNoLeidas Si es {@code true}, devuelve solo las pendientes.

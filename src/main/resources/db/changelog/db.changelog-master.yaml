@@ -33,3 +33,5 @@ databaseChangeLog:
       file: db/changelog/changes/13-hu12-conferencistas.sql
   - include:
       file: db/changelog/changes/14-hu12-invitaciones-conferencista.sql
+  - include:
+      file: db/changelog/changes/15-hu16-asignacion-evaluadores.sql

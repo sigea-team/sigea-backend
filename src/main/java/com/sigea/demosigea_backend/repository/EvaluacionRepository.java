@@ -58,4 +58,12 @@ public interface EvaluacionRepository extends JpaRepository<Evaluacion, Long> {
      * @return lista de todas las evaluaciones de todos los evaluadores asignados a la propuesta.
      */
     List<Evaluacion> findByAsignacion_Propuesta_Id(Long propuestaId);
+
+    /**
+     * Indica si la asignación ya tiene calificaciones registradas (impide reasignarla, HU-16).
+     *
+     * @param asignacionId ID de la asignación.
+     * @return {@code true} si existe al menos una calificación.
+     */
+    boolean existsByAsignacion_Id(Long asignacionId);
 }

@@ -54,6 +54,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `criterios_rubrica` ➡️ Criterios y pesos porcentuales.
 - `comites_evaluadores` ➡️ Pares evaluadores asignados a la convocatoria.
 - `asignaciones_evaluacion` ➡️ Asignación de propuesta a evaluador. Estados: `'pendiente'`, `'en_proceso'`, `'completada'`.
+- `historial_asignaciones` ➡️ Historial inmutable de asignaciones y reasignaciones de propuestas a evaluadores (`'asignacion'`, `'reasignacion'`) (HU-16, changeset 13).
 - `evaluaciones` ➡️ Calificación detallada por criterio.
 - `resultados_evaluacion` ➡️ Consolidado y clasificación final (`'aprobada'`, `'aprobada_con_ajustes'`, `'rechazada'`).
 - `observaciones_propuesta` ➡️ Retroalimentación y correcciones solicitadas a versiones.
