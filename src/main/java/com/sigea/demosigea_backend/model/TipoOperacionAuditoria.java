@@ -49,6 +49,14 @@ public enum TipoOperacionAuditoria {
     EVENTO_PUBLICADO("EVENTOS", "Publicación de un evento (pasa a habilitado)"),
     EVENTO_INICIADO("EVENTOS", "Paso automático de un evento a en ejecución al llegar su fecha de inicio"),
 
+    // ----- Conferencistas y ponentes (HU-12) -----
+    CONFERENCISTA_INVITADO("CONFERENCISTAS", "Envío o reenvío de la invitación por correo a un conferencista nuevo (HU-12)"),
+    INVITACION_CONFERENCISTA_CANCELADA("CONFERENCISTAS", "Cancelación de una invitación a un conferencista (HU-12)"),
+    CONFERENCISTA_REGISTRADO("CONFERENCISTAS", "Registro de un conferencista desde su invitación, con su trayectoria (HU-12)"),
+    CONFERENCISTA_ASOCIADO("CONFERENCISTAS", "Asociación de un conferencista ya registrado a un evento (HU-12)"),
+    CONFERENCISTA_DESASOCIADO("CONFERENCISTAS", "Retiro de un conferencista de un evento (HU-12)"),
+    CONFERENCISTA_ACTUALIZADO("CONFERENCISTAS", "Actualización de los datos o la trayectoria de un conferencista (HU-12)"),
+
     // ----- Presupuesto y Finanzas (HU-08) -----
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     PRESUPUESTO_APROBADO("PRESUPUESTO", "Registro del presupuesto aprobado del evento (HU-08)"),

@@ -29,4 +29,13 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
      * @return Un {@link Optional} con el {@link Usuario} correspondiente, o vacío si no se encuentra match.
      */
     Optional<Usuario> findByPersona_CorreoIgnoreCase(String correo);
+
+    /**
+     * Indica si la persona tiene una cuenta de usuario. Se usa en HU-12 para no cambiar desde el
+     * módulo de conferencistas el correo con el que esa persona inicia sesión.
+     *
+     * @param personaId ID de la persona.
+     * @return {@code true} si existe una cuenta vinculada a la persona.
+     */
+    boolean existsByPersona_Id(Long personaId);
 }
