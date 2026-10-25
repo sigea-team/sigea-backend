@@ -33,6 +33,8 @@ import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -78,6 +80,15 @@ public class AsignacionEvaluacionService {
             EstadoPropuesta.en_evaluacion);
 
     private static final String ENTIDAD = "asignaciones_evaluacion";
+
+    /**
+     * Índice único (propuesta_id, comite_evaluador_id) que ya existe en {@code asignaciones_evaluacion}
+     * (ver {@code schema.sql}). Protege ante peticiones simultáneas que pasen la validación del servicio.
+     */
+    static final String INDICE_ASIGNACION_UNICA = "asignaciones_evaluacion_propuesta_id_comite_evaluador_id_idx";
+
+    /** SQLState de PostgreSQL para violación de unicidad. */
+    static final String SQLSTATE_VIOLACION_UNICIDAD = "23505";
 
     /** Nivel del conflicto de interés entre un evaluador y una propuesta (Criterio 2). */
     enum NivelConflicto { NINGUNO, ADVERTENCIA, BLOQUEANTE }
@@ -141,12 +152,12 @@ public class AsignacionEvaluacionService {
             ComiteEvaluador evaluador = entrada.getKey();
             Conflicto conflicto = entrada.getValue();
 
-            AsignacionEvaluacion asignacion = asignacionRepository.save(AsignacionEvaluacion.builder()
+            AsignacionEvaluacion asignacion = guardarControlandoDuplicado(AsignacionEvaluacion.builder()
                     .propuesta(propuesta)
                     .comiteEvaluador(evaluador)
                     .fechaAsignacion(ahora)
                     .estado(EstadoAsignacion.pendiente)
-                    .build());
+                    .build(), propuesta, evaluador);
 
             registrarHistorial(asignacion, TipoOperacionAsignacion.asignacion, null, evaluador, conflicto,
                     null, actor, ahora);
@@ -222,7 +233,7 @@ public class AsignacionEvaluacionService {
         asignacion.setComiteEvaluador(nuevo);
         asignacion.setEstado(EstadoAsignacion.pendiente);
         asignacion.setFechaAsignacion(ahora);
-        asignacion = asignacionRepository.save(asignacion);
+        asignacion = guardarControlandoDuplicado(asignacion, propuesta, nuevo);
 
         String motivo = request.motivo() != null && !request.motivo().isBlank() ? request.motivo().trim() : null;
         registrarHistorial(asignacion, TipoOperacionAsignacion.reasignacion, anterior, nuevo, conflicto, motivo,
@@ -295,15 +306,22 @@ public class AsignacionEvaluacionService {
     }
 
     /**
-     * Bandeja del evaluador autenticado: propuestas que tiene asignadas en cualquier convocatoria (Criterio 1).
+     * Bandeja del evaluador autenticado (Criterio 1). Por defecto muestra solo el trabajo actual (asignaciones
+     * pendientes o en proceso); con {@code incluirCompletadas = true} incluye también las completadas, para que el
+     * evaluador pueda volver a una evaluación enviada mientras el periodo siga abierto (HU-17, Criterio 4).
      *
+     * @param incluirCompletadas si se incluyen las asignaciones completadas.
      * @throws AccessDeniedException si no hay sesión iniciada.
      */
     @Transactional(readOnly = true)
-    public List<AsignacionResponse> miBandeja() {
+    public List<AsignacionResponse> miBandeja(boolean incluirCompletadas) {
         Usuario usuario = usuarioAutenticado()
                 .orElseThrow(() -> new AccessDeniedException("Debe iniciar sesión para consultar su bandeja."));
-        return asignacionRepository.findBandejaByPersonaId(usuario.getPersona().getId()).stream()
+        Long personaId = usuario.getPersona().getId();
+        List<AsignacionEvaluacion> asignaciones = incluirCompletadas
+                ? asignacionRepository.findBandejaByPersonaId(personaId)
+                : asignacionRepository.findBandejaByPersonaIdAndEstadoNot(personaId, EstadoAsignacion.completada);
+        return asignaciones.stream()
                 .map(AsignacionResponse::fromEntity)
                 .toList();
     }
@@ -400,6 +418,41 @@ public class AsignacionEvaluacionService {
                     "%s no pertenece al comité evaluador de la convocatoria de la propuesta.", nombre(evaluador)));
         }
         return evaluador;
+    }
+
+    /**
+     * Guarda con flush inmediato: si dos peticiones simultáneas pasaron la validación, el índice
+     * {@value #INDICE_ASIGNACION_UNICA} lo detecta aquí y se responde 409 en vez de 500.
+     */
+    private AsignacionEvaluacion guardarControlandoDuplicado(AsignacionEvaluacion asignacion, Propuesta propuesta,
+                                                             ComiteEvaluador evaluador) {
+        try {
+            return asignacionRepository.saveAndFlush(asignacion);
+        } catch (DataIntegrityViolationException ex) {
+            if (esViolacionAsignacionUnica(ex)) {
+                log.warn("El índice {} rechazó una asignación duplicada: propuesta {}, evaluador {}. Se responde 409.",
+                        INDICE_ASIGNACION_UNICA, propuesta.getId(), evaluador.getId());
+                throw new AsignacionDuplicadaException(String.format(
+                        "La propuesta '%s' ya está asignada a %s.", propuesta.getTitulo(), nombre(evaluador)));
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Determina si la excepción corresponde al índice {@value #INDICE_ASIGNACION_UNICA}, usando el SQLState y el
+     * nombre de la restricción (no el texto del mensaje).
+     */
+    static boolean esViolacionAsignacionUnica(Throwable ex) {
+        for (Throwable causa = ex; causa != null; causa = causa.getCause() == causa ? null : causa.getCause()) {
+            if (causa instanceof ConstraintViolationException violacion) {
+                String restriccion = violacion.getConstraintName();
+                return SQLSTATE_VIOLACION_UNICIDAD.equals(violacion.getSQLState())
+                        && restriccion != null
+                        && INDICE_ASIGNACION_UNICA.equalsIgnoreCase(restriccion.replace("\"", ""));
+            }
+        }
+        return false;
     }
 
     private void registrarHistorial(AsignacionEvaluacion asignacion, TipoOperacionAsignacion tipo,

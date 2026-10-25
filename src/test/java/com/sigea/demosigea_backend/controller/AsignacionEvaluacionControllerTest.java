@@ -186,12 +186,22 @@ class AsignacionEvaluacionControllerTest {
     }
 
     @Test
-    @DisplayName("HU-16 Criterio 1: GET mis-asignaciones devuelve la bandeja del evaluador")
+    @DisplayName("HU-16 Criterio 1: GET mis-asignaciones devuelve por defecto solo el trabajo actual")
     void miBandeja_retorna200() throws Exception {
-        when(asignacionService.miBandeja()).thenReturn(List.of(ejemplo(3L, "Ana Pérez")));
+        when(asignacionService.miBandeja(false)).thenReturn(List.of(ejemplo(3L, "Ana Pérez")));
 
         mockMvc.perform(get("/api/v1/asignaciones/mis-asignaciones"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].propuestaTitulo").value("Analítica educativa"));
+    }
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: GET mis-asignaciones?incluirCompletadas=true incluye las completadas")
+    void miBandeja_incluirCompletadas_retorna200() throws Exception {
+        when(asignacionService.miBandeja(true)).thenReturn(List.of(ejemplo(3L, "Ana Pérez")));
+
+        mockMvc.perform(get("/api/v1/asignaciones/mis-asignaciones").param("incluirCompletadas", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
     }
 }

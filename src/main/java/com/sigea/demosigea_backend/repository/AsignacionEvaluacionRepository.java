@@ -79,6 +79,22 @@ public interface AsignacionEvaluacionRepository extends JpaRepository<Asignacion
     List<AsignacionEvaluacion> findBandejaByPersonaId(@Param("personaId") Long personaId);
 
     /**
+     * Bandeja del evaluador con solo el trabajo actual: excluye las asignaciones en el estado indicado
+     * (normalmente {@code completada}) (HU-16, Criterio 1).
+     *
+     * @param personaId ID de la persona evaluadora.
+     * @param estado    Estado excluido.
+     * @return asignaciones de la más reciente a la más antigua.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a "
+            + "JOIN FETCH a.propuesta p JOIN FETCH p.convocatoria "
+            + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona per "
+            + "WHERE per.id = :personaId AND a.estado <> :estado "
+            + "ORDER BY a.fechaAsignacion DESC, a.id DESC")
+    List<AsignacionEvaluacion> findBandejaByPersonaIdAndEstadoNot(@Param("personaId") Long personaId,
+                                                                  @Param("estado") EstadoAsignacion estado);
+
+    /**
      * Indica si el evaluador ya tiene asignada la propuesta (índice único propuesta_id + comite_evaluador_id).
      *
      * @param propuestaId       ID de la propuesta.

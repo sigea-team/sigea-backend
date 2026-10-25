@@ -41,10 +41,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -152,7 +155,7 @@ class AsignacionEvaluacionServiceTest {
     }
 
     private void guardarAsignacionesConId() {
-        when(asignacionRepository.save(any(AsignacionEvaluacion.class))).thenAnswer(inv -> {
+        when(asignacionRepository.saveAndFlush(any(AsignacionEvaluacion.class))).thenAnswer(inv -> {
             AsignacionEvaluacion a = inv.getArgument(0);
             if (a.getId() == null) {
                 a.setId(500L + a.getComiteEvaluador().getId());
@@ -252,7 +255,7 @@ class AsignacionEvaluacionServiceTest {
 
         assertThrows(OperacionNoPermitidaException.class,
                 () -> service.asignar(40L, new AsignarEvaluadoresRequest(List.of(3L), false)));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -275,7 +278,7 @@ class AsignacionEvaluacionServiceTest {
 
         assertThrows(SolicitudInvalidaException.class,
                 () -> service.asignar(40L, new AsignarEvaluadoresRequest(List.of(9L), false)));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -288,7 +291,7 @@ class AsignacionEvaluacionServiceTest {
 
         assertThrows(AsignacionDuplicadaException.class,
                 () -> service.asignar(40L, new AsignarEvaluadoresRequest(List.of(3L), false)));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
     }
 
     // ------------------------------------------------------------------
@@ -308,7 +311,7 @@ class AsignacionEvaluacionServiceTest {
 
         assertTrue(ex.getMessage().contains("Luis Gómez"));
         assertTrue(ex.getMessage().contains("coautor"));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
         verify(notificacionService, never()).notificarAUsuario(any(), any(), anyString(), anyString(), anyString(), any());
     }
 
@@ -324,7 +327,7 @@ class AsignacionEvaluacionServiceTest {
                 () -> service.asignar(40L, new AsignarEvaluadoresRequest(List.of(7L), false)));
 
         assertTrue(ex.getMessage().contains("UFPS"));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -465,7 +468,7 @@ class AsignacionEvaluacionServiceTest {
 
         assertThrows(ConflictoInteresException.class,
                 () -> service.reasignar(12L, new ReasignarEvaluadorRequest(5L, null, true)));
-        verify(asignacionRepository, never()).save(any());
+        verify(asignacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -500,25 +503,95 @@ class AsignacionEvaluacionServiceTest {
         assertEquals("Luis Gómez", historial.get(0).evaluadorNuevoNombre());
     }
 
-    @Test
-    @DisplayName("HU-16 Criterio 1: la bandeja del evaluador autenticado lista sus asignaciones")
-    void miBandeja_listaAsignacionesDelEvaluador() {
+    private void sesionDeAna() {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("ana@ufps.edu.co", null, List.of()));
         when(usuarioRepository.findByPersona_CorreoIgnoreCase("ana@ufps.edu.co")).thenReturn(Optional.of(usuarioA));
-        when(asignacionRepository.findBandejaByPersonaId(21L))
+    }
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: por defecto la bandeja muestra solo el trabajo actual (excluye completadas)")
+    void miBandeja_porDefecto_excluyeCompletadas() {
+        sesionDeAna();
+        when(asignacionRepository.findBandejaByPersonaIdAndEstadoNot(21L, EstadoAsignacion.completada))
                 .thenReturn(List.of(asignacionExistente(evaluadorA, EstadoAsignacion.pendiente)));
 
-        List<AsignacionResponse> bandeja = service.miBandeja();
+        List<AsignacionResponse> bandeja = service.miBandeja(false);
 
         assertEquals(1, bandeja.size());
         assertEquals("Analítica educativa", bandeja.get(0).propuestaTitulo());
         assertEquals("Convocatoria de Ponencias 2026", bandeja.get(0).convocatoriaTitulo());
+        verify(asignacionRepository, never()).findBandejaByPersonaId(anyLong());
+    }
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: con incluirCompletadas la bandeja también muestra las completadas")
+    void miBandeja_incluirCompletadas_listaTodas() {
+        sesionDeAna();
+        when(asignacionRepository.findBandejaByPersonaId(21L)).thenReturn(List.of(
+                asignacionExistente(evaluadorA, EstadoAsignacion.pendiente),
+                asignacionExistente(evaluadorA, EstadoAsignacion.completada)));
+
+        List<AsignacionResponse> bandeja = service.miBandeja(true);
+
+        assertEquals(2, bandeja.size());
+        assertEquals("completada", bandeja.get(1).estado());
+        verify(asignacionRepository, never()).findBandejaByPersonaIdAndEstadoNot(anyLong(), any());
     }
 
     @Test
     @DisplayName("HU-16: la bandeja exige sesión iniciada")
     void miBandeja_sinSesion_lanzaAccesoDenegado() {
-        assertThrows(AccessDeniedException.class, () -> service.miBandeja());
+        assertThrows(AccessDeniedException.class, () -> service.miBandeja(false));
+    }
+
+    // ------------------------------------------------------------------
+    // Concurrencia: el índice único responde 409, no 500
+    // ------------------------------------------------------------------
+
+    private static DataIntegrityViolationException violacionIndiceUnico() {
+        ConstraintViolationException violacion = new ConstraintViolationException("duplicado",
+                new SQLException("duplicate key", AsignacionEvaluacionService.SQLSTATE_VIOLACION_UNICIDAD),
+                AsignacionEvaluacionService.INDICE_ASIGNACION_UNICA);
+        return new DataIntegrityViolationException("dup", violacion);
+    }
+
+    @Test
+    @DisplayName("HU-16: dos asignaciones simultáneas detectadas por el índice único responden 409, no 500")
+    void asignar_carreraDetectadaPorIndice_lanzaAsignacionDuplicada() {
+        when(propuestaRepository.findById(40L)).thenReturn(Optional.of(propuesta));
+        autoresDeLaPropuesta();
+        evaluadorExiste(evaluadorA);
+        when(asignacionRepository.saveAndFlush(any(AsignacionEvaluacion.class))).thenThrow(violacionIndiceUnico());
+
+        assertThrows(AsignacionDuplicadaException.class,
+                () -> service.asignar(40L, new AsignarEvaluadoresRequest(List.of(3L), false)));
+        verify(historialRepository, never()).save(any());
+        verify(notificacionService, never()).notificarAUsuario(any(), any(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("HU-16: una reasignación simultánea detectada por el índice único responde 409, no 500")
+    void reasignar_carreraDetectadaPorIndice_lanzaAsignacionDuplicada() {
+        when(asignacionRepository.findById(12L))
+                .thenReturn(Optional.of(asignacionExistente(evaluadorA, EstadoAsignacion.pendiente)));
+        when(evaluacionRepository.existsByAsignacion_Id(12L)).thenReturn(false);
+        evaluadorExiste(evaluadorB);
+        autoresDeLaPropuesta();
+        when(asignacionRepository.saveAndFlush(any(AsignacionEvaluacion.class))).thenThrow(violacionIndiceUnico());
+
+        assertThrows(AsignacionDuplicadaException.class,
+                () -> service.reasignar(12L, new ReasignarEvaluadorRequest(5L, null, false)));
+        verify(historialRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("HU-16: otras violaciones de integridad no se confunden con una asignación duplicada")
+    void esViolacionAsignacionUnica_otraRestriccion_false() {
+        ConstraintViolationException otra = new ConstraintViolationException("fk",
+                new SQLException("fk", "23503"), "asignaciones_evaluacion_comite_evaluador_id_fkey");
+        assertFalse(AsignacionEvaluacionService.esViolacionAsignacionUnica(
+                new DataIntegrityViolationException("x", otra)));
+        assertTrue(AsignacionEvaluacionService.esViolacionAsignacionUnica(violacionIndiceUnico()));
     }
 }

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -111,10 +112,12 @@ public class AsignacionEvaluacionController {
     }
 
     @Operation(summary = "Mi bandeja de evaluaciones",
-            description = "Propuestas asignadas al evaluador autenticado (Criterio 1).")
+            description = "Propuestas asignadas al evaluador autenticado (Criterio 1). Por defecto solo las "
+                    + "pendientes o en proceso; con incluirCompletadas=true también las completadas.")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/mis-asignaciones")
-    public ResponseEntity<List<AsignacionResponse>> miBandeja() {
-        return ResponseEntity.ok(asignacionService.miBandeja());
+    public ResponseEntity<List<AsignacionResponse>> miBandeja(
+            @RequestParam(defaultValue = "false") boolean incluirCompletadas) {
+        return ResponseEntity.ok(asignacionService.miBandeja(incluirCompletadas));
     }
 }
