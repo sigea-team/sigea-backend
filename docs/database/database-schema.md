@@ -38,6 +38,10 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 ### 4. Convocatorias, Ponentes y Propuestas
 - [`convocatorias`](#convocatorias) (`Convocatoria`): Llamados públicos a presentación de propuestas académicas asociadas a un evento.
 - [`participaciones_conferencista`](#participaciones_conferencista) (`ParticipacionConferencista`): Registro formal de conferencistas magistrales o ponentes invitados al evento.
+- [`perfiles_conferencista`](#perfiles_conferencista) (`PerfilConferencista`): Trayectoria académica y profesional del conferencista, una por persona (HU-12).
+- [`estudios_conferencista`](#estudios_conferencista) (`EstudioConferencista`): Estudios que forman parte de la trayectoria del conferencista (HU-12).
+- [`publicaciones_conferencista`](#publicaciones_conferencista) (`PublicacionConferencista`): Publicaciones que forman parte de la trayectoria del conferencista (HU-12).
+- [`invitaciones_conferencista`](#invitaciones_conferencista) (`InvitacionConferencista`): Invitaciones por correo a conferencistas nuevos para que registren sus datos (HU-12).
 - [`propuestas`](#propuestas) (`Propuesta`): Trabajos, ponencias o artículos académicos postulados por autores a una convocatoria.
 - [`propuestas_autores`](#propuestas_autores) (`PropuestaAutor`): Autores y coautores vinculados a una propuesta académica con orden de autoría.
 - [`versiones_propuesta`](#versiones_propuesta) (`VersionPropuesta`): Historial de versiones y archivos adjuntos (PDF/documentos) de una propuesta a lo largo del proceso de revisión.
@@ -573,12 +577,104 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `fecha_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 
 **Índices Definidos**:
-- UNIQUE Índice `participaciones_conferencista_persona_id_evento_id_tipo_participacion_tema_idx` sobre (`persona_id`, `evento_id`, `tipo_participacion`, `tema`)
+- UNIQUE Índice `ux_participaciones_conferencista_evento_persona` sobre (`evento_id`, `persona_id`): una persona una sola vez por evento (HU-12, changeset `hu12-004`, reemplaza al índice original sobre (`persona_id`, `evento_id`, `tipo_participacion`, `tema`))
 - Índice `idx_participaciones_persona` sobre (`persona_id`)
 
 **Relaciones Foráneas Salientes**:
 - Columna `persona_id` -> [`personas.persona_id`](#personas) `DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+
+> **HU-12**: el conjunto de participaciones de una persona es su historial en los eventos del Programa (RF17). La entidad JPA usa `Long` para los IDs y el enum `TipoParticipacionConferencista`.
+
+---
+
+### `perfiles_conferencista`
+
+**Descripción**: Trayectoria académica y profesional del conferencista (HU-12, RF16/RF17). Hay **una por persona**: todos los eventos donde participa leen este registro, por eso al actualizarlo el cambio se ve en todas las vistas públicas. Creada por el changeset Liquibase `13-hu12-conferencistas.sql` (no está en `schema.sql`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.PerfilConferencista` (`@Entity @Table(name = "perfiles_conferencista")`)  
+**Clave Primaria**: `perfil_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `perfil_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `persona_id` | `INT` | `Persona` | NO | FK, UNIQUE | - | FK -> [`personas.persona_id`](#personas); UNIQUE `ux_perfiles_conferencista_persona` |
+| `biografia` | `TEXT` | `String` | NO |  | - | Máx. 4000 caracteres (validación en el DTO) |
+| `cargo_actual` | `VARCHAR(150)` | `String` | SÍ |  | - | - |
+| `institucion` | `VARCHAR(150)` | `String` | SÍ |  | - | - |
+| `enlace_perfil` | `VARCHAR(300)` | `String` | SÍ |  | - | CvLAC, ORCID, Google Scholar, LinkedIn (http/https) |
+| `fecha_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+| `fecha_actualizacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | Se muestra en la vista pública |
+
+---
+
+### `estudios_conferencista`
+
+**Descripción**: Estudios de la trayectoria del conferencista (HU-12). Se reemplazan completos al actualizar la trayectoria. Changeset `13-hu12-conferencistas.sql`.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.EstudioConferencista`  
+**Clave Primaria**: `estudio_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `estudio_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `perfil_id` | `INT` | `PerfilConferencista` | NO | FK | - | FK -> [`perfiles_conferencista.perfil_id`](#perfiles_conferencista) `ON DELETE CASCADE` |
+| `nivel` | `VARCHAR(20)` | `NivelEstudio` | NO |  | - | CHECK `nivel IN ('pregrado','especializacion','maestria','doctorado','posdoctorado','otro')` |
+| `titulo` | `VARCHAR(200)` | `String` | NO |  | - | - |
+| `institucion` | `VARCHAR(150)` | `String` | NO |  | - | - |
+| `anio` | `INT` | `Integer` | SÍ |  | - | CHECK entre 1900 y 2100; el servicio rechaza años futuros |
+| `orden` | `INT` | `Integer` | NO |  | `1` | Posición en la trayectoria |
+
+**Índices Definidos**:
+- Índice `idx_estudios_conferencista_perfil` sobre (`perfil_id`, `orden`)
+
+---
+
+### `publicaciones_conferencista`
+
+**Descripción**: Publicaciones de la trayectoria del conferencista (HU-12). Se reemplazan completas al actualizar la trayectoria. Changeset `13-hu12-conferencistas.sql`.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.PublicacionConferencista`  
+**Clave Primaria**: `publicacion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `publicacion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `perfil_id` | `INT` | `PerfilConferencista` | NO | FK | - | FK -> [`perfiles_conferencista.perfil_id`](#perfiles_conferencista) `ON DELETE CASCADE` |
+| `tipo` | `VARCHAR(20)` | `TipoPublicacion` | NO |  | - | CHECK `tipo IN ('articulo','libro','capitulo','ponencia','otro')` |
+| `titulo` | `VARCHAR(300)` | `String` | NO |  | - | - |
+| `medio` | `VARCHAR(200)` | `String` | SÍ |  | - | Revista, editorial o evento |
+| `anio` | `INT` | `Integer` | SÍ |  | - | CHECK entre 1900 y 2100; el servicio rechaza años futuros |
+| `enlace` | `VARCHAR(300)` | `String` | SÍ |  | - | DOI o URL (http/https) |
+| `orden` | `INT` | `Integer` | NO |  | `1` | Posición en la trayectoria |
+
+**Índices Definidos**:
+- Índice `idx_publicaciones_conferencista_perfil` sobre (`perfil_id`, `orden`)
+
+---
+
+### `invitaciones_conferencista`
+
+**Descripción**: Invitación por correo a un conferencista nuevo (HU-12). El administrador solo indica nombre y correo; el invitado abre el enlace con el `token` (vigente 3 días, `app.conferencistas.invitacion-horas`) y registra él mismo documento, teléfono y trayectoria. Al completarla se crea o completa la persona en `personas`, su perfil y la participación en el evento. El estado "vencida" no se guarda: es `pendiente` con `fecha_expiracion` pasada. Changeset `14-hu12-invitaciones-conferencista.sql`.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.InvitacionConferencista` (`@Entity @Table(name = "invitaciones_conferencista")`)  
+**Clave Primaria**: `invitacion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `invitacion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `evento_id` | `INT` | `Evento` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE` |
+| `nombre` | `VARCHAR(200)` | `String` | NO |  | - | Nombre con el que se invitó |
+| `correo` | `VARCHAR(150)` | `String` | NO |  | - | Será el correo de la persona registrada |
+| `tipo_participacion` | `VARCHAR(20)` | `TipoParticipacionConferencista` | NO |  | `'conferencista'` | CHECK `tipo_participacion IN ('conferencista','ponente')` |
+| `token` | `VARCHAR(64)` | `String` | NO | UNIQUE | - | 32 bytes aleatorios en Base64 URL; cambia al reenviar |
+| `estado` | `VARCHAR(20)` | `EstadoInvitacion` | NO |  | `'pendiente'` | CHECK `estado IN ('pendiente','completada','cancelada')` |
+| `fecha_envio` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+| `fecha_expiracion` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | CHECK `fecha_expiracion > fecha_envio` |
+| `fecha_completada` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | - |
+| `persona_id` | `INT` | `Persona` | SÍ | FK | - | FK -> [`personas.persona_id`](#personas); se llena al completar |
+| `invitado_por` | `INT` | `Usuario` | SÍ | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
+
+**Índices Definidos**:
+- UNIQUE `ux_invitaciones_conferencista_token` sobre (`token`)
+- UNIQUE parcial `ux_invitaciones_conferencista_pendiente` sobre (`evento_id`, `LOWER(correo)`) `WHERE estado = 'pendiente'`
+- Índice `idx_invitaciones_conferencista_evento` sobre (`evento_id`, `estado`)
 
 ---
 

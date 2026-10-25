@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
+import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -136,6 +137,109 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleParametroEnUso(ParametroEventoEnUsoException ex,
                                                               HttpServletRequest request) {
         return construir(HttpStatus.CONFLICT, ex.getMessage(), "PARAMETRO_EN_USO", request);
+    }
+
+    /**
+     * HU-12, Criterio 3: el documento o el correo ya pertenecen a una persona registrada. Además del
+     * mensaje se devuelve la persona encontrada ({@code coincidencia}) para que el frontend ofrezca
+     * asociarla al evento en lugar de crear un duplicado.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código CONFERENCISTA_EXISTENTE.
+     */
+    @ExceptionHandler(ConferencistaExistenteException.class)
+    public ResponseEntity<ConflictoConferencistaResponse> handleConferencistaExistente(
+            ConferencistaExistenteException ex, HttpServletRequest request) {
+        ConflictoConferencistaResponse response = new ConflictoConferencistaResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                "CONFERENCISTA_EXISTENTE",
+                request != null ? request.getRequestURI() : null,
+                ex.getCoincidencia()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * HU-12: ya hay una invitación vigente para ese correo en el evento.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código INVITACION_PENDIENTE.
+     */
+    @ExceptionHandler(InvitacionPendienteException.class)
+    public ResponseEntity<ErrorResponse> handleInvitacionPendiente(InvitacionPendienteException ex,
+                                                                   HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "INVITACION_PENDIENTE", request);
+    }
+
+    /**
+     * HU-12: el enlace de invitación venció, ya se usó, fue cancelado o el evento ya no recibe
+     * conferencistas.
+     *
+     * @return {@link ResponseEntity} con estado 410 GONE y el código de la causa.
+     */
+    @ExceptionHandler(InvitacionNoDisponibleException.class)
+    public ResponseEntity<ErrorResponse> handleInvitacionNoDisponible(InvitacionNoDisponibleException ex,
+                                                                      HttpServletRequest request) {
+        return construir(HttpStatus.GONE, ex.getMessage(), ex.getCodigo(), request);
+    }
+
+    /**
+     * HU-12, Criterio 3: el conferencista ya está asociado al evento.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código CONFERENCISTA_YA_ASOCIADO.
+     */
+    @ExceptionHandler(ConferencistaYaAsociadoException.class)
+    public ResponseEntity<ErrorResponse> handleConferencistaYaAsociado(ConferencistaYaAsociadoException ex,
+                                                                       HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "CONFERENCISTA_YA_ASOCIADO", request);
+    }
+
+    /**
+     * HU-12: al actualizar un conferencista, el documento o el correo pertenecen a otra persona.
+     * En {@code erroresValidacion} se indica el campo en conflicto.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código DATOS_PERSONA_DUPLICADOS.
+     */
+    @ExceptionHandler(DatosPersonaDuplicadosException.class)
+    public ResponseEntity<ErrorResponse> handleDatosPersonaDuplicados(DatosPersonaDuplicadosException ex,
+                                                                      HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                "DATOS_PERSONA_DUPLICADOS",
+                null,
+                ex.getCampo() != null ? Map.of(ex.getCampo(), ex.getMessage()) : null,
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * HU-12, Criterio 2: reglas de los datos del conferencista que no cubre Bean Validation
+     * (años futuros, trayectoria faltante, correo vinculado a una cuenta). Se responde igual que
+     * un error de validación, con el detalle por campo.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST y código VALIDACION_FALLIDA.
+     */
+    @ExceptionHandler(DatosConferencistaInvalidosException.class)
+    public ResponseEntity<ErrorResponse> handleDatosConferencistaInvalidos(DatosConferencistaInvalidosException ex,
+                                                                           HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                "VALIDACION_FALLIDA",
+                null,
+                ex.getCampos(),
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**

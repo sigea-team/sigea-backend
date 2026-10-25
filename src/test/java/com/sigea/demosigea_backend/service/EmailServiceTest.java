@@ -14,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -88,5 +89,28 @@ class EmailServiceTest {
         assertDoesNotThrow(() ->
                 emailService.enviarCorreoVerificacion("usuario@ejemplo.com", "Juan Perez", "token-789")
         );
+    }
+
+    @Test
+    @DisplayName("HU-12: el enlace de invitación usa la URL del frontend y la ruta de invitación")
+    void enlaceInvitacionConferencista_formato() {
+        assertEquals("http://localhost:5173/#/conferencista/invitacion?token=tok-1",
+                emailService.enlaceInvitacionConferencista("tok-1"));
+    }
+
+    @Test
+    @DisplayName("HU-12: si la URL base del front se configura sin '#', el enlace igual queda con /#/ para el HashRouter")
+    void enlaceInvitacionConferencista_baseSinHash() {
+        ReflectionTestUtils.setField(emailService, "resetPasswordBaseUrl", "https://sigea-team.github.io/sigea-front/");
+        assertEquals("https://sigea-team.github.io/sigea-front/#/conferencista/invitacion?token=tok-3",
+                emailService.enlaceInvitacionConferencista("tok-3"));
+    }
+
+    @Test
+    @DisplayName("HU-12: debe ejecutar el envío de la invitación a conferencista sin lanzar excepciones")
+    void enviarInvitacionConferencista_exito() {
+        assertDoesNotThrow(() -> emailService.enviarInvitacionConferencista("conf@ejemplo.com", "Ana Pérez",
+                "Congreso de Ingeniería de Sistemas", emailService.enlaceInvitacionConferencista("tok-2"),
+                java.time.LocalDateTime.of(2026, 10, 22, 9, 30)));
     }
 }

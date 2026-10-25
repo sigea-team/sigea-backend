@@ -31,10 +31,4 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByPersona_CorreoIgnoreCase(String correo);
 
     /**
-     * Cuenta de usuario asociada a una persona (p. ej. para notificar a un evaluador, HU-16).
-     *
-     * @param personaId ID de la persona.
-     * @return el usuario, o vacío si la persona no tiene cuenta.
-     */
-    Optional<Usuario> findByPersona_Id(Long personaId);
-}
+

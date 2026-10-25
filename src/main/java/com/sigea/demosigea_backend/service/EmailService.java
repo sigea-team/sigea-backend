@@ -84,6 +84,13 @@ public class EmailService {
     @Value("${app.mail.reset-token-expiration-hours:1}")
     private int resetTokenExpirationHours;
 
+    /**
+     * HU-12: ruta del frontend donde el conferencista invitado registra sus datos y trayectoria.
+     * Usa la misma URL base del frontend que el restablecimiento de contraseña.
+     */
+    @Value("${app.mail.invitacion-conferencista-path:/conferencista/invitacion}")
+    private String invitacionConferencistaPath = "/conferencista/invitacion";
+
     public EmailService(RestClient restClient) {
         this.restClient = restClient != null ? restClient : RestClient.create();
     }
@@ -178,6 +185,75 @@ public class EmailService {
                 """.formatted(nombre, enlaceRecuperacion, enlaceRecuperacion, enlaceRecuperacion, resetTokenExpirationHours);
 
         despacharCorreoBrevo(destinatario, nombre, "SIGEA - Recuperación de contraseña", contenidoHtml);
+    }
+
+    /**
+     * Enlace del frontend donde el conferencista invitado completa su registro (HU-12).
+     *
+     * @param token Token de la invitación.
+     * @return URL completa, ej. {@code https://.../#/conferencista/invitacion?token=...}.
+     */
+    public String enlaceInvitacionConferencista(String token) {
+        // El front usa HashRouter: la ruta debe ir después de "#". La base suele terminar en "/#"
+        // (como la del enlace de recuperación); si alguien la configura sin "#", se agrega aquí.
+        String base = resetPasswordBaseUrl == null ? "" : resetPasswordBaseUrl.trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        if (!base.contains("#")) {
+            base = base + "/#";
+        }
+        String ruta = invitacionConferencistaPath.startsWith("/") ? invitacionConferencistaPath : "/" + invitacionConferencistaPath;
+        return base + ruta + "?token=" + token;
+    }
+
+    /**
+     * Invita por correo a un conferencista nuevo a registrar sus datos y su trayectoria (HU-12).
+     *
+     * @param destinatario     Correo del conferencista.
+     * @param nombre           Nombre con el que fue invitado.
+     * @param eventoNombre     Evento al que se le invita.
+     * @param enlace           Enlace de la invitación ({@link #enlaceInvitacionConferencista(String)}).
+     * @param fechaExpiracion  Fecha y hora en que vence el enlace.
+     */
+    public void enviarInvitacionConferencista(String destinatario, String nombre, String eventoNombre,
+                                              String enlace, java.time.LocalDateTime fechaExpiracion) {
+        String vence = fechaExpiracion == null ? "" : fechaExpiracion.format(
+                java.time.format.DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy, h:mm a", java.util.Locale.of("es", "CO")));
+
+        log.info("================================================================================");
+        log.info("🎤 [INVITACIÓN A CONFERENCISTA]");
+        log.info("Destinatario: {} ({}) - Evento: {}", nombre, destinatario, eventoNombre);
+        log.info("Enlace de invitación: {}", enlace);
+        log.info("================================================================================");
+
+        String contenidoHtml = """
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff;">
+                    <h2 style="color: #a6192e; text-align: center; margin-bottom: 20px;">Invitación como conferencista</h2>
+                    <p style="font-size: 16px; color: #334155;">Hola <strong>%s</strong>,</p>
+                    <p style="font-size: 15px; color: #475569; line-height: 1.6;">
+                        El Programa de Ingeniería de Sistemas de la UFPS te ha invitado como conferencista del evento
+                        <strong>%s</strong>. Para confirmar tu participación, registra tus datos de contacto y tu
+                        trayectoria académica y profesional (biografía, estudios y publicaciones). Esta información se
+                        usará en la agenda, el material de difusión y la certificación del evento.
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="%s" style="background-color: #a6192e; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 15px;">
+                            Registrar mis datos
+                        </a>
+                    </div>
+                    <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+                        Si el botón no funciona, copia y pega el siguiente enlace en tu navegador web:<br/>
+                        <a href="%s" style="color: #a6192e; word-break: break-all;">%s</a>
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                        Este enlace es personal y vence el %s. Si no esperabas esta invitación, puedes ignorar este mensaje.
+                    </p>
+                </div>
+                """.formatted(nombre, eventoNombre, enlace, enlace, enlace, vence);
+
+        despacharCorreoBrevo(destinatario, nombre, "SIGEA - Invitación como conferencista: " + eventoNombre, contenidoHtml);
     }
 
     /**
