@@ -259,6 +259,28 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Conflicto de interés que impide asignar la propuesta al evaluador (HU-16, Criterio 2).
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código {@code CONFLICTO_INTERES}.
+     */
+    @ExceptionHandler(ConflictoInteresException.class)
+    public ResponseEntity<ErrorResponse> handleConflictoInteres(ConflictoInteresException ex,
+                                                                HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "CONFLICTO_INTERES", request);
+    }
+
+    /**
+     * La propuesta ya está asignada al evaluador indicado (HU-16).
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código {@code ASIGNACION_DUPLICADA}.
+     */
+    @ExceptionHandler(AsignacionDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleAsignacionDuplicada(AsignacionDuplicadaException ex,
+                                                                   HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "ASIGNACION_DUPLICADA", request);
+    }
+
+    /**
      * Captura operaciones denegadas por reglas de negocio o violaciones de integridad referencial controlada.
      *
      * @param ex Excepción de operación no permitida.

@@ -13,5 +13,9 @@ package com.sigea.demosigea_backend.model;
  */
 public enum TipoNotificacion {
     /** HU-11, Criterio 2: cambió la fecha límite de recepción de propuestas de una convocatoria publicada. */
-    CONVOCATORIA_FECHA_MODIFICADA
+    CONVOCATORIA_FECHA_MODIFICADA,
+    /** HU-16, Criterio 1: se asignó una propuesta al evaluador; aparece en su bandeja. */
+    PROPUESTA_ASIGNADA,
+    /** HU-16, Criterio 3: la propuesta se reasignó a otro evaluador y sale de la bandeja del anterior. */
+    ASIGNACION_RETIRADA
 }

@@ -47,6 +47,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`criterios_rubrica`](#criterios_rubrica) (`CriterioRubrica`): Criterios individuales de evaluación con sus respectivos pesos porcentuales.
 - [`comites_evaluadores`](#comites_evaluadores) (`ComiteEvaluador`): Pares académicos o evaluadores designados para una convocatoria específica.
 - [`asignaciones_evaluacion`](#asignaciones_evaluacion) (`AsignacionEvaluacion`): Asignación de una propuesta académica a un evaluador del comité.
+- [`historial_asignaciones`](#historial_asignaciones) (`HistorialAsignacion`): Historial inmutable de asignaciones y reasignaciones de propuestas a evaluadores (HU-16).
 - [`evaluaciones`](#evaluaciones) (`Evaluacion`): Calificaciones otorgadas por el evaluador a cada criterio de la rúbrica.
 - [`resultados_evaluacion`](#resultados_evaluacion) (`ResultadoEvaluacion`): Consolidado final de evaluación de una propuesta con puntuación ponderada y clasificación final.
 - [`observaciones_propuesta`](#observaciones_propuesta) (`ObservacionPropuesta`): Observaciones, correcciones y retroalimentación de evaluadores dirigidas a una versión de la propuesta.
@@ -726,6 +727,42 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `comite_evaluador_id` -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) `DEFERRABLE INITIALLY IMMEDIATE`
+
+---
+
+### `historial_asignaciones`
+
+**Descripción**: Historial de asignaciones y reasignaciones de una propuesta a evaluadores del comité (HU-16, Criterio 3). Al reasignar se actualiza `asignaciones_evaluacion.comite_evaluador_id` y aquí queda el movimiento. Creada por el changeset Liquibase `13-hu16-asignacion-evaluadores.sql` (no está en `schema.sql`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.HistorialAsignacion` (`@Entity @Table(name = "historial_asignaciones")`)  
+**Clave Primaria**: `historial_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `historial_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `asignacion_id` | `INT` | `Long` | NO | FK | - | FK -> [`asignaciones_evaluacion.asignacion_id`](#asignaciones_evaluacion) |
+| `propuesta_id` | `INT` | `Long` | NO | FK | - | FK -> [`propuestas.propuesta_id`](#propuestas) |
+| `tipo_operacion` | `VARCHAR(20)` | `TipoOperacionAsignacion` | NO |  | - | CHECK `tipo_operacion IN ('asignacion','reasignacion')` |
+| `comite_evaluador_anterior_id` | `INT` | `Long` | SÍ | FK | - | FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores). NULL en `asignacion` |
+| `comite_evaluador_nuevo_id` | `INT` | `Long` | NO | FK | - | FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) |
+| `conflicto_advertido` | `BOOLEAN` | `Boolean` | NO |  | `false` | `true` si se confirmó pese a una advertencia de conflicto de interés |
+| `motivo` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
+| `usuario_id` | `INT` | `Long` | SÍ | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
+| `fecha_hora` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+
+**Restricciones adicionales**:
+- Trigger `trg_historial_asignaciones_inmutable`: rechaza cualquier `UPDATE`.
+
+**Índices Definidos**:
+- Índice `idx_historial_asignaciones_propuesta` sobre (`propuesta_id`, `fecha_hora` DESC)
+- Índice `idx_historial_asignaciones_asignacion` sobre (`asignacion_id`, `fecha_hora` DESC)
+- Índice `idx_asignaciones_evaluacion_evaluador` sobre `asignaciones_evaluacion` (`comite_evaluador_id`, `fecha_asignacion` DESC) para la bandeja del evaluador
+
+**Relaciones Foráneas Salientes**:
+- Columna `asignacion_id` -> [`asignaciones_evaluacion.asignacion_id`](#asignaciones_evaluacion) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `comite_evaluador_anterior_id` -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `comite_evaluador_nuevo_id` -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE`
 
 ---
 

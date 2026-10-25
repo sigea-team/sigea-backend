@@ -29,3 +29,5 @@ databaseChangeLog:
       file: db/changelog/changes/12-hu13-autores-propuestas.sql
   - include:
       file: db/changelog/changes/12-hu11-notificaciones.sql
+  - include:
+      file: db/changelog/changes/13-hu16-asignacion-evaluadores.sql
