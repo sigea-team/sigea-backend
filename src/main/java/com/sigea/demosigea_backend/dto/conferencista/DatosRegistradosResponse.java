@@ -43,4 +43,25 @@ public record DatosRegistradosResponse(
         }
         return "•".repeat(Math.min(limpio.length() - VISIBLES, 6)) + limpio.substring(limpio.length() - VISIBLES);
     }
+
+    /**
+     * Oculta un correo dejando visibles las 2 primeras letras del usuario y el dominio,
+     * p. ej. {@code "an•••@unal.edu.co"}: la persona reconoce su correo, pero no queda expuesto.
+     *
+     * @param correo Correo.
+     * @return El correo enmascarado, o {@code null} si está vacío.
+     */
+    public static String enmascararCorreo(String correo) {
+        if (correo == null || correo.isBlank()) {
+            return null;
+        }
+        String limpio = correo.trim();
+        int arroba = limpio.indexOf('@');
+        if (arroba <= 0) {
+            return enmascarar(limpio);
+        }
+        String usuario = limpio.substring(0, arroba);
+        String visibles = usuario.substring(0, Math.min(2, usuario.length() - 1));
+        return visibles + "•••" + limpio.substring(arroba);
+    }
 }

@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Lo que ve el invitado al abrir el enlace del correo (HU-12): el evento, el nombre y correo con los
- * que fue invitado y, si ya existe en SIGEA, sus datos para precargar el formulario.
+ * Lo que ve el invitado al abrir el enlace del correo (HU-12): el evento, el nombre con el que fue
+ * invitado, su correo enmascarado (p. ej. {@code "an•••@unal.edu.co"}) y, si ya existe en SIGEA, sus
+ * datos para precargar el formulario. El enlace no exige sesión, así que no se devuelve ningún dato
+ * de contacto completo (Criterio 6).
  */
 @Schema(description = "Invitación vista por el conferencista desde el enlace del correo")
 public record InvitacionPublicaResponse(

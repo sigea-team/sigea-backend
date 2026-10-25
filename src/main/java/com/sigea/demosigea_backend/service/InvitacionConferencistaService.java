@@ -28,6 +28,7 @@ import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -80,6 +81,9 @@ public class InvitacionConferencistaService {
     private final ConferencistaService conferencistaService;
     private final EmailService emailService;
     private final AuditoriaService auditoriaService;
+
+    /** Índice único parcial del changeset 14: una sola invitación pendiente por evento y correo. */
+    static final String INDICE_INVITACION_PENDIENTE = "ux_invitaciones_conferencista_pendiente";
 
     @Value("${app.conferencistas.invitacion-horas:72}")
     private long horasVigencia = HORAS_VIGENCIA_POR_DEFECTO;
@@ -152,7 +156,7 @@ public class InvitacionConferencistaService {
                 .build());
         invitacion.setNombre(nombre);
         invitacion.renovar(generarToken(), ahora, horasVigencia);
-        invitacion = invitacionRepository.save(invitacion);
+        invitacion = guardarNuevaInvitacion(invitacion, correo);
 
         enviarCorreo(invitacion, evento);
         auditoriaService.registrar(TipoOperacionAuditoria.CONFERENCISTA_INVITADO, ENTIDAD_INVITACION, invitacion.getId(),
@@ -160,6 +164,24 @@ public class InvitacionConferencistaService {
                         "renovada", pendiente.isPresent(), "vence", invitacion.getFechaExpiracion()));
         log.info("Invitación {} enviada a {} para el evento {}", invitacion.getId(), correo, eventoId);
         return respuesta(invitacion, ahora);
+    }
+
+    /**
+     * Guarda con flush inmediato. La consulta previa de invitaciones pendientes no impide que dos
+     * administradores inviten el mismo correo al mismo tiempo; en ese caso el índice único parcial
+     * {@value #INDICE_INVITACION_PENDIENTE} rechaza la segunda y se responde 409 INVITACION_PENDIENTE
+     * en lugar de un 500.
+     */
+    private InvitacionConferencista guardarNuevaInvitacion(InvitacionConferencista invitacion, String correo) {
+        try {
+            return invitacionRepository.saveAndFlush(invitacion);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Invitación duplicada para {} detectada por la base de datos: {}", correo,
+                    ex.getMostSpecificCause().getMessage());
+            throw new InvitacionPendienteException(String.format(
+                    "Ya se envió una invitación a %s hace un momento. Revísala en la lista de invitaciones pendientes.",
+                    correo));
+        }
     }
 
     /**
@@ -206,8 +228,8 @@ public class InvitacionConferencistaService {
 
     /**
      * Datos de la invitación para el formulario del conferencista. Si la persona ya existe en SIGEA,
-     * se devuelven sus datos para precargarlo; el documento y el teléfono van enmascarados porque el
-     * enlace no exige sesión.
+     * se devuelven sus datos para precargarlo. El correo, el documento y el teléfono van enmascarados
+     * porque el enlace no exige sesión (Criterio 6).
      *
      * @param token Token del enlace.
      * @throws RecursoNoEncontradoException    si el enlace no existe.
@@ -227,7 +249,7 @@ public class InvitacionConferencistaService {
                         TrayectoriaResponse.de(perfilRepository.findByPersona_Id(p.getId()).orElse(null))))
                 .orElse(null);
         return new InvitacionPublicaResponse(evento.getId(), evento.getNombre(), evento.getSemestre(),
-                evento.getFechaInicio(), evento.getFechaFin(), invitacion.getNombre(), invitacion.getCorreo(),
+                evento.getFechaInicio(), evento.getFechaFin(), invitacion.getNombre(), DatosRegistradosResponse.enmascararCorreo(invitacion.getCorreo()),
                 invitacion.getFechaExpiracion(), datos);
     }
 

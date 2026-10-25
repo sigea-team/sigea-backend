@@ -31,6 +31,7 @@ import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -114,6 +115,17 @@ class InvitacionConferencistaServiceTest {
                 List.of(new EstudioRequest(NivelEstudio.doctorado, "Doctora", "UNAL", 2018)), List.of()));
     }
 
+    /** Invitar guarda con saveAndFlush para detectar duplicados simultáneos. */
+    private void guardarConFlushDevuelveConId() {
+        when(invitacionRepository.saveAndFlush(any(InvitacionConferencista.class))).thenAnswer(inv -> {
+            InvitacionConferencista i = inv.getArgument(0);
+            if (i.getId() == null) {
+                i.setId(4L);
+            }
+            return i;
+        });
+    }
+
     private void guardarDevuelveConId() {
         when(invitacionRepository.save(any(InvitacionConferencista.class))).thenAnswer(inv -> {
             InvitacionConferencista i = inv.getArgument(0);
@@ -131,14 +143,14 @@ class InvitacionConferencistaServiceTest {
     void invitar_nuevoCorreo_guardaYEnvia() {
         Evento evento = evento(EstadoEvento.habilitado);
         when(conferencistaService.buscarEvento(1L)).thenReturn(evento);
-        guardarDevuelveConId();
+        guardarConFlushDevuelveConId();
         when(emailService.enlaceInvitacionConferencista(anyString())).thenReturn(ENLACE);
 
         InvitacionResponse response = service.invitar(1L,
                 new InvitarConferencistaRequest("  Ana   María Pérez ", " Ana.Perez@UNAL.edu.co "));
 
         ArgumentCaptor<InvitacionConferencista> captor = ArgumentCaptor.forClass(InvitacionConferencista.class);
-        verify(invitacionRepository).save(captor.capture());
+        verify(invitacionRepository).saveAndFlush(captor.capture());
         InvitacionConferencista guardada = captor.getValue();
         assertEquals("Ana María Pérez", guardada.getNombre());
         assertEquals("ana.perez@unal.edu.co", guardada.getCorreo());
@@ -165,7 +177,7 @@ class InvitacionConferencistaServiceTest {
         ConferencistaExistenteException ex = assertThrows(ConferencistaExistenteException.class,
                 () -> service.invitar(1L, new InvitarConferencistaRequest("Ana", "ana.perez@unal.edu.co")));
         assertEquals(12L, ex.getCoincidencia().personaId());
-        verify(invitacionRepository, never()).save(any());
+        verify(invitacionRepository, never()).saveAndFlush(any());
         verify(emailService, never()).enviarInvitacionConferencista(any(), any(), any(), any(), any());
     }
 
@@ -178,7 +190,7 @@ class InvitacionConferencistaServiceTest {
 
         assertThrows(ConferencistaYaAsociadoException.class,
                 () -> service.invitar(1L, new InvitarConferencistaRequest("Ana", "ana.perez@unal.edu.co")));
-        verify(invitacionRepository, never()).save(any());
+        verify(invitacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -187,7 +199,7 @@ class InvitacionConferencistaServiceTest {
         when(conferencistaService.buscarEvento(1L)).thenReturn(evento(EstadoEvento.habilitado));
         when(conferencistaService.coincidencia(null, "ana.perez@unal.edu.co", 1L))
                 .thenReturn(Optional.of(coincidencia(false, false)));
-        guardarDevuelveConId();
+        guardarConFlushDevuelveConId();
         when(emailService.enlaceInvitacionConferencista(anyString())).thenReturn(ENLACE);
 
         InvitacionResponse response = service.invitar(1L, new InvitarConferencistaRequest("Ana", "ana.perez@unal.edu.co"));
@@ -207,7 +219,7 @@ class InvitacionConferencistaServiceTest {
 
         assertThrows(InvitacionPendienteException.class,
                 () -> service.invitar(1L, new InvitarConferencistaRequest("Ana", "ana.perez@unal.edu.co")));
-        verify(invitacionRepository, never()).save(any());
+        verify(invitacionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -218,7 +230,7 @@ class InvitacionConferencistaServiceTest {
         when(conferencistaService.buscarEvento(1L)).thenReturn(evento);
         when(invitacionRepository.findFirstByEvento_IdAndCorreoIgnoreCaseAndEstado(1L, "ana.perez@unal.edu.co",
                 EstadoInvitacion.pendiente)).thenReturn(Optional.of(vencida));
-        guardarDevuelveConId();
+        guardarConFlushDevuelveConId();
         when(emailService.enlaceInvitacionConferencista(anyString())).thenReturn(ENLACE);
 
         InvitacionResponse response = service.invitar(1L, new InvitarConferencistaRequest("Ana Pérez", "ana.perez@unal.edu.co"));
@@ -228,6 +240,20 @@ class InvitacionConferencistaServiceTest {
         assertNotEquals("token-viejo", vencida.getToken());
         assertTrue(vencida.getFechaExpiracion().isAfter(LocalDateTime.now()));
         assertEquals("Ana Pérez", vencida.getNombre());
+    }
+
+        @Test
+    @DisplayName("Invitar: dos administradores invitan el mismo correo a la vez → el índice único lo frena y se responde 409, no 500")
+    void invitar_carreraDetectadaPorIndice_409() {
+        when(conferencistaService.buscarEvento(1L)).thenReturn(evento(EstadoEvento.habilitado));
+        when(invitacionRepository.saveAndFlush(any(InvitacionConferencista.class))).thenThrow(
+                new DataIntegrityViolationException("duplicate key value violates unique constraint \""
+                        + InvitacionConferencistaService.INDICE_INVITACION_PENDIENTE + "\""));
+
+        assertThrows(InvitacionPendienteException.class,
+                () -> service.invitar(1L, new InvitarConferencistaRequest("Ana", "ana.perez@unal.edu.co")));
+        verify(emailService, never()).enviarInvitacionConferencista(any(), any(), any(), any(), any());
+        verify(auditoriaService, never()).registrar(any(), any(), any(), anyMap());
     }
 
     // ---------------- Reenviar y cancelar ----------------
@@ -306,15 +332,15 @@ class InvitacionConferencistaServiceTest {
         InvitacionPublicaResponse response = service.consultar("abc");
 
         assertEquals("Congreso de Ingeniería de Sistemas", response.eventoNombre());
-        assertEquals("ana.perez@unal.edu.co", response.correo());
+        assertEquals("an•••@unal.edu.co", response.correo());
         assertNotNull(response.datosRegistrados());
         assertEquals("CC", response.datosRegistrados().tipoDocumento());
         assertEquals("••••••456", response.datosRegistrados().documentoEnmascarado());
         assertEquals("••••••567", response.datosRegistrados().telefonoEnmascarado());
         assertNull(response.datosRegistrados().trayectoria());
         String json = response.toString();
-        assertTrue(!json.contains("1090123456") && !json.contains("3001234567"),
-                "El enlace público no debe devolver el documento ni el teléfono completos");
+        assertTrue(!json.contains("1090123456") && !json.contains("3001234567") && !json.contains("ana.perez@"),
+                "El enlace público no debe devolver el correo, el documento ni el teléfono completos");
     }
 
     @Test
@@ -325,6 +351,15 @@ class InvitacionConferencistaServiceTest {
         assertEquals("••", DatosRegistradosResponse.enmascarar("12"));
         assertNull(DatosRegistradosResponse.enmascarar("  "));
         assertNull(DatosRegistradosResponse.enmascarar(null));
+    }
+
+    @Test
+    @DisplayName("Enmascarar correo: se reconoce el dominio, pero no el usuario completo")
+    void enmascararCorreo_ocultaElUsuario() {
+        assertEquals("an•••@unal.edu.co", DatosRegistradosResponse.enmascararCorreo(" ana.perez@unal.edu.co "));
+        assertEquals("j•••@ufps.edu.co", DatosRegistradosResponse.enmascararCorreo("jo@ufps.edu.co"));
+        assertEquals("•••@x.co", DatosRegistradosResponse.enmascararCorreo("a@x.co"));
+        assertNull(DatosRegistradosResponse.enmascararCorreo(" "));
     }
 
     @Test

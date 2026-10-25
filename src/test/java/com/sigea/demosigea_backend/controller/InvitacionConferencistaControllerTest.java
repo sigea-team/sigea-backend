@@ -161,13 +161,13 @@ class InvitacionConferencistaControllerTest {
     @DisplayName("GET público: datos de la invitación vigente")
     void consultar_retorna200() throws Exception {
         when(invitacionService.consultar("abc")).thenReturn(new InvitacionPublicaResponse(1L, "Congreso 2026", "2026-2",
-                LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 22), "Ana María Pérez", "ana.perez@unal.edu.co",
+                LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 22), "Ana María Pérez", "an•••@unal.edu.co",
                 LocalDateTime.of(2026, 10, 22, 9, 0), null));
 
         mockMvc.perform(get(PUBLICA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventoNombre").value("Congreso 2026"))
-                .andExpect(jsonPath("$.correo").value("ana.perez@unal.edu.co"));
+                .andExpect(jsonPath("$.correo").value("an•••@unal.edu.co"));
     }
 
     @Test

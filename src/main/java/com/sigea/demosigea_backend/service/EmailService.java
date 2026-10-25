@@ -194,7 +194,17 @@ public class EmailService {
      * @return URL completa, ej. {@code https://.../#/conferencista/invitacion?token=...}.
      */
     public String enlaceInvitacionConferencista(String token) {
-        return resetPasswordBaseUrl + invitacionConferencistaPath + "?token=" + token;
+        // El front usa HashRouter: la ruta debe ir después de "#". La base suele terminar en "/#"
+        // (como la del enlace de recuperación); si alguien la configura sin "#", se agrega aquí.
+        String base = resetPasswordBaseUrl == null ? "" : resetPasswordBaseUrl.trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        if (!base.contains("#")) {
+            base = base + "/#";
+        }
+        String ruta = invitacionConferencistaPath.startsWith("/") ? invitacionConferencistaPath : "/" + invitacionConferencistaPath;
+        return base + ruta + "?token=" + token;
     }
 
     /**

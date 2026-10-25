@@ -99,6 +99,14 @@ class EmailServiceTest {
     }
 
     @Test
+    @DisplayName("HU-12: si la URL base del front se configura sin '#', el enlace igual queda con /#/ para el HashRouter")
+    void enlaceInvitacionConferencista_baseSinHash() {
+        ReflectionTestUtils.setField(emailService, "resetPasswordBaseUrl", "https://sigea-team.github.io/sigea-front/");
+        assertEquals("https://sigea-team.github.io/sigea-front/#/conferencista/invitacion?token=tok-3",
+                emailService.enlaceInvitacionConferencista("tok-3"));
+    }
+
+    @Test
     @DisplayName("HU-12: debe ejecutar el envío de la invitación a conferencista sin lanzar excepciones")
     void enviarInvitacionConferencista_exito() {
         assertDoesNotThrow(() -> emailService.enviarInvitacionConferencista("conf@ejemplo.com", "Ana Pérez",
