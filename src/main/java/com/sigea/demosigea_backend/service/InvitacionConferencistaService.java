@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.auth.PoliticaContrasena;
 import com.sigea.demosigea_backend.dto.conferencista.CoincidenciaConferencistaResponse;
 import com.sigea.demosigea_backend.dto.conferencista.CompletarInvitacionRequest;
 import com.sigea.demosigea_backend.dto.conferencista.DatosRegistradosResponse;
@@ -275,15 +276,16 @@ public class InvitacionConferencistaService {
      * @param request Datos personales, tema y trayectoria.
      * @return Confirmación con el evento.
      */
-    @Transactional
+    @Transactional // Registro de datos, cuenta e invitación cerrada: todo o nada (ver completar_esTransaccional).
     public InvitacionCompletadaResponse completar(String token, CompletarInvitacionRequest request) {
         InvitacionConferencista invitacion = invitacionUtilizable(token);
         Evento evento = invitacion.getEvento();
         // Si aún no tiene cuenta, la contraseña es obligatoria: se valida antes de guardar nada.
         boolean necesitaCuenta = usuarioRepository.findByPersona_CorreoIgnoreCase(invitacion.getCorreo()).isEmpty();
         if (necesitaCuenta && ConferencistaService.estaVacio(request.contrasena())) {
-            throw new DatosConferencistaInvalidosException("Crea una contraseña para tu cuenta en SIGEA.",
-                    Map.of("contrasena", "Crea una contraseña para ingresar a SIGEA con el perfil «Conferencista»."));
+            // Mismo mensaje que el registro de usuarios cuando falta la contraseña.
+            throw new DatosConferencistaInvalidosException(PoliticaContrasena.MENSAJE_OBLIGATORIA,
+                    Map.of("contrasena", PoliticaContrasena.MENSAJE_OBLIGATORIA));
         }
         ParticipacionConferencista participacion = conferencistaService.registrarDesdeInvitacion(
                 evento, invitacion.getCorreo(), invitacion.getTipoParticipacion(), request);

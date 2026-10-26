@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.auth.PoliticaContrasena;
 import com.sigea.demosigea_backend.dto.conferencista.CoincidenciaConferencistaResponse;
 import com.sigea.demosigea_backend.dto.conferencista.CompletarInvitacionRequest;
 import com.sigea.demosigea_backend.dto.conferencista.EstudioRequest;
@@ -42,6 +43,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -508,7 +511,8 @@ class InvitacionConferencistaServiceTest {
 
         DatosConferencistaInvalidosException ex = assertThrows(DatosConferencistaInvalidosException.class,
                 () -> service.completar("abc", datosSinContrasena()));
-        assertTrue(ex.getCampos().containsKey("contrasena"));
+        assertEquals(PoliticaContrasena.MENSAJE_OBLIGATORIA, ex.getCampos().get("contrasena"),
+                "Mismo mensaje que el registro de usuarios");
         verify(conferencistaService, never()).registrarDesdeInvitacion(any(), any(), any(), any());
         verify(usuarioRepository, never()).save(any());
     }
@@ -522,6 +526,17 @@ class InvitacionConferencistaServiceTest {
         assertThrows(InvitacionNoDisponibleException.class, () -> service.completar("abc", datos()));
         verify(conferencistaService, never()).registrarDesdeInvitacion(any(), any(), any(), any());
         verify(invitacionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Completar es una sola transacción: datos, cuenta y cierre de la invitación se guardan o se revierten juntos")
+    void completar_esTransaccional() throws Exception {
+        Transactional tx = InvitacionConferencistaService.class
+                .getMethod("completar", String.class, CompletarInvitacionRequest.class)
+                .getAnnotation(Transactional.class);
+        assertNotNull(tx, "completar debe ser @Transactional");
+        assertFalse(tx.readOnly());
+        assertEquals(Propagation.REQUIRED, tx.propagation());
     }
 
     @Test

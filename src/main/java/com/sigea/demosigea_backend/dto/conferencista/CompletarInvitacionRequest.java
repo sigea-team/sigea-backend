@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.dto.conferencista;
 
+import com.sigea.demosigea_backend.dto.auth.PoliticaContrasena;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -20,8 +21,8 @@ import jakarta.validation.constraints.Size;
  * @param tema            Tema de su conferencia en el evento (opcional).
  * @param trayectoria     Biografía, estudios y publicaciones.
  * @param contrasena      Contraseña de su nueva cuenta en SIGEA. Obligatoria solo si la persona aún no tiene
- *                        cuenta (ver {@code InvitacionPublicaResponse.requiereContrasena}); misma política
- *                        que el registro de usuarios. Si ya tiene cuenta, se ignora.
+ *                        cuenta (ver {@code InvitacionPublicaResponse.requiereContrasena}). Usa la misma
+ *                        {@link PoliticaContrasena} que el registro de usuarios. Si ya tiene cuenta, se ignora.
  */
 @Schema(description = "Datos personales, de contacto y trayectoria que registra el conferencista invitado")
 public record CompletarInvitacionRequest(
@@ -50,11 +51,7 @@ public record CompletarInvitacionRequest(
         @Valid
         TrayectoriaRequest trayectoria,
 
-        @Pattern(
-                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&._\\-#])[A-Za-z\\d@$!%*?&._\\-#]{8,64}$",
-                message = "La contraseña no cumple con la política mínima de seguridad. Requisitos: mínimo 8 caracteres, "
-                        + "al menos una letra mayúscula, una letra minúscula, un número y un carácter especial (@$!%*?&._-#)"
-        )
+        @Pattern(regexp = PoliticaContrasena.PATRON, message = PoliticaContrasena.MENSAJE)
         String contrasena
 ) {
 }
