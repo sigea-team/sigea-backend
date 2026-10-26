@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.asignacion.AsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.AsignarEvaluadoresRequest;
 import com.sigea.demosigea_backend.dto.asignacion.EvaluadorDisponibleResponse;
 import com.sigea.demosigea_backend.dto.asignacion.HistorialAsignacionResponse;
+import com.sigea.demosigea_backend.dto.asignacion.PropuestaAsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.ReasignarEvaluadorRequest;
 import com.sigea.demosigea_backend.exception.AsignacionDuplicadaException;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
@@ -161,6 +162,19 @@ class AsignacionEvaluacionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tipoOperacion").value("reasignacion"))
                 .andExpect(jsonPath("$[0].evaluadorAnteriorNombre").value("Ana Pérez"));
+    }
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: GET propuestas de la convocatoria con su resumen de asignaciones")
+    void propuestasDeConvocatoria_retorna200() throws Exception {
+        when(asignacionService.propuestasDeConvocatoria(10L)).thenReturn(List.of(new PropuestaAsignacionResponse(
+                40L, "Analítica educativa", "en_evaluacion", LocalDateTime.of(2026, 10, 20, 9, 0),
+                List.of("Carlos Ruiz"), List.of("Ana Pérez"), 1, 0)));
+
+        mockMvc.perform(get("/api/v1/asignaciones/convocatorias/10/propuestas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].propuestaId").value(40))
+                .andExpect(jsonPath("$[0].asignacionesTotales").value(1));
     }
 
     @Test

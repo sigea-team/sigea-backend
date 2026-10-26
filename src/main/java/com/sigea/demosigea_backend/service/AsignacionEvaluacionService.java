@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.asignacion.AsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.AsignarEvaluadoresRequest;
 import com.sigea.demosigea_backend.dto.asignacion.EvaluadorDisponibleResponse;
 import com.sigea.demosigea_backend.dto.asignacion.HistorialAsignacionResponse;
+import com.sigea.demosigea_backend.dto.asignacion.PropuestaAsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.ReasignarEvaluadorRequest;
 import com.sigea.demosigea_backend.exception.AsignacionDuplicadaException;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
@@ -26,6 +27,7 @@ import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ComiteEvaluadorRepository;
+import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.HistorialAsignacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
@@ -53,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Asignación de propuestas a los evaluadores del comité (HU-16, RF24).
@@ -108,6 +111,7 @@ public class AsignacionEvaluacionService {
     private final NotificacionService notificacionService;
     private final AuditoriaService auditoriaService;
     private final Clock clock;
+    private final ConvocatoriaRepository convocatoriaRepository;
 
     // ------------------------------------------------------------------
     // Criterio 1 y 2: asignar
@@ -259,6 +263,57 @@ public class AsignacionEvaluacionService {
     // ------------------------------------------------------------------
     // Consultas
     // ------------------------------------------------------------------
+
+    /**
+     * Propuestas de una convocatoria con el resumen de sus asignaciones (vista del organizador, Criterio 1).
+     * <p>
+     * Usa tres consultas sin importar cuántas propuestas haya: las propuestas, sus autores en lote y sus
+     * asignaciones en lote. Los resultados se agrupan en memoria por propuesta.
+     * </p>
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @return propuestas de la más reciente a la más antigua.
+     * @throws RecursoNoEncontradoException si la convocatoria no existe.
+     */
+    @Transactional(readOnly = true)
+    public List<PropuestaAsignacionResponse> propuestasDeConvocatoria(Long convocatoriaId) {
+        if (!convocatoriaRepository.existsById(convocatoriaId)) {
+            throw new RecursoNoEncontradoException("No se encontró la convocatoria con ID: " + convocatoriaId);
+        }
+        List<Propuesta> propuestas = propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(convocatoriaId);
+        if (propuestas.isEmpty()) {
+            return List.of();
+        }
+        List<Long> propuestaIds = propuestas.stream().map(Propuesta::getId).toList();
+
+        Map<Long, List<String>> autoresPorPropuesta = propuestaAutorRepository
+                .findByPropuestaIdsConPersona(propuestaIds).stream()
+                .collect(Collectors.groupingBy(autor -> autor.getPropuesta().getId(),
+                        Collectors.mapping(autor -> nombre(autor.getPersona()), Collectors.toList())));
+        Map<Long, List<AsignacionEvaluacion>> asignacionesPorPropuesta = asignacionRepository
+                .findDetalleByPropuestaIds(propuestaIds).stream()
+                .collect(Collectors.groupingBy(a -> a.getPropuesta().getId()));
+
+        return propuestas.stream()
+                .map(propuesta -> {
+                    List<String> autores = autoresPorPropuesta.getOrDefault(propuesta.getId(), List.of());
+                    List<AsignacionEvaluacion> asignaciones =
+                            asignacionesPorPropuesta.getOrDefault(propuesta.getId(), List.of());
+                    int completadas = (int) asignaciones.stream()
+                            .filter(a -> a.getEstado() == EstadoAsignacion.completada)
+                            .count();
+                    return new PropuestaAsignacionResponse(
+                            propuesta.getId(),
+                            propuesta.getTitulo(),
+                            propuesta.getEstado() != null ? propuesta.getEstado().name() : null,
+                            propuesta.getFechaEnvio(),
+                            autores,
+                            asignaciones.stream().map(a -> nombre(a.getComiteEvaluador())).toList(),
+                            asignaciones.size(),
+                            completadas);
+                })
+                .toList();
+    }
 
     /** Asignaciones vigentes de una propuesta (vista del organizador). */
     @Transactional(readOnly = true)
