@@ -509,6 +509,34 @@ class AsignacionEvaluacionServiceTest {
     }
 
     @Test
+    @DisplayName("HU-16 Criterio 1: una propuesta sin asignaciones se lista sin evaluadores y con contadores en cero")
+    void propuestasDeConvocatoria_sinAsignaciones_listaVaciaYContadoresEnCero() {
+        when(convocatoriaRepository.existsById(10L)).thenReturn(true);
+        when(propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(10L)).thenReturn(List.of(propuesta));
+        autoresDeLaPropuesta(autoria(autor, RolAutor.autor_principal));
+        when(asignacionRepository.findDetalleByPropuestaId(40L)).thenReturn(List.of());
+
+        List<PropuestaAsignacionResponse> propuestas = service.propuestasDeConvocatoria(10L);
+
+        assertEquals(1, propuestas.size());
+        PropuestaAsignacionResponse p = propuestas.get(0);
+        assertEquals("recibida", p.estado());
+        assertTrue(p.evaluadores().isEmpty());
+        assertEquals(0, p.asignacionesTotales());
+        assertEquals(0, p.asignacionesCompletadas());
+    }
+
+    @Test
+    @DisplayName("HU-16: una convocatoria sin propuestas devuelve una lista vacía")
+    void propuestasDeConvocatoria_sinPropuestas_listaVacia() {
+        when(convocatoriaRepository.existsById(10L)).thenReturn(true);
+        when(propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(10L)).thenReturn(List.of());
+
+        assertTrue(service.propuestasDeConvocatoria(10L).isEmpty());
+        verify(asignacionRepository, never()).findDetalleByPropuestaId(anyLong());
+    }
+
+    @Test
     @DisplayName("HU-16: convocatoria inexistente responde no encontrada")
     void propuestasDeConvocatoria_inexistente_lanzaNoEncontrado() {
         when(convocatoriaRepository.existsById(99L)).thenReturn(false);
