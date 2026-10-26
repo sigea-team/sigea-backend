@@ -142,7 +142,7 @@ class ConferencistaServiceTest {
 
     private CompletarInvitacionRequest completar(String documento, TrayectoriaRequest trayectoria) {
         return new CompletarInvitacionRequest("cc", " " + documento + " ", " Ana María ", " Pérez Gómez ", " ",
-                " Inteligencia artificial en la educación ", trayectoria);
+                " Inteligencia artificial en la educación ", trayectoria, null);
     }
 
     private ActualizarConferencistaRequest actualizacion(String documento, String correo, TrayectoriaRequest trayectoria) {

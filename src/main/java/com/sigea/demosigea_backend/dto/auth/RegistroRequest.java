@@ -64,8 +64,8 @@ public record RegistroRequest(
         )
         @NotBlank(message = "La contraseña es obligatoria")
         @Pattern(
-                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&._\\-#])[A-Za-z\\d@$!%*?&._\\-#]{8,64}$",
-                message = "La contraseña no cumple con la política mínima de seguridad. Requisitos: mínimo 8 caracteres, al menos una letra mayúscula, una letra minúscula, un número y un carácter especial (@$!%*?&._-#)"
+                regexp = PoliticaContrasena.PATRON,
+                message = PoliticaContrasena.MENSAJE
         )
         String contrasena,
 

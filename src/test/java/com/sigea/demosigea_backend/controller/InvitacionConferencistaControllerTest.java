@@ -162,12 +162,13 @@ class InvitacionConferencistaControllerTest {
     void consultar_retorna200() throws Exception {
         when(invitacionService.consultar("abc")).thenReturn(new InvitacionPublicaResponse(1L, "Congreso 2026", "2026-2",
                 LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 22), "Ana María Pérez", "an•••@unal.edu.co",
-                LocalDateTime.of(2026, 10, 22, 9, 0), null));
+                LocalDateTime.of(2026, 10, 22, 9, 0), null, true));
 
         mockMvc.perform(get(PUBLICA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventoNombre").value("Congreso 2026"))
-                .andExpect(jsonPath("$.correo").value("an•••@unal.edu.co"));
+                .andExpect(jsonPath("$.correo").value("an•••@unal.edu.co"))
+                .andExpect(jsonPath("$.requiereContrasena").value(true));
     }
 
     @Test
@@ -185,12 +186,25 @@ class InvitacionConferencistaControllerTest {
     @DisplayName("Criterio 1: POST público registra los datos del conferencista → 200")
     void completar_retorna200() throws Exception {
         when(invitacionService.completar(eq("abc"), any(CompletarInvitacionRequest.class)))
-                .thenReturn(new InvitacionCompletadaResponse(1L, "Congreso 2026", "Ana María Pérez Gómez", true));
+                .thenReturn(new InvitacionCompletadaResponse(1L, "Congreso 2026", "Ana María Pérez Gómez", true, true));
 
         mockMvc.perform(post(PUBLICA).contentType(MediaType.APPLICATION_JSON).content(completarJson(TRAYECTORIA)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombreCompleto").value("Ana María Pérez Gómez"))
-                .andExpect(jsonPath("$.vistaPublicaDisponible").value(true));
+                .andExpect(jsonPath("$.vistaPublicaDisponible").value(true))
+                .andExpect(jsonPath("$.cuentaCreada").value(true));
+    }
+
+    @Test
+    @DisplayName("Completar con una contraseña que no cumple la política → 400 en el campo contraseña")
+    void completar_contrasenaDebil_retorna400() throws Exception {
+        String base = completarJson(TRAYECTORIA);
+        String json = base.substring(0, base.length() - 1) + ",\"contrasena\":\"12345\"}";
+
+        mockMvc.perform(post(PUBLICA).contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erroresValidacion.contrasena").exists());
+        verify(invitacionService, never()).completar(anyString(), any());
     }
 
     @Test

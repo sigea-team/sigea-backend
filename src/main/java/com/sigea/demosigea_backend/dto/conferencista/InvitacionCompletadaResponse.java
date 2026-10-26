@@ -9,6 +9,7 @@ public record InvitacionCompletadaResponse(
         Long eventoId,
         String eventoNombre,
         String nombreCompleto,
-        boolean vistaPublicaDisponible
+        boolean vistaPublicaDisponible,
+        boolean cuentaCreada
 ) {
 }

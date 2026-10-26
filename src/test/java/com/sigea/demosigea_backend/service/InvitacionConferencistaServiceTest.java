@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.auth.PoliticaContrasena;
 import com.sigea.demosigea_backend.dto.conferencista.CoincidenciaConferencistaResponse;
 import com.sigea.demosigea_backend.dto.conferencista.CompletarInvitacionRequest;
 import com.sigea.demosigea_backend.dto.conferencista.EstudioRequest;
@@ -11,22 +12,27 @@ import com.sigea.demosigea_backend.dto.conferencista.InvitarConferencistaRequest
 import com.sigea.demosigea_backend.dto.conferencista.TrayectoriaRequest;
 import com.sigea.demosigea_backend.exception.ConferencistaExistenteException;
 import com.sigea.demosigea_backend.exception.ConferencistaYaAsociadoException;
+import com.sigea.demosigea_backend.exception.DatosConferencistaInvalidosException;
 import com.sigea.demosigea_backend.exception.InvitacionNoDisponibleException;
 import com.sigea.demosigea_backend.exception.InvitacionPendienteException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.EstadoInvitacion;
+import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.InvitacionConferencista;
 import com.sigea.demosigea_backend.model.NivelEstudio;
 import com.sigea.demosigea_backend.model.ParticipacionConferencista;
 import com.sigea.demosigea_backend.model.Persona;
+import com.sigea.demosigea_backend.model.Rol;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.TipoParticipacionConferencista;
+import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.InvitacionConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PerfilConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
+import com.sigea.demosigea_backend.repository.RolRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +42,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -44,6 +53,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,6 +92,12 @@ class InvitacionConferencistaServiceTest {
     @Mock
     private AuditoriaService auditoriaService;
 
+    @Mock
+    private RolRepository rolRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private InvitacionConferencistaService service;
 
@@ -112,7 +128,14 @@ class InvitacionConferencistaServiceTest {
     private CompletarInvitacionRequest datos() {
         return new CompletarInvitacionRequest("CC", "1090123456", "Ana María", "Pérez Gómez", "3001234567",
                 "IA en la educación", new TrayectoriaRequest("Ingeniera de sistemas.", null, null, null,
-                List.of(new EstudioRequest(NivelEstudio.doctorado, "Doctora", "UNAL", 2018)), List.of()));
+                List.of(new EstudioRequest(NivelEstudio.doctorado, "Doctora", "UNAL", 2018)), List.of()), "Clave123*");
+    }
+
+    /** Los mismos datos, sin contraseña (para quien ya tiene cuenta o para probar que es obligatoria). */
+    private CompletarInvitacionRequest datosSinContrasena() {
+        CompletarInvitacionRequest d = datos();
+        return new CompletarInvitacionRequest(d.tipoDocumento(), d.numeroDocumento(), d.nombres(), d.apellidos(),
+                d.telefono(), d.tema(), d.trayectoria(), null);
     }
 
     /** Invitar guarda con saveAndFlush para detectar duplicados simultáneos. */
@@ -341,6 +364,18 @@ class InvitacionConferencistaServiceTest {
         String json = response.toString();
         assertTrue(!json.contains("1090123456") && !json.contains("3001234567") && !json.contains("ana.perez@"),
                 "El enlace público no debe devolver el correo, el documento ni el teléfono completos");
+        assertTrue(response.requiereContrasena(), "Sin cuenta en SIGEA, el formulario debe pedir contraseña");
+    }
+
+    @Test
+    @DisplayName("Consultar: si la persona ya tiene cuenta, no se le pide contraseña")
+    void consultar_conCuenta_noPideContrasena() {
+        when(invitacionRepository.findByToken("abc")).thenReturn(Optional.of(
+                invitacion(evento(EstadoEvento.habilitado), EstadoInvitacion.pendiente, LocalDateTime.now().plusDays(2))));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("ana.perez@unal.edu.co"))
+                .thenReturn(Optional.of(Usuario.builder().id(5L).build()));
+
+        assertFalse(service.consultar("abc").requiereContrasena());
     }
 
     @Test
@@ -415,6 +450,14 @@ class InvitacionConferencistaServiceTest {
         when(conferencistaService.registrarDesdeInvitacion(evento, "ana.perez@unal.edu.co",
                 TipoParticipacionConferencista.conferencista, datos))
                 .thenReturn(ParticipacionConferencista.builder().id(7L).evento(evento).persona(persona).build());
+        Rol participante = Rol.builder().id(3L).nombre("PARTICIPANTE").build();
+        when(rolRepository.findByNombreIgnoreCase("PARTICIPANTE")).thenReturn(Optional.of(participante));
+        when(passwordEncoder.encode("Clave123*")).thenReturn("hash-bcrypt");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> {
+            Usuario u = i.getArgument(0);
+            u.setId(50L);
+            return u;
+        });
 
         InvitacionCompletadaResponse response = service.completar("abc", datos);
 
@@ -424,6 +467,54 @@ class InvitacionConferencistaServiceTest {
         verify(invitacionRepository).save(inv);
         assertEquals("Ana María Pérez Gómez", response.nombreCompleto());
         assertTrue(response.vistaPublicaDisponible());
+
+        // Se crea su cuenta para ingresar con el perfil «Conferencista».
+        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(captor.capture());
+        Usuario cuenta = captor.getValue();
+        assertEquals(persona, cuenta.getPersona());
+        assertEquals("hash-bcrypt", cuenta.getContrasenaHash());
+        assertTrue(cuenta.getCorreoVerificado(), "El enlace llegó a su correo: la cuenta queda verificada");
+        assertEquals(EstadoUsuario.activo, cuenta.getEstado());
+        assertTrue(cuenta.getRoles().contains(participante));
+        assertTrue(response.cuentaCreada());
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.USUARIO_REGISTRADO), eq("usuarios"), eq(50L),
+                anyMap(), eq(cuenta));
+    }
+
+    @Test
+    @DisplayName("Completar: si ya tiene cuenta (p. ej. un participante), no se pide contraseña ni se crea otra cuenta")
+    void completar_conCuentaExistente_noCreaOtra() {
+        Evento evento = evento(EstadoEvento.habilitado);
+        InvitacionConferencista inv = invitacion(evento, EstadoInvitacion.pendiente, LocalDateTime.now().plusDays(2));
+        when(invitacionRepository.findByToken("abc")).thenReturn(Optional.of(inv));
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("ana.perez@unal.edu.co"))
+                .thenReturn(Optional.of(Usuario.builder().id(5L).build()));
+        Persona persona = Persona.builder().id(30L).nombres("Ana").apellidos("Pérez").build();
+        CompletarInvitacionRequest datos = datosSinContrasena();
+        when(conferencistaService.registrarDesdeInvitacion(evento, "ana.perez@unal.edu.co",
+                TipoParticipacionConferencista.conferencista, datos))
+                .thenReturn(ParticipacionConferencista.builder().id(7L).evento(evento).persona(persona).build());
+
+        InvitacionCompletadaResponse response = service.completar("abc", datos);
+
+        assertFalse(response.cuentaCreada());
+        verify(usuarioRepository, never()).save(any());
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    @DisplayName("Completar: sin cuenta y sin contraseña → 400 en el campo contraseña y no se registra nada")
+    void completar_sinCuentaNiContrasena_400() {
+        when(invitacionRepository.findByToken("abc")).thenReturn(Optional.of(
+                invitacion(evento(EstadoEvento.habilitado), EstadoInvitacion.pendiente, LocalDateTime.now().plusDays(2))));
+
+        DatosConferencistaInvalidosException ex = assertThrows(DatosConferencistaInvalidosException.class,
+                () -> service.completar("abc", datosSinContrasena()));
+        assertEquals(PoliticaContrasena.MENSAJE_OBLIGATORIA, ex.getCampos().get("contrasena"),
+                "Mismo mensaje que el registro de usuarios");
+        verify(conferencistaService, never()).registrarDesdeInvitacion(any(), any(), any(), any());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
@@ -435,6 +526,17 @@ class InvitacionConferencistaServiceTest {
         assertThrows(InvitacionNoDisponibleException.class, () -> service.completar("abc", datos()));
         verify(conferencistaService, never()).registrarDesdeInvitacion(any(), any(), any(), any());
         verify(invitacionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Completar es una sola transacción: datos, cuenta y cierre de la invitación se guardan o se revierten juntos")
+    void completar_esTransaccional() throws Exception {
+        Transactional tx = InvitacionConferencistaService.class
+                .getMethod("completar", String.class, CompletarInvitacionRequest.class)
+                .getAnnotation(Transactional.class);
+        assertNotNull(tx, "completar debe ser @Transactional");
+        assertFalse(tx.readOnly());
+        assertEquals(Propagation.REQUIRED, tx.propagation());
     }
 
     @Test
