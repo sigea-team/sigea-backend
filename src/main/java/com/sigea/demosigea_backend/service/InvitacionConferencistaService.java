@@ -10,20 +10,24 @@ import com.sigea.demosigea_backend.dto.conferencista.InvitarConferencistaRequest
 import com.sigea.demosigea_backend.dto.conferencista.TrayectoriaResponse;
 import com.sigea.demosigea_backend.exception.ConferencistaExistenteException;
 import com.sigea.demosigea_backend.exception.ConferencistaYaAsociadoException;
+import com.sigea.demosigea_backend.exception.DatosConferencistaInvalidosException;
 import com.sigea.demosigea_backend.exception.InvitacionNoDisponibleException;
 import com.sigea.demosigea_backend.exception.InvitacionPendienteException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoInvitacion;
+import com.sigea.demosigea_backend.model.EstadoUsuario;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.InvitacionConferencista;
 import com.sigea.demosigea_backend.model.ParticipacionConferencista;
 import com.sigea.demosigea_backend.model.Persona;
+import com.sigea.demosigea_backend.model.Rol;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.InvitacionConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PerfilConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
+import com.sigea.demosigea_backend.repository.RolRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,14 +36,18 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Invitación de conferencistas nuevos por correo (HU-12).
@@ -81,6 +89,12 @@ public class InvitacionConferencistaService {
     private final ConferencistaService conferencistaService;
     private final EmailService emailService;
     private final AuditoriaService auditoriaService;
+    private final RolRepository rolRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    /** Rol inicial de las cuentas nuevas: el mismo del registro de usuarios ({@code app.roles.default-initial}). */
+    @Value("${app.roles.default-initial:PARTICIPANTE}")
+    private String rolInicialNombre = "PARTICIPANTE";
 
     /** Índice único parcial del changeset 14: una sola invitación pendiente por evento y correo. */
     static final String INDICE_INVITACION_PENDIENTE = "ux_invitaciones_conferencista_pendiente";
@@ -250,7 +264,8 @@ public class InvitacionConferencistaService {
                 .orElse(null);
         return new InvitacionPublicaResponse(evento.getId(), evento.getNombre(), evento.getSemestre(),
                 evento.getFechaInicio(), evento.getFechaFin(), invitacion.getNombre(), DatosRegistradosResponse.enmascararCorreo(invitacion.getCorreo()),
-                invitacion.getFechaExpiracion(), datos);
+                invitacion.getFechaExpiracion(), datos,
+                usuarioRepository.findByPersona_CorreoIgnoreCase(invitacion.getCorreo()).isEmpty());
     }
 
     /**
@@ -264,14 +279,51 @@ public class InvitacionConferencistaService {
     public InvitacionCompletadaResponse completar(String token, CompletarInvitacionRequest request) {
         InvitacionConferencista invitacion = invitacionUtilizable(token);
         Evento evento = invitacion.getEvento();
+        // Si aún no tiene cuenta, la contraseña es obligatoria: se valida antes de guardar nada.
+        boolean necesitaCuenta = usuarioRepository.findByPersona_CorreoIgnoreCase(invitacion.getCorreo()).isEmpty();
+        if (necesitaCuenta && ConferencistaService.estaVacio(request.contrasena())) {
+            throw new DatosConferencistaInvalidosException("Crea una contraseña para tu cuenta en SIGEA.",
+                    Map.of("contrasena", "Crea una contraseña para ingresar a SIGEA con el perfil «Conferencista»."));
+        }
         ParticipacionConferencista participacion = conferencistaService.registrarDesdeInvitacion(
                 evento, invitacion.getCorreo(), invitacion.getTipoParticipacion(), request);
         Persona persona = participacion.getPersona();
+        if (necesitaCuenta) {
+            crearCuenta(persona, request.contrasena());
+        }
         invitacion.completar(persona, LocalDateTime.now());
         invitacionRepository.save(invitacion);
-        log.info("Invitación {} completada: persona {}, evento {}", invitacion.getId(), persona.getId(), evento.getId());
+        log.info("Invitación {} completada: persona {}, evento {}, cuenta creada: {}", invitacion.getId(),
+                persona.getId(), evento.getId(), necesitaCuenta);
         return new InvitacionCompletadaResponse(evento.getId(), evento.getNombre(),
-                ConferencistaService.nombreCompleto(persona), ConferencistaService.esPublico(evento));
+                ConferencistaService.nombreCompleto(persona), ConferencistaService.esPublico(evento), necesitaCuenta);
+    }
+
+    /**
+     * Crea la cuenta del conferencista invitado para que pueda ingresar con el perfil «Conferencista».
+     * Usa el mismo rol inicial y el mismo cifrado que el registro de usuarios. El correo queda verificado:
+     * la persona llegó al formulario con el enlace secreto enviado a ese correo, lo que prueba que es suyo.
+     */
+    private void crearCuenta(Persona persona, String contrasena) {
+        Rol rolInicial = rolRepository.findByNombreIgnoreCase(rolInicialNombre)
+                .orElseGet(() -> rolRepository.save(Rol.builder()
+                        .nombre(rolInicialNombre)
+                        .descripcion("Rol inicial para participantes y asistentes registrados")
+                        .build()));
+        Set<Rol> roles = new HashSet<>();
+        roles.add(rolInicial);
+        Usuario usuario = usuarioRepository.save(Usuario.builder()
+                .persona(persona)
+                .contrasenaHash(passwordEncoder.encode(contrasena))
+                .correoVerificado(true)
+                .estado(EstadoUsuario.activo)
+                .fechaRegistro(LocalDateTime.now())
+                .roles(roles)
+                .build());
+        auditoriaService.registrar(TipoOperacionAuditoria.USUARIO_REGISTRADO, "usuarios", usuario.getId(),
+                DetalleAuditoria.de("correo", persona.getCorreo(), "rolInicial", rolInicial.getNombre(),
+                        "medio", "invitacion_conferencista"),
+                usuario);
     }
 
     // ------------------------------------------------------------------

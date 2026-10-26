@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -18,6 +19,9 @@ import jakarta.validation.constraints.Size;
  * @param telefono        Teléfono (opcional). Si la persona ya tiene uno registrado, vacío lo conserva.
  * @param tema            Tema de su conferencia en el evento (opcional).
  * @param trayectoria     Biografía, estudios y publicaciones.
+ * @param contrasena      Contraseña de su nueva cuenta en SIGEA. Obligatoria solo si la persona aún no tiene
+ *                        cuenta (ver {@code InvitacionPublicaResponse.requiereContrasena}); misma política
+ *                        que el registro de usuarios. Si ya tiene cuenta, se ignora.
  */
 @Schema(description = "Datos personales, de contacto y trayectoria que registra el conferencista invitado")
 public record CompletarInvitacionRequest(
@@ -44,6 +48,13 @@ public record CompletarInvitacionRequest(
 
         @NotNull(message = "La trayectoria del conferencista es obligatoria")
         @Valid
-        TrayectoriaRequest trayectoria
+        TrayectoriaRequest trayectoria,
+
+        @Pattern(
+                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&._\\-#])[A-Za-z\\d@$!%*?&._\\-#]{8,64}$",
+                message = "La contraseña no cumple con la política mínima de seguridad. Requisitos: mínimo 8 caracteres, "
+                        + "al menos una letra mayúscula, una letra minúscula, un número y un carácter especial (@$!%*?&._-#)"
+        )
+        String contrasena
 ) {
 }
