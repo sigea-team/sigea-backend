@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -65,6 +66,18 @@ public interface AsignacionEvaluacionRepository extends JpaRepository<Asignacion
             + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona "
             + "WHERE p.id = :propuestaId ORDER BY a.fechaAsignacion DESC, a.id DESC")
     List<AsignacionEvaluacion> findDetalleByPropuestaId(@Param("propuestaId") Long propuestaId);
+
+    /**
+     * Asignaciones de varias propuestas en una sola consulta, con el evaluador y su persona ya cargados (HU-16).
+     * Evita una consulta por propuesta al listar las propuestas de una convocatoria.
+     *
+     * @param propuestaIds IDs de las propuestas.
+     * @return asignaciones de la más reciente a la más antigua.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a "
+            + "JOIN FETCH a.comiteEvaluador ce JOIN FETCH ce.persona "
+            + "WHERE a.propuesta.id IN :propuestaIds ORDER BY a.fechaAsignacion DESC, a.id DESC")
+    List<AsignacionEvaluacion> findDetalleByPropuestaIds(@Param("propuestaIds") Collection<Long> propuestaIds);
 
     /**
      * Bandeja del evaluador: asignaciones de todos los comités en los que participa la persona (HU-16, Criterio 1).

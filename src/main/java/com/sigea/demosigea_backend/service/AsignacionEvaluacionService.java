@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Asignación de propuestas a los evaluadores del comité (HU-16, RF24).
@@ -265,6 +266,10 @@ public class AsignacionEvaluacionService {
 
     /**
      * Propuestas de una convocatoria con el resumen de sus asignaciones (vista del organizador, Criterio 1).
+     * <p>
+     * Usa tres consultas sin importar cuántas propuestas haya: las propuestas, sus autores en lote y sus
+     * asignaciones en lote. Los resultados se agrupan en memoria por propuesta.
+     * </p>
      *
      * @param convocatoriaId ID de la convocatoria.
      * @return propuestas de la más reciente a la más antigua.
@@ -275,14 +280,25 @@ public class AsignacionEvaluacionService {
         if (!convocatoriaRepository.existsById(convocatoriaId)) {
             throw new RecursoNoEncontradoException("No se encontró la convocatoria con ID: " + convocatoriaId);
         }
-        return propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(convocatoriaId).stream()
+        List<Propuesta> propuestas = propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(convocatoriaId);
+        if (propuestas.isEmpty()) {
+            return List.of();
+        }
+        List<Long> propuestaIds = propuestas.stream().map(Propuesta::getId).toList();
+
+        Map<Long, List<String>> autoresPorPropuesta = propuestaAutorRepository
+                .findByPropuestaIdsConPersona(propuestaIds).stream()
+                .collect(Collectors.groupingBy(autor -> autor.getPropuesta().getId(),
+                        Collectors.mapping(autor -> nombre(autor.getPersona()), Collectors.toList())));
+        Map<Long, List<AsignacionEvaluacion>> asignacionesPorPropuesta = asignacionRepository
+                .findDetalleByPropuestaIds(propuestaIds).stream()
+                .collect(Collectors.groupingBy(a -> a.getPropuesta().getId()));
+
+        return propuestas.stream()
                 .map(propuesta -> {
-                    List<String> autores = propuestaAutorRepository
-                            .findByPropuesta_IdOrderByOrdenAsc(propuesta.getId()).stream()
-                            .map(autor -> nombre(autor.getPersona()))
-                            .toList();
+                    List<String> autores = autoresPorPropuesta.getOrDefault(propuesta.getId(), List.of());
                     List<AsignacionEvaluacion> asignaciones =
-                            asignacionRepository.findDetalleByPropuestaId(propuesta.getId());
+                            asignacionesPorPropuesta.getOrDefault(propuesta.getId(), List.of());
                     int completadas = (int) asignaciones.stream()
                             .filter(a -> a.getEstado() == EstadoAsignacion.completada)
                             .count();

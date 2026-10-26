@@ -3,8 +3,11 @@ package com.sigea.demosigea_backend.repository;
 import com.sigea.demosigea_backend.model.PropuestaAutor;
 import com.sigea.demosigea_backend.model.PropuestaAutorId;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,4 +74,15 @@ public interface PropuestaAutorRepository extends JpaRepository<PropuestaAutor, 
      * @param personaId   ID de la persona a desvincular.
      */
     void deleteByPropuesta_IdAndPersona_Id(Long propuestaId, Long personaId);
+
+    /**
+     * Autores de varias propuestas en una sola consulta, con la persona ya cargada (HU-16). Evita una consulta
+     * por propuesta al listar las propuestas de una convocatoria.
+     *
+     * @param propuestaIds IDs de las propuestas.
+     * @return autores ordenados por propuesta y orden de autoría.
+     */
+    @Query("SELECT pa FROM PropuestaAutor pa JOIN FETCH pa.persona "
+            + "WHERE pa.propuesta.id IN :propuestaIds ORDER BY pa.propuesta.id, pa.orden")
+    List<PropuestaAutor> findByPropuestaIdsConPersona(@Param("propuestaIds") Collection<Long> propuestaIds);
 }
