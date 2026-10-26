@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.asignacion.AsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.AsignarEvaluadoresRequest;
 import com.sigea.demosigea_backend.dto.asignacion.EvaluadorDisponibleResponse;
 import com.sigea.demosigea_backend.dto.asignacion.HistorialAsignacionResponse;
+import com.sigea.demosigea_backend.dto.asignacion.PropuestaAsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.ReasignarEvaluadorRequest;
 import com.sigea.demosigea_backend.exception.AsignacionDuplicadaException;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
@@ -28,6 +29,7 @@ import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ComiteEvaluadorRepository;
+import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.HistorialAsignacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
@@ -89,6 +91,7 @@ class AsignacionEvaluacionServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private NotificacionService notificacionService;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private ConvocatoriaRepository convocatoriaRepository;
 
     private AsignacionEvaluacionService service;
 
@@ -107,7 +110,7 @@ class AsignacionEvaluacionServiceTest {
         Clock reloj = Clock.fixed(AHORA.atZone(BOGOTA).toInstant(), BOGOTA);
         service = new AsignacionEvaluacionService(asignacionRepository, historialRepository,
                 comiteEvaluadorRepository, propuestaRepository, propuestaAutorRepository, evaluacionRepository,
-                usuarioRepository, notificacionService, auditoriaService, reloj);
+                usuarioRepository, notificacionService, auditoriaService, reloj, convocatoriaRepository);
 
         ufps = Afiliacion.builder().id(1L).nombreAfiliacion("UFPS").build();
         otraU = Afiliacion.builder().id(2L).nombreAfiliacion("UIS").build();
@@ -478,6 +481,39 @@ class AsignacionEvaluacionServiceTest {
 
         assertThrows(RecursoNoEncontradoException.class,
                 () -> service.reasignar(99L, new ReasignarEvaluadorRequest(5L, null, false)));
+    }
+
+    // ------------------------------------------------------------------
+    // Consultas: propuestas de la convocatoria
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("HU-16 Criterio 1: lista las propuestas de la convocatoria con sus autores y evaluadores asignados")
+    void propuestasDeConvocatoria_resumeAsignaciones() {
+        when(convocatoriaRepository.existsById(10L)).thenReturn(true);
+        when(propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(10L)).thenReturn(List.of(propuesta));
+        autoresDeLaPropuesta(autoria(autor, RolAutor.autor_principal));
+        AsignacionEvaluacion completada = asignacionExistente(evaluadorB, EstadoAsignacion.completada);
+        when(asignacionRepository.findDetalleByPropuestaId(40L)).thenReturn(List.of(
+                asignacionExistente(evaluadorA, EstadoAsignacion.pendiente), completada));
+
+        List<PropuestaAsignacionResponse> propuestas = service.propuestasDeConvocatoria(10L);
+
+        assertEquals(1, propuestas.size());
+        PropuestaAsignacionResponse p = propuestas.get(0);
+        assertEquals("Analítica educativa", p.titulo());
+        assertEquals(List.of("Carlos Ruiz"), p.autores());
+        assertEquals(List.of("Ana Pérez", "Luis Gómez"), p.evaluadores());
+        assertEquals(2, p.asignacionesTotales());
+        assertEquals(1, p.asignacionesCompletadas());
+    }
+
+    @Test
+    @DisplayName("HU-16: convocatoria inexistente responde no encontrada")
+    void propuestasDeConvocatoria_inexistente_lanzaNoEncontrado() {
+        when(convocatoriaRepository.existsById(99L)).thenReturn(false);
+
+        assertThrows(RecursoNoEncontradoException.class, () -> service.propuestasDeConvocatoria(99L));
     }
 
     // ------------------------------------------------------------------

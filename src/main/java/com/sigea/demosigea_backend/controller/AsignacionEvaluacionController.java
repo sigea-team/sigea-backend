@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.asignacion.AsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.AsignarEvaluadoresRequest;
 import com.sigea.demosigea_backend.dto.asignacion.EvaluadorDisponibleResponse;
 import com.sigea.demosigea_backend.dto.asignacion.HistorialAsignacionResponse;
+import com.sigea.demosigea_backend.dto.asignacion.PropuestaAsignacionResponse;
 import com.sigea.demosigea_backend.dto.asignacion.ReasignarEvaluadorRequest;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.service.AsignacionEvaluacionService;
@@ -84,6 +85,15 @@ public class AsignacionEvaluacionController {
     public ResponseEntity<AsignacionResponse> reasignar(@PathVariable Long asignacionId,
                                                         @Valid @RequestBody ReasignarEvaluadorRequest request) {
         return ResponseEntity.ok(asignacionService.reasignar(asignacionId, request));
+    }
+
+    @Operation(summary = "Propuestas de una convocatoria para asignar",
+            description = "Propuestas recibidas en la convocatoria con los evaluadores que tiene cada una (Criterio 1).")
+    @PreAuthorize("hasAnyAuthority('PROPUESTAS_ASIGNAR', 'CONVOCATORIAS_GESTIONAR', 'PROPUESTAS_VER', 'ROLE_ADMIN', 'ADMIN')")
+    @GetMapping("/convocatorias/{convocatoriaId}/propuestas")
+    public ResponseEntity<List<PropuestaAsignacionResponse>> propuestasDeConvocatoria(
+            @PathVariable Long convocatoriaId) {
+        return ResponseEntity.ok(asignacionService.propuestasDeConvocatoria(convocatoriaId));
     }
 
     @Operation(summary = "Asignaciones de una propuesta",
