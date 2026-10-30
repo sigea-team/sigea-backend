@@ -1,7 +1,9 @@
 package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.Propuesta;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 
 import org.springframework.data.jpa.repository.Query;
@@ -35,5 +37,13 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
     /** Obtiene una propuesta cargando sus autores y personas asociadas en una sola consulta. */
     @Query("SELECT DISTINCT p FROM Propuesta p LEFT JOIN FETCH p.autores a LEFT JOIN FETCH a.persona WHERE p.id = :id")
     Optional<Propuesta> findByIdWithAutores(@Param("id") Long id);
+
+    /**
+     * HU-14, Criterio 3: obtiene la propuesta bloqueando su fila hasta terminar la transacción,
+     * para que dos modificaciones simultáneas no generen el mismo número de versión.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Propuesta p WHERE p.id = :id")
+    Optional<Propuesta> findByIdParaActualizar(@Param("id") Long id);
 }
 

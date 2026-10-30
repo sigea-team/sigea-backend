@@ -47,6 +47,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `propuestas` ➡️ Trabajos académicos postulados. Estados: `'recibida'`, `'en_evaluacion'`, `'aprobada'`, `'ajustes'`, `'rechazada'`.
 - `propuestas_autores` ➡️ Autores y coautores con orden de autoría.
 - `versiones_propuesta` ➡️ Historial de versiones y archivos de la propuesta.
+- `documentos_propuesta` ➡️ Documentos adjuntos a cada versión de la propuesta (HU-14, changeset 16).
 
 ### 5. Sistema de Evaluación por Pares
 - `rubricas_evaluacion` ➡️ Rúbricas por convocatoria.

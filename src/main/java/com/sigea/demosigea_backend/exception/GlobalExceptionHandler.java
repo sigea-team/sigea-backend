@@ -8,6 +8,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -558,6 +560,79 @@ public class GlobalExceptionHandler {
         return construir(HttpStatus.METHOD_NOT_ALLOWED,
                 "El método " + ex.getMethod() + " no está permitido en este recurso.",
                 "METODO_NO_PERMITIDO", request);
+    }
+
+    /**
+     * HU-14, Criterio 2: documentos con formato o tamaño no permitido, vacíos o faltantes.
+     * En {@code erroresValidacion} se indica el motivo por cada archivo.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST y código ARCHIVO_INVALIDO.
+     */
+    @ExceptionHandler(ArchivoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> handleArchivoInvalido(ArchivoInvalidoException ex,
+                                                               HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                "ARCHIVO_INVALIDO",
+                null,
+                ex.getErrores().isEmpty() ? null : ex.getErrores(),
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * HU-14, Criterio 2: la petición supera el tamaño máximo que acepta el servidor para la carga de archivos
+     * ({@code spring.servlet.multipart.*}). Sin este manejador se respondería 500.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST y código ARCHIVO_INVALIDO.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleTamanoCargaExcedido(MaxUploadSizeExceededException ex,
+                                                                   HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST,
+                "Los archivos adjuntos superan el tamaño máximo permitido por el servidor.",
+                "ARCHIVO_INVALIDO", request);
+    }
+
+    /**
+     * HU-14, Criterio 2: falta una parte obligatoria de la petición multipart (p. ej. {@code datos}).
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD REQUEST y código VALIDACION_FALLIDA.
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleParteFaltante(MissingServletRequestPartException ex,
+                                                             HttpServletRequest request) {
+        return construir(HttpStatus.BAD_REQUEST,
+                "Falta la parte obligatoria '" + ex.getRequestPartName() + "' en la solicitud.",
+                "VALIDACION_FALLIDA", request);
+    }
+
+    /**
+     * HU-14, Criterio 5: la propuesta tiene versión definitiva aprobada y no cuenta con autorización
+     * explícita para modificarse.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código PROPUESTA_BLOQUEADA.
+     */
+    @ExceptionHandler(PropuestaBloqueadaException.class)
+    public ResponseEntity<ErrorResponse> handlePropuestaBloqueada(PropuestaBloqueadaException ex,
+                                                                  HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "PROPUESTA_BLOQUEADA", request);
+    }
+
+    /**
+     * HU-14: error técnico al guardar o leer un documento en el almacenamiento.
+     *
+     * @return {@link ResponseEntity} con estado 500 INTERNAL SERVER ERROR y código ERROR_ALMACENAMIENTO.
+     */
+    @ExceptionHandler(AlmacenamientoException.class)
+    public ResponseEntity<ErrorResponse> handleAlmacenamiento(AlmacenamientoException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), "ERROR_ALMACENAMIENTO", request);
     }
 
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,

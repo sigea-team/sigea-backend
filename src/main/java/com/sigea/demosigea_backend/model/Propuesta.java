@@ -83,6 +83,15 @@ public class Propuesta {
     @Column(name = "fecha_envio", nullable = false, updatable = false)
     private LocalDateTime fechaEnvio;
 
+    /**
+     * Autorización explícita, de un solo uso, para modificar una propuesta bloqueada por tener
+     * versión definitiva (HU-14, Criterio 5). La concede el administrador y se consume al crear
+     * la siguiente versión.
+     */
+    @Builder.Default
+    @Column(name = "edicion_autorizada", nullable = false)
+    private Boolean edicionAutorizada = false;
+
     /** Autores y ponentes asociados a la propuesta (HU-13). */
     @OneToMany(mappedBy = "propuesta", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
@@ -93,6 +102,9 @@ public class Propuesta {
     void antesDeInsertar() {
         if (fechaEnvio == null) {
             fechaEnvio = LocalDateTime.now();
+        }
+        if (edicionAutorizada == null) {
+            edicionAutorizada = false;
         }
     }
 
