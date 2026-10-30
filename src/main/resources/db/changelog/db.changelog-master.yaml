@@ -35,3 +35,5 @@ databaseChangeLog:
       file: db/changelog/changes/14-hu12-invitaciones-conferencista.sql
   - include:
       file: db/changelog/changes/15-hu16-asignacion-evaluadores.sql
+  - include:
+      file: db/changelog/changes/16-hu14-versiones-propuesta.sql

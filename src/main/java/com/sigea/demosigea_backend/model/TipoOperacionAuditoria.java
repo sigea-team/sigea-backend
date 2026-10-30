@@ -68,6 +68,8 @@ public enum TipoOperacionAuditoria {
     // ----- Convocatorias y Propuestas (HU-11, HU-13) -----
     PROPUESTA_REGISTRADA("PROPUESTAS", "Registro o envío de una propuesta académica (HU-13)"),
     AUTOR_PROPUESTA_REGISTRADO("PROPUESTAS", "Registro o vinculación de un autor o ponente a una propuesta (HU-13)"),
+    PROPUESTA_VERSION_CREADA("PROPUESTAS", "Creación de una versión de la propuesta con sus documentos (HU-14)"),
+    PROPUESTA_EDICION_AUTORIZADA("PROPUESTAS", "Autorización explícita para modificar una propuesta bloqueada (HU-14)"),
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     CONVOCATORIA_FECHA_CIERRE_MODIFICADA("CONVOCATORIAS", "Modificación de la fecha límite de una convocatoria publicada (HU-11)"),
 

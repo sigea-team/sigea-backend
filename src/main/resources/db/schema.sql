@@ -167,7 +167,8 @@ CREATE TABLE "propuestas" (
   "palabras_clave" VARCHAR(255),
   "linea_tematica_id" INT,
   "estado" VARCHAR(20) NOT NULL CHECK (estado IN ('recibida','en_evaluacion','aprobada','ajustes','rechazada')) DEFAULT 'recibida',
-  "fecha_envio" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  "fecha_envio" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  "edicion_autorizada" BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE "propuestas_autores" (
@@ -184,7 +185,24 @@ CREATE TABLE "versiones_propuesta" (
   "numero_version" INT NOT NULL,
   "documento_url" VARCHAR(255) NOT NULL,
   "observaciones" TEXT,
-  "fecha_creacion" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  "fecha_creacion" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+  "creado_por" BIGINT,
+  "titulo" VARCHAR(200),
+  "resumen" TEXT,
+  "palabras_clave" VARCHAR(255),
+  "linea_tematica_id" INT,
+  "es_definitiva" BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE TABLE "documentos_propuesta" (
+  "documento_id" SERIAL PRIMARY KEY,
+  "version_id" INT NOT NULL,
+  "nombre_original" VARCHAR(255) NOT NULL,
+  "ruta_almacenamiento" VARCHAR(255) NOT NULL,
+  "tipo_contenido" VARCHAR(100),
+  "tamano_bytes" BIGINT NOT NULL CHECK (tamano_bytes > 0),
+  "principal" BOOLEAN NOT NULL DEFAULT false,
+  "fecha_carga" TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP)
 );
 
 CREATE TABLE "rubricas_evaluacion" (
@@ -401,6 +419,10 @@ CREATE INDEX "idx_participaciones_persona" ON "participaciones_conferencista" ("
 
 CREATE UNIQUE INDEX ON "versiones_propuesta" ("propuesta_id", "numero_version");
 
+CREATE UNIQUE INDEX "uq_versiones_propuesta_una_definitiva" ON "versiones_propuesta" ("propuesta_id") WHERE "es_definitiva" = true;
+
+CREATE INDEX "idx_documentos_propuesta_version" ON "documentos_propuesta" ("version_id");
+
 CREATE UNIQUE INDEX ON "comites_evaluadores" ("convocatoria_id", "persona_id");
 
 CREATE UNIQUE INDEX ON "asignaciones_evaluacion" ("propuesta_id", "comite_evaluador_id");
@@ -474,6 +496,12 @@ ALTER TABLE "propuestas_autores" ADD FOREIGN KEY ("propuesta_id") REFERENCES "pr
 ALTER TABLE "propuestas_autores" ADD FOREIGN KEY ("persona_id") REFERENCES "personas" ("persona_id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "versiones_propuesta" ADD FOREIGN KEY ("propuesta_id") REFERENCES "propuestas" ("propuesta_id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "versiones_propuesta" ADD FOREIGN KEY ("creado_por") REFERENCES "usuarios" ("usuario_id");
+
+ALTER TABLE "versiones_propuesta" ADD FOREIGN KEY ("linea_tematica_id") REFERENCES "lineas_tematicas" ("linea_tematica_id");
+
+ALTER TABLE "documentos_propuesta" ADD FOREIGN KEY ("version_id") REFERENCES "versiones_propuesta" ("version_id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "rubricas_evaluacion" ADD FOREIGN KEY ("convocatoria_id") REFERENCES "convocatorias" ("convocatoria_id") ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE;
 

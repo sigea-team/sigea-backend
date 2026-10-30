@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### HU-14: archivos subidos en desarrollo local ###
+/almacenamiento/
