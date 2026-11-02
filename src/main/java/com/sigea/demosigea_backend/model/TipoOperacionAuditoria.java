@@ -80,7 +80,14 @@ public enum TipoOperacionAuditoria {
     PUNTUACION_CALCULADA("EVALUACION", "Cálculo automático de puntuación ponderada de una propuesta (HU-17)"),
 
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
-    RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
+    RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)"),
+
+    // ----- Salas y disponibilidad (HU-Salas) -----
+    SALA_CREADA("SALAS", "Creación de una sala del evento"),
+    SALA_ACTUALIZADA("SALAS", "Actualización de una sala del evento"),
+    SALA_ELIMINADA("SALAS", "Eliminación de una sala del evento"),
+    DISPONIBILIDAD_SALA_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de una sala"),
+    DISPONIBILIDAD_PONENTE_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de un ponente");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;
