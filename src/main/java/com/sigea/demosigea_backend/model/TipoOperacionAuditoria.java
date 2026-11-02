@@ -28,6 +28,7 @@ public enum TipoOperacionAuditoria {
     ROL_ACTUALIZADO("ROLES", "Modificación de un rol o de sus permisos"),
     ROL_ELIMINADO("ROLES", "Eliminación de un rol"),
     USUARIO_REGISTRADO("USUARIOS", "Registro de una nueva cuenta de usuario"),
+    USUARIO_ROLES_ACTUALIZADOS("USUARIOS", "Asignación o retiro de roles de un usuario (HU-02)"),
     CONTRASENA_RESTABLECIDA("USUARIOS", "Restablecimiento de contraseña mediante token de recuperación"),
 
     // ----- Planeación y configuración de eventos (HU-06) -----

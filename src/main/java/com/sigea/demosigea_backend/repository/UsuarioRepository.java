@@ -2,8 +2,10 @@ package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -46,4 +48,12 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
      * @return {@code true} si existe una cuenta vinculada a la persona.
      */
     boolean existsByPersona_Id(Long personaId);
+
+    /**
+     * Lista todos los usuarios con su persona, ordenados por nombre (HU-02: asignación de roles).
+     *
+     * @return usuarios del sistema.
+     */
+    @Query("SELECT u FROM Usuario u JOIN FETCH u.persona p ORDER BY p.nombres, p.apellidos")
+    List<Usuario> findAllConPersonaOrdenados();
 }

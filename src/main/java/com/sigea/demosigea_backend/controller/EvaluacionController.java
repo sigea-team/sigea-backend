@@ -62,9 +62,10 @@ public class EvaluacionController {
             @ApiResponse(responseCode = "400", description = "Criterios sin calificar o datos inválidos (EVALUACION_INCOMPLETA / VALIDACION_FALLIDA)."),
             @ApiResponse(responseCode = "404", description = "Asignación o rúbrica no encontrada (RECURSO_NO_ENCONTRADO)."),
             @ApiResponse(responseCode = "409", description = "La evaluación ya fue enviada y el periodo está cerrado (EVALUACION_CERRADA)."),
-            @ApiResponse(responseCode = "401", description = "No autenticado.")
+            @ApiResponse(responseCode = "401", description = "No autenticado."),
+            @ApiResponse(responseCode = "403", description = "Sin permiso de evaluador o la asignación no es del usuario.")
     })
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('PROPUESTAS_EVALUAR', 'ROLE_ADMIN', 'ADMIN')")
     @PostMapping
     public ResponseEntity<AsignacionEvaluacionResponse> registrarEvaluacion(
             @Valid @RequestBody RegistrarEvaluacionRequest request) {
@@ -85,9 +86,10 @@ public class EvaluacionController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Detalle de la asignación obtenido exitosamente."),
             @ApiResponse(responseCode = "404", description = "Asignación no encontrada (RECURSO_NO_ENCONTRADO)."),
-            @ApiResponse(responseCode = "401", description = "No autenticado.")
+            @ApiResponse(responseCode = "401", description = "No autenticado."),
+            @ApiResponse(responseCode = "403", description = "Sin permiso de evaluador o la asignación no es del usuario.")
     })
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('PROPUESTAS_EVALUAR', 'ROLE_ADMIN', 'ADMIN')")
     @GetMapping("/asignaciones/{asignacionId}")
     public ResponseEntity<AsignacionEvaluacionResponse> obtenerAsignacion(
             @PathVariable Long asignacionId) {
@@ -112,9 +114,10 @@ public class EvaluacionController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resultado obtenido exitosamente (puede estar incompleto)."),
             @ApiResponse(responseCode = "404", description = "Propuesta no encontrada (RECURSO_NO_ENCONTRADO)."),
-            @ApiResponse(responseCode = "401", description = "No autenticado.")
+            @ApiResponse(responseCode = "401", description = "No autenticado."),
+            @ApiResponse(responseCode = "403", description = "Sin permiso de evaluador o la asignación no es del usuario.")
     })
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('PROPUESTAS_EVALUAR', 'PROPUESTAS_VER', 'CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')")
     @GetMapping("/propuestas/{propuestaId}/resultado")
     public ResponseEntity<ResultadoEvaluacionResponse> obtenerResultado(
             @PathVariable Long propuestaId) {

@@ -124,7 +124,7 @@ public class AsignacionEvaluacionController {
     @Operation(summary = "Mi bandeja de evaluaciones",
             description = "Propuestas asignadas al evaluador autenticado (Criterio 1). Por defecto solo las "
                     + "pendientes o en proceso; con incluirCompletadas=true también las completadas.")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('PROPUESTAS_EVALUAR', 'ROLE_ADMIN', 'ADMIN')")
     @GetMapping("/mis-asignaciones")
     public ResponseEntity<List<AsignacionResponse>> miBandeja(
             @RequestParam(defaultValue = "false") boolean incluirCompletadas) {

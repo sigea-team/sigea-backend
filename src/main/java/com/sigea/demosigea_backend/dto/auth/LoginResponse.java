@@ -41,6 +41,9 @@ public record LoginResponse(
         String nombreCompleto,
 
         @Schema(description = "Lista de roles asignados al usuario", example = "[\"PARTICIPANTE\"]")
-        List<String> roles
+        List<String> roles,
+
+        @Schema(description = "Códigos de permiso que el usuario obtiene por sus roles", example = "[\"PROPUESTAS_EVALUAR\"]")
+        List<String> permisos
 ) {
 }
