@@ -88,7 +88,7 @@ public class SalaController {
     }
 
     @Operation(summary = "Crear sala",
-            description = "Registra una nueva sala con nombre, ubicación, tipo (FISICA/VIRTUAL), aforo máximo y "
+            description = "Registra una nueva sala con nombre, ubicación, tipo (fisica/virtual), aforo máximo y "
                     + "disponibilidad horaria opcional (Criterio 1). "
                     + "Rechaza nombre duplicado en el evento (409 SALA_DUPLICADA, Criterio 3) y "
                     + "aforo ≤ 0 (400 VALIDACION_FALLIDA, Criterio 3).")

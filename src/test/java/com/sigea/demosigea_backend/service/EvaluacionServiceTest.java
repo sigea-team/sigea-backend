@@ -24,6 +24,14 @@ import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
+import com.sigea.demosigea_backend.repository.UsuarioRepository;
+import com.sigea.demosigea_backend.model.Usuario;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +54,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,8 +95,31 @@ class EvaluacionServiceTest {
     @Mock
     private AuditoriaService auditoriaService;
 
+    @Mock
+    private UsuarioRepository usuarioRepository;
+
     @InjectMocks
     private EvaluacionService service;
+
+    private static final String CORREO_EVALUADOR = "evaluador@test.com";
+
+    /** La sesión es la del evaluador dueño de las asignaciones de prueba (persona 10, ver crearComite). */
+    @BeforeEach
+    void autenticarEvaluador() {
+        autenticar(CORREO_EVALUADOR, "PROPUESTAS_EVALUAR");
+        lenient().when(usuarioRepository.findByPersona_CorreoIgnoreCase(CORREO_EVALUADOR))
+                .thenReturn(Optional.of(Usuario.builder().id(1L).persona(crearPersona(10L)).build()));
+    }
+
+    @AfterEach
+    void limpiarSesion() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private static void autenticar(String correo, String... autoridades) {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                correo, null, java.util.Arrays.stream(autoridades).map(SimpleGrantedAuthority::new).toList()));
+    }
 
     // ──────────────────────────────────────────────────────────────────────────────
     // Helpers de construcción de entidades de prueba
@@ -378,5 +410,86 @@ class EvaluacionServiceTest {
         assertFalse(response.completo());
         assertEquals(1L, response.propuestaId());
         assertFalse(response.completo());
+    }
+
+    @Test
+    @DisplayName("obtenerAsignacion: incluye los criterios de la rúbrica activa, la convocatoria y su fecha de cierre")
+    void obtenerAsignacion_incluyeCriteriosDeLaRubricaActiva() {
+        LocalDateTime cierre = LocalDateTime.now().plusDays(10);
+        Convocatoria conv = crearConvocatoria(1L, cierre);
+        Propuesta propuesta = crearPropuesta(1L, conv);
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, propuesta, crearComite(1L, conv),
+                EstadoAsignacion.pendiente);
+        RubricaEvaluacion rubrica = crearRubrica(5L, conv);
+
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.of(rubrica));
+        when(criterioRubricaRepository.findByRubrica_Id(5L)).thenReturn(List.of(
+                crearCriterio(11L, rubrica, "Originalidad", new BigDecimal("60.00")),
+                crearCriterio(12L, rubrica, "Pertinencia", new BigDecimal("40.00"))));
+
+        AsignacionEvaluacionResponse response = service.obtenerAsignacion(1L);
+
+        assertEquals(2, response.criterios().size());
+        assertEquals(11L, response.criterios().get(0).criterioId());
+        assertEquals(new BigDecimal("40.00"), response.criterios().get(1).pesoPorcentual());
+        assertEquals("Convocatoria Test", response.convocatoriaTitulo());
+        assertEquals(cierre, response.fechaCierre());
+        assertTrue(response.evaluaciones().isEmpty());
+    }
+
+    @Test
+    @DisplayName("obtenerAsignacion: devuelve criterios vacíos si la convocatoria no tiene rúbrica activa")
+    void obtenerAsignacion_sinRubricaActivaDevuelveCriteriosVacios() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(10));
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, crearPropuesta(1L, conv), crearComite(1L, conv),
+                EstadoAsignacion.pendiente);
+
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.empty());
+
+        AsignacionEvaluacionResponse response = service.obtenerAsignacion(1L);
+
+        assertTrue(response.criterios().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Seguridad: un evaluador no puede calificar la asignación de otro evaluador")
+    void registrarEvaluacion_asignacionDeOtroEvaluador_lanzaAccesoDenegado() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(10));
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, crearPropuesta(1L, conv), crearComite(1L, conv),
+                EstadoAsignacion.pendiente);
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+
+        autenticar("otro@test.com", "PROPUESTAS_EVALUAR");
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("otro@test.com"))
+                .thenReturn(Optional.of(Usuario.builder().id(2L).persona(crearPersona(99L)).build()));
+
+        RegistrarEvaluacionRequest request = new RegistrarEvaluacionRequest(1L,
+                List.of(new CalificacionCriterioRequest(1L, new BigDecimal("8.0"), null)));
+
+        assertThrows(AccessDeniedException.class, () -> service.registrarEvaluacion(request));
+        verify(evaluacionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Seguridad: un evaluador no puede ver la asignación de otro, pero el administrador sí")
+    void obtenerAsignacion_soloDuenoOAdministrador() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(10));
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, crearPropuesta(1L, conv), crearComite(1L, conv),
+                EstadoAsignacion.pendiente);
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+
+        autenticar("otro@test.com", "PROPUESTAS_EVALUAR");
+        when(usuarioRepository.findByPersona_CorreoIgnoreCase("otro@test.com"))
+                .thenReturn(Optional.of(Usuario.builder().id(2L).persona(crearPersona(99L)).build()));
+        assertThrows(AccessDeniedException.class, () -> service.obtenerAsignacion(1L));
+
+        autenticar("admin@test.com", "ROLE_ADMIN");
+        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.empty());
+        assertEquals(1L, service.obtenerAsignacion(1L).asignacionId());
     }
 }

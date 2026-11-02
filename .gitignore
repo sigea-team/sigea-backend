@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Credenciales locales (no subir al repositorio)
+.env

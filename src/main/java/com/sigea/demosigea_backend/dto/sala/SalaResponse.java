@@ -19,7 +19,7 @@ public record SalaResponse(
         @Schema(description = "ID del evento", example = "1") Long eventoId,
         @Schema(description = "Nombre de la sala", example = "Aula Magna") String nombre,
         @Schema(description = "Ubicación física o URL", example = "Edificio A, piso 2") String ubicacion,
-        @Schema(description = "Tipo de sala: FISICA o VIRTUAL") TipoSala tipo,
+        @Schema(description = "Tipo de sala: fisica o virtual") TipoSala tipo,
         @Schema(description = "Aforo máximo", example = "200") Integer aforoMaximo,
         @Schema(description = "Franjas de disponibilidad horaria registradas") List<DisponibilidadSalaResponse> disponibilidades
 ) {

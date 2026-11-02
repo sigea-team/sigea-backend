@@ -143,7 +143,7 @@ class AuthControllerTest {
         LoginRequest request = new LoginRequest("carlos@correo.com", "Password123*");
         LoginResponse response = new LoginResponse(
                 "jwt.sample.token", "Bearer", 1L,
-                "carlos@correo.com", "Carlos Gómez", List.of("PARTICIPANTE")
+                "carlos@correo.com", "Carlos Gómez", List.of("PARTICIPANTE"), List.of()
         );
 
         when(authService.login(any(LoginRequest.class))).thenReturn(response);
