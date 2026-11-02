@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.propuesta.ActualizarPropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.AutorizacionEdicionResponse;
 import com.sigea.demosigea_backend.dto.propuesta.AutorizarEdicionRequest;
 import com.sigea.demosigea_backend.dto.propuesta.EnvioPropuestaResponse;
+import com.sigea.demosigea_backend.dto.propuesta.MiPropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.VersionPropuestaResponse;
 import com.sigea.demosigea_backend.service.VersionPropuestaService;
@@ -108,6 +109,18 @@ public class VersionPropuestaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
 
+    @Operation(summary = "Listar mis propuestas",
+            description = "Devuelve las propuestas en las que el usuario autenticado es autor o que él envió, con su versión "
+                    + "actual y si están bloqueadas por versión definitiva.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Propuestas del usuario")
+    })
+    @GetMapping("/mis-propuestas")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<MiPropuestaResponse>> listarMisPropuestas() {
+        return ResponseEntity.ok(versionPropuestaService.listarMisPropuestas());
+    }
+
     @Operation(summary = "Consultar el historial de versiones de una propuesta",
             description = "Devuelve todas las versiones con fecha y autor del cambio (Criterio 4). Disponible para el "
                     + "administrador, los evaluadores asignados a la propuesta y sus autores.")
@@ -185,7 +198,8 @@ public class VersionPropuestaController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Propuesta no encontrada",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "La propuesta fue rechazada",
+            @ApiResponse(responseCode = "409", description = "La propuesta fue rechazada, no tiene versión definitiva "
+                    + "o ya tiene una autorización pendiente de usar (OPERACION_NO_PERMITIDA)",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PatchMapping("/{id}/autorizar-edicion")

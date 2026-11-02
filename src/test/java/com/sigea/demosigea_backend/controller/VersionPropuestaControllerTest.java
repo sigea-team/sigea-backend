@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.propuesta.ActualizarPropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.AutorizacionEdicionResponse;
 import com.sigea.demosigea_backend.dto.propuesta.DocumentoPropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.EnvioPropuestaResponse;
+import com.sigea.demosigea_backend.dto.propuesta.MiPropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.VersionPropuestaResponse;
@@ -256,5 +257,19 @@ class VersionPropuestaControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(versionPropuestaService, never()).autorizarEdicion(any(), any());
+    }
+
+    @Test
+    @DisplayName("Mis propuestas: GET /mis-propuestas devuelve las propuestas del usuario con su versión actual")
+    void listarMisPropuestas_Retorna200() throws Exception {
+        MiPropuestaResponse mia = new MiPropuestaResponse(envio(2).propuesta(), 2, 2, false, false, "publicada",
+                LocalDateTime.of(2026, 11, 30, 23, 59));
+        when(versionPropuestaService.listarMisPropuestas()).thenReturn(List.of(mia));
+
+        mockMvc.perform(get("/api/v1/propuestas/mis-propuestas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].propuesta.id").value(50))
+                .andExpect(jsonPath("$[0].versionActual").value(2))
+                .andExpect(jsonPath("$[0].tieneVersionDefinitiva").value(false));
     }
 }

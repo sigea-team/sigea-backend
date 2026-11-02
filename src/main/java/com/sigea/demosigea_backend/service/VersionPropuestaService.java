@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.propuesta.AutorRequest;
 import com.sigea.demosigea_backend.dto.propuesta.AutorResponse;
 import com.sigea.demosigea_backend.dto.propuesta.AutorizacionEdicionResponse;
 import com.sigea.demosigea_backend.dto.propuesta.EnvioPropuestaResponse;
+import com.sigea.demosigea_backend.dto.propuesta.MiPropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.VersionPropuestaResponse;
@@ -253,6 +254,38 @@ public class VersionPropuestaService {
     }
 
     /**
+     * Lista las propuestas del usuario autenticado (como autor o como quien las envió) con el resumen
+     * de sus versiones, para que pueda consultarlas y modificarlas (Criterio 3).
+     *
+     * @return Propuestas del usuario, más recientes primero.
+     */
+    @Transactional(readOnly = true)
+    public List<MiPropuestaResponse> listarMisPropuestas() {
+        Usuario usuario = usuarioAutenticado();
+        Long personaId = usuario.getPersona() != null ? usuario.getPersona().getId() : null;
+
+        return propuestaRepository.findMisPropuestas(personaId, usuario.getId())
+                .stream()
+                .map(p -> {
+                    List<VersionPropuesta> versiones =
+                            versionPropuestaRepository.findByPropuesta_IdOrderByNumeroVersionAsc(p.getId());
+                    int actual = versiones.isEmpty() ? 0 : versiones.get(versiones.size() - 1).getNumeroVersion();
+                    boolean definitiva = versiones.stream().anyMatch(v -> Boolean.TRUE.equals(v.getEsDefinitiva()));
+                    Convocatoria convocatoria = p.getConvocatoria();
+                    return new MiPropuestaResponse(
+                            PropuestaResponse.fromEntity(p, autoresDe(p.getId())),
+                            actual,
+                            versiones.size(),
+                            definitiva,
+                            Boolean.TRUE.equals(p.getEdicionAutorizada()),
+                            convocatoria != null && convocatoria.getEstado() != null
+                                    ? convocatoria.getEstado().name() : null,
+                            convocatoria != null ? convocatoria.getFechaCierre() : null);
+                })
+                .toList();
+    }
+
+    /**
      * Obtiene una versión específica de la propuesta.
      *
      * @param propuestaId   ID de la propuesta.
@@ -295,8 +328,14 @@ public class VersionPropuestaService {
     // ------------------------------------------------------------------
 
     /**
-     * Concede una autorización de un solo uso para modificar una propuesta bloqueada.
-     * La restricción por rol (administrador/organizador) se aplica en el controlador.
+     * Concede una autorización de un solo uso para modificar una propuesta bloqueada por tener
+     * versión definitiva (Criterio 5). La restricción por rol (administrador/organizador) se aplica
+     * en el controlador.
+     * <p>
+     * Solo se concede si la propuesta tiene versión definitiva y no tiene ya una autorización
+     * pendiente de usar: la autorización se consume al crear la siguiente versión y no puede
+     * concederse otra hasta entonces.
+     * </p>
      *
      * @param propuestaId ID de la propuesta.
      * @param motivo      Justificación, queda en la auditoría.
@@ -304,10 +343,21 @@ public class VersionPropuestaService {
      */
     @Transactional
     public AutorizacionEdicionResponse autorizarEdicion(Long propuestaId, String motivo) {
-        Propuesta propuesta = buscarPropuesta(propuestaId);
+        Propuesta propuesta = propuestaRepository.findByIdParaActualizar(propuestaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró la propuesta con ID: " + propuestaId));
         if (propuesta.getEstado() == EstadoPropuesta.rechazada) {
             throw new OperacionNoPermitidaException(
                     "La propuesta fue rechazada; no se puede autorizar su modificación.");
+        }
+        if (!versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuestaId)) {
+            throw new OperacionNoPermitidaException(
+                    "La propuesta no tiene una versión definitiva aprobada; la autorización explícita solo aplica "
+                            + "a propuestas bloqueadas por versión definitiva.");
+        }
+        if (Boolean.TRUE.equals(propuesta.getEdicionAutorizada())) {
+            throw new OperacionNoPermitidaException(
+                    "La propuesta ya tiene una autorización de edición pendiente de usar. "
+                            + "Solo puede concederse otra después de que el autor cree la siguiente versión.");
         }
         propuesta.setEdicionAutorizada(true);
         propuestaRepository.save(propuesta);
@@ -365,28 +415,29 @@ public class VersionPropuestaService {
      * Verifica que la propuesta se pueda modificar según su estado.
      * <ul>
      *   <li>Rechazada: nunca.</li>
-     *   <li>Con versión definitiva (Criterio 5), en evaluación o aprobada: solo con autorización explícita.</li>
-     *   <li>Recibida: mientras la convocatoria esté abierta.</li>
-     *   <li>Con ajustes solicitados: sí, aunque la convocatoria ya haya cerrado (CU-16).</li>
+     *   <li>Con versión definitiva (Criterio 5): solo con la autorización explícita del administrador,
+     *       que se consume en esta modificación.</li>
+     *   <li>Sin versión definitiva, la autorización no aplica y se siguen las reglas por estado:
+     *       <ul>
+     *         <li>Recibida: mientras la convocatoria esté abierta.</li>
+     *         <li>Con ajustes solicitados: sí, aunque la convocatoria ya haya cerrado (CU-16).</li>
+     *         <li>En evaluación o aprobada: no.</li>
+     *       </ul>
+     *   </li>
      * </ul>
      *
      * @return {@code true} si la modificación consume la autorización explícita.
      */
     private boolean verificarEstadoEditable(Propuesta propuesta) {
-        boolean autorizada = Boolean.TRUE.equals(propuesta.getEdicionAutorizada());
-
         if (propuesta.getEstado() == EstadoPropuesta.rechazada) {
             throw new OperacionNoPermitidaException("La propuesta fue rechazada y no admite modificaciones.");
         }
         if (versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuesta.getId())) {
-            if (!autorizada) {
+            if (!Boolean.TRUE.equals(propuesta.getEdicionAutorizada())) {
                 throw new PropuestaBloqueadaException(
                         "La propuesta ya fue aprobada en versión definitiva y no puede modificarse "
                                 + "sin autorización explícita del administrador.");
             }
-            return true;
-        }
-        if (autorizada) {
             return true;
         }
         switch (propuesta.getEstado()) {
@@ -395,8 +446,7 @@ public class VersionPropuestaService {
                 // Se permite subir la versión con los ajustes solicitados por el evaluador.
             }
             default -> throw new OperacionNoPermitidaException(String.format(
-                    "La propuesta está en estado '%s' y no puede modificarse sin autorización explícita del administrador.",
-                    propuesta.getEstado()));
+                    "La propuesta está en estado '%s' y no admite modificaciones.", propuesta.getEstado()));
         }
         return false;
     }

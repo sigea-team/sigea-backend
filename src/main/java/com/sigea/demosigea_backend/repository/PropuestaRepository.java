@@ -45,5 +45,20 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Propuesta p WHERE p.id = :id")
     Optional<Propuesta> findByIdParaActualizar(@Param("id") Long id);
+
+    /**
+     * HU-14: propuestas del usuario, es decir, aquellas en las que su persona figura como autor
+     * o que él mismo envió (creador de la versión 1). Más recientes primero.
+     *
+     * @param personaId ID de la persona del usuario (puede ser {@code null}).
+     * @param usuarioId ID del usuario.
+     * @return Propuestas del usuario sin repetir.
+     */
+    @Query("SELECT DISTINCT p FROM Propuesta p LEFT JOIN p.autores a "
+            + "WHERE a.persona.id = :personaId "
+            + "OR EXISTS (SELECT v.id FROM VersionPropuesta v "
+            + "WHERE v.propuesta = p AND v.numeroVersion = 1 AND v.creadoPor.id = :usuarioId) "
+            + "ORDER BY p.fechaEnvio DESC")
+    List<Propuesta> findMisPropuestas(@Param("personaId") Long personaId, @Param("usuarioId") Long usuarioId);
 }
 

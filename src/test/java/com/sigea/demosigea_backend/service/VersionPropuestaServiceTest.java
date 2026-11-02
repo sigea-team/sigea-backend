@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.propuesta.ActualizarPropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.AutorRequest;
 import com.sigea.demosigea_backend.dto.propuesta.AutorizacionEdicionResponse;
 import com.sigea.demosigea_backend.dto.propuesta.EnvioPropuestaResponse;
+import com.sigea.demosigea_backend.dto.propuesta.MiPropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaRequest;
 import com.sigea.demosigea_backend.dto.propuesta.PropuestaResponse;
 import com.sigea.demosigea_backend.dto.propuesta.VersionPropuestaResponse;
@@ -418,8 +419,8 @@ class VersionPropuestaServiceTest {
     }
 
     @Test
-    @DisplayName("Criterio 5: con autorización explícita se permite la edición y la autorización se consume")
-    void crearNuevaVersion_ConAutorizacion_PermiteYConsume() {
+    @DisplayName("Criterio 5: con autorización explícita se permite una sola edición; la siguiente vuelve a bloquearse")
+    void crearNuevaVersion_ConAutorizacion_PermiteUnaSolaVez() {
         Usuario usuario = autenticar(4L, 10L, CORREO_AUTOR);
         Propuesta propuesta = propuesta(EstadoPropuesta.aprobada);
         propuesta.setEdicionAutorizada(true);
@@ -439,13 +440,33 @@ class VersionPropuestaServiceTest {
         assertFalse(propuesta.getEdicionAutorizada());
         verify(propuestaRepository).save(propuesta);
         verify(convocatoriaService, never()).validarRecepcionPropuestas(any());
+
+        // La autorización ya se consumió: una segunda modificación vuelve a quedar bloqueada.
+        ActualizarPropuestaRequest otroCambio = new ActualizarPropuestaRequest(
+                null, "Otro resumen", null, null, null, null);
+        assertThrows(PropuestaBloqueadaException.class, () -> service.crearNuevaVersion(50L, otroCambio, null));
+    }
+
+    @Test
+    @DisplayName("Criterio 5: sin versión definitiva la bandera de autorización no habilita la edición")
+    void crearNuevaVersion_BanderaSinVersionDefinitiva_NoHabilitaEdicion() {
+        autenticar(4L, 10L, CORREO_AUTOR);
+        Propuesta propuesta = propuesta(EstadoPropuesta.en_evaluacion);
+        propuesta.setEdicionAutorizada(true);
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(propuestaAutorRepository.existsByPropuesta_IdAndPersona_Id(50L, 10L)).thenReturn(true);
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(50L)).thenReturn(false);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> service.crearNuevaVersion(50L, null, null));
+        verify(versionPropuestaRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("Criterio 5: el administrador concede la autorización explícita y queda en auditoría")
     void autorizarEdicion_MarcaAutorizacionYAudita() {
         Propuesta propuesta = propuesta(EstadoPropuesta.aprobada);
-        when(propuestaRepository.findById(50L)).thenReturn(Optional.of(propuesta));
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(50L)).thenReturn(true);
 
         AutorizacionEdicionResponse respuesta = service.autorizarEdicion(50L, "  Corrección de forma  ");
 
@@ -457,11 +478,65 @@ class VersionPropuestaServiceTest {
     }
 
     @Test
-    @DisplayName("Criterio 5: no se autoriza la edición de una propuesta rechazada")
-    void autorizarEdicion_Rechazada_NoPermite() {
-        when(propuestaRepository.findById(50L)).thenReturn(Optional.of(propuesta(EstadoPropuesta.rechazada)));
+    @DisplayName("Criterio 5: no se concede otra autorización mientras haya una pendiente de usar")
+    void autorizarEdicion_AutorizacionPendiente_Rechaza() {
+        Propuesta propuesta = propuesta(EstadoPropuesta.aprobada);
+        propuesta.setEdicionAutorizada(true);
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(50L)).thenReturn(true);
 
         assertThrows(OperacionNoPermitidaException.class, () -> service.autorizarEdicion(50L, "motivo"));
         verify(propuestaRepository, never()).save(any());
+        verify(auditoriaService, never()).registrar(any(), anyString(), any(), anyMap());
+    }
+
+    @Test
+    @DisplayName("Criterio 5: no se autoriza la edición de una propuesta sin versión definitiva")
+    void autorizarEdicion_SinVersionDefinitiva_Rechaza() {
+        Propuesta propuesta = propuesta(EstadoPropuesta.en_evaluacion);
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(50L)).thenReturn(false);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> service.autorizarEdicion(50L, "motivo"));
+        assertFalse(propuesta.getEdicionAutorizada());
+        verify(propuestaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 5: no se autoriza la edición de una propuesta rechazada")
+    void autorizarEdicion_Rechazada_NoPermite() {
+        when(propuestaRepository.findByIdParaActualizar(50L))
+                .thenReturn(Optional.of(propuesta(EstadoPropuesta.rechazada)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> service.autorizarEdicion(50L, "motivo"));
+        verify(propuestaRepository, never()).save(any());
+    }
+
+    // ------------------------------------------------------------------
+    // Mis propuestas
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Mis propuestas: devuelve las propuestas del usuario con su versión actual y si están bloqueadas")
+    void listarMisPropuestas_DevuelveResumenDeVersiones() {
+        Usuario usuario = autenticar(4L, 10L, CORREO_AUTOR);
+        Propuesta propuesta = propuesta(EstadoPropuesta.aprobada);
+        propuesta.getConvocatoria().setFechaCierre(LocalDateTime.of(2026, 11, 30, 23, 59));
+        VersionPropuesta v1 = versionConDocumento(propuesta, 1, 7L, usuario);
+        VersionPropuesta v2 = versionConDocumento(propuesta, 2, 8L, usuario);
+        v2.setEsDefinitiva(true);
+        when(propuestaRepository.findMisPropuestas(10L, 4L)).thenReturn(List.of(propuesta));
+        when(versionPropuestaRepository.findByPropuesta_IdOrderByNumeroVersionAsc(50L)).thenReturn(List.of(v1, v2));
+        when(propuestaAutorRepository.findByPropuesta_IdOrderByOrdenAsc(50L)).thenReturn(List.of());
+
+        List<MiPropuestaResponse> mias = service.listarMisPropuestas();
+
+        assertEquals(1, mias.size());
+        assertEquals(50L, mias.get(0).propuesta().id());
+        assertEquals(2, mias.get(0).versionActual());
+        assertEquals(2, mias.get(0).totalVersiones());
+        assertTrue(mias.get(0).tieneVersionDefinitiva());
+        assertFalse(mias.get(0).edicionAutorizada());
+        assertEquals("publicada", mias.get(0).convocatoriaEstado());
     }
 }
