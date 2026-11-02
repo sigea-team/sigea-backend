@@ -45,6 +45,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`propuestas`](#propuestas) (`Propuesta`): Trabajos, ponencias o artículos académicos postulados por autores a una convocatoria.
 - [`propuestas_autores`](#propuestas_autores) (`PropuestaAutor`): Autores y coautores vinculados a una propuesta académica con orden de autoría.
 - [`versiones_propuesta`](#versiones_propuesta) (`VersionPropuesta`): Historial de versiones y archivos adjuntos (PDF/documentos) de una propuesta a lo largo del proceso de revisión.
+- [`documentos_propuesta`](#documentos_propuesta) (`DocumentoPropuesta`): Documentos adjuntos a cada versión de una propuesta (HU-14).
 
 ### 5. Sistema de Evaluación por Pares
 - [`rubricas_evaluacion`](#rubricas_evaluacion) (`RubricaEvaluacion`): Instrumentos o rúbricas de evaluación configuradas para calificar propuestas en una convocatoria.
@@ -694,6 +695,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'recibida'` | CHECK `estado IN ('recibida','en_evaluacion','aprobada','ajustes','rechazada'` |
 | `fecha_envio` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `edicion_autorizada` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-14 Criterio 5: autorización explícita de un solo uso para modificar una propuesta bloqueada (changeset `16-hu14`). |
 
 **Relaciones Foráneas Salientes**:
 - Columna `convocatoria_id` -> [`convocatorias.convocatoria_id`](#convocatorias) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -734,12 +736,48 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `documento_url` | `VARCHAR(255)` | `String` | NO |  | - | - |
 | `observaciones` | `TEXT` | `String` | SÍ |  | - | - |
 | `fecha_creacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `creado_por` | `BIGINT` | `Long` | SÍ | FK | - | HU-14 Criterio 4: usuario que hizo el cambio. FK -> [`usuarios.usuario_id`](#usuarios) |
+| `titulo` | `VARCHAR(200)` | `String` | SÍ |  | - | HU-14 Criterio 3: copia del título en esta versión |
+| `resumen` | `TEXT` | `String` | SÍ |  | - | HU-14 Criterio 3: copia del resumen en esta versión |
+| `palabras_clave` | `VARCHAR(255)` | `String` | SÍ |  | - | HU-14 Criterio 3: copia de las palabras clave en esta versión |
+| `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | HU-14 Criterio 3: línea temática en esta versión. FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
+| `es_definitiva` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-14 Criterio 5 / RF29: versión definitiva aprobada (máximo una por propuesta) |
+
+`observaciones` guarda la nota del autor que describe el cambio de la versión. `documento_url` guarda la ruta del documento principal; la lista completa de archivos está en [`documentos_propuesta`](#documentos_propuesta). Columnas HU-14 agregadas por el changeset `16-hu14-versiones-propuesta.sql`.
 
 **Índices Definidos**:
 - UNIQUE Índice `versiones_propuesta_propuesta_id_numero_version_idx` sobre (`propuesta_id`, `numero_version`)
+- UNIQUE Índice parcial `uq_versiones_propuesta_una_definitiva` sobre (`propuesta_id`) `WHERE es_definitiva = true`
 
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `creado_por` -> [`usuarios.usuario_id`](#usuarios)
+- Columna `linea_tematica_id` -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas)
+
+---
+
+### `documentos_propuesta`
+
+**Descripción**: Documentos adjuntos a cada versión de una propuesta (HU-14, RF20). Creada por el changeset Liquibase `16-hu14-versiones-propuesta.sql`. Cuando una versión conserva un documento de la anterior, se crea una fila nueva que apunta al mismo archivo almacenado.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.DocumentoPropuesta` (`@Entity @Table(name = "documentos_propuesta")`)  
+**Clave Primaria**: `documento_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `documento_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `version_id` | `INT` | `Long` | NO | FK | - | FK -> [`versiones_propuesta.version_id`](#versiones_propuesta) |
+| `nombre_original` | `VARCHAR(255)` | `String` | NO |  | - | Nombre del archivo tal como lo subió el autor |
+| `ruta_almacenamiento` | `VARCHAR(255)` | `String` | NO |  | - | Ruta relativa dentro del almacenamiento |
+| `tipo_contenido` | `VARCHAR(100)` | `String` | SÍ |  | - | Tipo MIME |
+| `tamano_bytes` | `BIGINT` | `Long` | NO |  | - | CHECK `tamano_bytes > 0` |
+| `principal` | `BOOLEAN` | `Boolean` | NO |  | `false` | Documento principal de la versión |
+| `fecha_carga` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+
+**Índices Definidos**:
+- Índice `idx_documentos_propuesta_version` sobre (`version_id`)
+
+**Relaciones Foráneas Salientes**:
+- Columna `version_id` -> [`versiones_propuesta.version_id`](#versiones_propuesta) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 
 ---
 

@@ -124,4 +124,13 @@ public interface AsignacionEvaluacionRepository extends JpaRepository<Asignacion
      * @return número de asignaciones abiertas.
      */
     long countByComiteEvaluador_IdAndEstadoNot(Long comiteEvaluadorId, EstadoAsignacion estado);
+
+    /**
+     * HU-14, Criterio 4 (RNF08): indica si la persona es evaluadora asignada a la propuesta.
+     *
+     * @param propuestaId ID de la propuesta.
+     * @param personaId   ID de la persona del evaluador.
+     * @return {@code true} si existe una asignación de esa propuesta a ese evaluador.
+     */
+    boolean existsByPropuesta_IdAndComiteEvaluador_Persona_Id(Long propuestaId, Long personaId);
 }
