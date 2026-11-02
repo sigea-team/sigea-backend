@@ -2,13 +2,18 @@ package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repositorio Spring Data JPA para la entidad {@link Evento} (HU-04: RF03 y RF04).
@@ -57,4 +62,15 @@ public interface EventoRepository extends JpaRepository<Evento, Long>, JpaSpecif
      * Sirve para identificar los eventos cuyo periodo ya terminó (por ejemplo, para el cierre formal, CU-32).
      */
     List<Evento> findByEstadoInAndFechaFinBefore(Collection<EstadoEvento> estados, LocalDate fecha);
+
+    /**
+     * HU-21: obtiene el evento bloqueando su fila mientras dura la transacción, para que dos programaciones
+     * simultáneas del mismo evento no pasen la revisión de cruces al mismo tiempo.
+     *
+     * @param id ID del evento.
+     * @return el evento bloqueado para escritura.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Evento e WHERE e.id = :id")
+    Optional<Evento> findByIdParaProgramar(@Param("id") Long id);
 }

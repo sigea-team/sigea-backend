@@ -2,6 +2,7 @@ package com.sigea.demosigea_backend.service;
 
 import com.sigea.demosigea_backend.dto.evaluacion.AsignacionEvaluacionResponse;
 import com.sigea.demosigea_backend.dto.evaluacion.CalificacionCriterioRequest;
+import com.sigea.demosigea_backend.dto.evaluacion.CriterioRubricaResponse;
 import com.sigea.demosigea_backend.dto.evaluacion.EvaluacionResponse;
 import com.sigea.demosigea_backend.dto.evaluacion.RegistrarEvaluacionRequest;
 import com.sigea.demosigea_backend.dto.evaluacion.ResultadoEvaluacionResponse;
@@ -23,7 +24,13 @@ import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
+import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,6 +70,7 @@ public class EvaluacionService {
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final CriterioRubricaRepository criterioRubricaRepository;
+    private final UsuarioRepository usuarioRepository;
     private final RubricaEvaluacionRepository rubricaRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
     private final PropuestaRepository propuestaRepository;
@@ -92,6 +100,9 @@ public class EvaluacionService {
         AsignacionEvaluacion asignacion = asignacionRepository.findById(request.asignacionId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encontró la asignación de evaluación con ID: " + request.asignacionId()));
+
+        // Solo el evaluador dueño de la asignación puede calificarla
+        verificarEsDelEvaluador(asignacion);
 
         Long convocatoriaId = asignacion.getComiteEvaluador().getConvocatoria().getId();
 
@@ -182,7 +193,46 @@ public class EvaluacionService {
                 .map(EvaluacionResponse::fromEntity)
                 .collect(Collectors.toList());
 
-        return AsignacionEvaluacionResponse.fromEntity(asignacion, evaluacionesResp);
+        return AsignacionEvaluacionResponse.fromEntity(asignacion, mapearCriterios(criterios), evaluacionesResp);
+    }
+
+    /**
+     * Verifica que la asignación pertenezca al usuario autenticado (su persona es la del comité evaluador).
+     *
+     * @param asignacion asignación a verificar.
+     * @throws AccessDeniedException si la asignación es de otro evaluador o no hay sesión.
+     */
+    private void verificarEsDelEvaluador(AsignacionEvaluacion asignacion) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long personaSesion = (auth == null || auth instanceof AnonymousAuthenticationToken) ? null
+                : usuarioRepository.findByPersona_CorreoIgnoreCase(auth.getName())
+                        .map(u -> u.getPersona().getId())
+                        .orElse(null);
+        Long personaEvaluador = asignacion.getComiteEvaluador().getPersona().getId();
+        if (personaSesion == null || !personaSesion.equals(personaEvaluador)) {
+            throw new AccessDeniedException("Esta asignación de evaluación pertenece a otro evaluador.");
+        }
+    }
+
+    /** @return true si el usuario autenticado tiene rol de administrador. */
+    private static boolean esAdministrador() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> Set.of("ROLE_ADMIN", "ADMIN", "ADMINISTRADOR", "ROLE_ADMINISTRADOR").contains(a));
+    }
+
+    /**
+     * Convierte los criterios de la rúbrica a DTO.
+     *
+     * @param criterios criterios de la rúbrica.
+     * @return lista de DTOs de criterio.
+     */
+    private static List<CriterioRubricaResponse> mapearCriterios(List<CriterioRubrica> criterios) {
+        return criterios.stream().map(CriterioRubricaResponse::fromEntity).toList();
     }
 
     /**
@@ -297,13 +347,25 @@ public class EvaluacionService {
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encontró la asignación de evaluación con ID: " + asignacionId));
 
+        // El evaluador solo ve sus asignaciones; el administrador puede consultar cualquiera
+        if (!esAdministrador()) {
+            verificarEsDelEvaluador(asignacion);
+        }
+
         List<EvaluacionResponse> evaluacionesResp = evaluacionRepository
                 .findByAsignacion_Id(asignacionId)
                 .stream()
                 .map(EvaluacionResponse::fromEntity)
                 .collect(Collectors.toList());
 
-        return AsignacionEvaluacionResponse.fromEntity(asignacion, evaluacionesResp);
+        // Criterios de la rúbrica activa: sin ellos el evaluador no sabría qué calificar.
+        Long convocatoriaId = asignacion.getComiteEvaluador().getConvocatoria().getId();
+        List<CriterioRubricaResponse> criterios = rubricaRepository
+                .findByConvocatoria_IdAndActivoTrue(convocatoriaId)
+                .map(r -> mapearCriterios(criterioRubricaRepository.findByRubrica_Id(r.getId())))
+                .orElse(List.of());
+
+        return AsignacionEvaluacionResponse.fromEntity(asignacion, criterios, evaluacionesResp);
     }
 
     /**

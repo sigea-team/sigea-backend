@@ -28,6 +28,7 @@ public enum TipoOperacionAuditoria {
     ROL_ACTUALIZADO("ROLES", "Modificación de un rol o de sus permisos"),
     ROL_ELIMINADO("ROLES", "Eliminación de un rol"),
     USUARIO_REGISTRADO("USUARIOS", "Registro de una nueva cuenta de usuario"),
+    USUARIO_ROLES_ACTUALIZADOS("USUARIOS", "Asignación o retiro de roles de un usuario (HU-02)"),
     CONTRASENA_RESTABLECIDA("USUARIOS", "Restablecimiento de contraseña mediante token de recuperación"),
 
     // ----- Planeación y configuración de eventos (HU-06) -----
@@ -82,7 +83,19 @@ public enum TipoOperacionAuditoria {
     PUNTUACION_CALCULADA("EVALUACION", "Cálculo automático de puntuación ponderada de una propuesta (HU-17)"),
 
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
-    RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)");
+    RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)"),
+
+    // ----- Salas y disponibilidad (HU-Salas) -----
+    SALA_CREADA("SALAS", "Creación de una sala del evento"),
+    SALA_ACTUALIZADA("SALAS", "Actualización de una sala del evento"),
+    SALA_ELIMINADA("SALAS", "Eliminación de una sala del evento"),
+    DISPONIBILIDAD_SALA_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de una sala"),
+    DISPONIBILIDAD_PONENTE_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de un ponente"),
+
+    // HU-21: programación de actividades de la agenda
+    ACTIVIDAD_PROGRAMADA("AGENDA", "Programación de una actividad en la agenda del evento (HU-21)"),
+    ACTIVIDAD_REPROGRAMADA("AGENDA", "Cambio de horario, sala, ponente u otros datos de una actividad (HU-21)"),
+    ACTIVIDAD_ELIMINADA("AGENDA", "Eliminación de una actividad de la agenda (HU-21)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

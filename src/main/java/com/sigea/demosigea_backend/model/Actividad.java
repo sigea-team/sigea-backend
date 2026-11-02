@@ -88,9 +88,13 @@ public class Actividad {
     @Column(name = "hora_fin", nullable = false)
     private LocalTime horaFin;
 
-    /** ID de la sala asignada (FK a {@code salas}). */
-    @Column(name = "sala_id", nullable = false)
-    private Long salaId;
+    /**
+     * Sala asignada a la actividad (FK a {@code salas}).
+     * Se reemplaza el campo escalar {@code salaId} por la relación JPA al implementar HU-Salas.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sala_id")
+    private Sala sala;
 
     /** Ponente asignado (opcional). */
     @ManyToOne(fetch = FetchType.LAZY)

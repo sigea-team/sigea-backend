@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
@@ -387,6 +388,33 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-Salas, Criterio 3: ya existe una sala con ese nombre en el evento.
+     * Al ser subclase de {@link RecursoDuplicadoException}, Spring elige este manejador por ser
+     * el más específico, y se responde con el código SALA_DUPLICADA.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código SALA_DUPLICADA.
+     */
+    @ExceptionHandler(SalaDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleSalaDuplicada(SalaDuplicadaException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "SALA_DUPLICADA", request);
+    }
+
+    /**
+     * HU-Salas, Criterio 4: el nuevo aforo máximo es menor que el número de inscripciones
+     * activas en alguna actividad de la sala.
+     * Al ser subclase de {@link OperacionNoPermitidaException}, Spring elige este manejador por ser
+     * el más específico, y se responde con el código AFORO_INVALIDO.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código AFORO_INVALIDO.
+     */
+    @ExceptionHandler(AforoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> handleAforoInvalido(AforoInvalidoException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "AFORO_INVALIDO", request);
+    }
+
+    /**
      * Captura operaciones denegadas por reglas de negocio o violaciones de integridad referencial controlada.
      *
      * @param ex Excepción de operación no permitida.
@@ -633,6 +661,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAlmacenamiento(AlmacenamientoException ex,
                                                               HttpServletRequest request) {
         return construir(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), "ERROR_ALMACENAMIENTO", request);
+    }
+
+    /**
+     * HU-21: la actividad no se guarda por cruces con la agenda (CONFLICTO_PROGRAMACION) o por advertencias de
+     * disponibilidad sin confirmar (CONFIRMACION_REQUERIDA). Devuelve la lista de conflictos y advertencias.
+     *
+     * @param ex      excepción con los conflictos y advertencias.
+     * @param request petición HTTP.
+     * @return 409 CONFLICT con {@link ProgramacionRechazadaResponse}.
+     */
+    @ExceptionHandler(ProgramacionActividadException.class)
+    public ResponseEntity<ProgramacionRechazadaResponse> handleProgramacionActividad(
+            ProgramacionActividadException ex, HttpServletRequest request) {
+        ProgramacionRechazadaResponse body = new ProgramacionRechazadaResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                request != null ? request.getRequestURI() : null,
+                ex.getConflictos(),
+                ex.getAdvertencias());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,

@@ -339,10 +339,29 @@ public class AuthService {
                 usuario.getId(),
                 usuario.getPersona().getCorreo(),
                 nombreCompleto,
-                rolesNombres
+                rolesNombres,
+                permisosDe(usuario)
         );
     }
     
+    /**
+     * Códigos de permiso que el usuario obtiene por sus roles, sin repetir y ordenados.
+     * El frontend los usa para decidir qué perfiles puede elegir (p. ej. «Evaluador» exige PROPUESTAS_EVALUAR).
+     *
+     * @param usuario usuario autenticado.
+     * @return lista de códigos de permiso.
+     */
+    private static List<String> permisosDe(Usuario usuario) {
+        return usuario.getRoles().stream()
+                .filter(r -> r.getPermisos() != null)
+                .flatMap(r -> r.getPermisos().stream())
+                .map(com.sigea.demosigea_backend.model.Permiso::getCodigo)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     /**
      * Reinicia el contador de intentos fallidos y elimina la marca de bloqueo temporal.
      * <p>
