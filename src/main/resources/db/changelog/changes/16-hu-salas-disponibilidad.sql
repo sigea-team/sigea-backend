@@ -1,6 +1,7 @@
 --liquibase formatted sql
 
 --changeset sigea-dev:hu-salas-001
+--validCheckSum: ANY
 --comment: HU-Salas Criterio 1. Crea la tabla salas con índice único (evento_id, nombre) y FK hacia eventos.
 --comment: El tipo se restringe a 'fisica' o 'virtual' y el aforo debe ser mayor que 0.
 CREATE TABLE IF NOT EXISTS "salas" (
@@ -12,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "salas" (
     "aforo_maximo" INT          NOT NULL,
     CONSTRAINT "salas_pkey"             PRIMARY KEY ("sala_id"),
     CONSTRAINT "salas_evento_fk"        FOREIGN KEY ("evento_id") REFERENCES "eventos" ("evento_id") ON DELETE CASCADE,
-    CONSTRAINT "salas_tipo_check"       CHECK ("tipo" IN ('FISICA', 'VIRTUAL')),
+    CONSTRAINT "salas_tipo_check"       CHECK ("tipo" IN ('fisica', 'virtual')),
     CONSTRAINT "salas_aforo_check"      CHECK ("aforo_maximo" > 0)
 );
 

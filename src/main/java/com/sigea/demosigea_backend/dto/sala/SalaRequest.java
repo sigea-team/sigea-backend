@@ -29,7 +29,7 @@ public record SalaRequest(
         String ubicacion,
 
         @NotNull(message = "El tipo de sala es obligatorio")
-        @Schema(description = "Tipo de sala: FISICA o VIRTUAL", example = "FISICA")
+        @Schema(description = "Tipo de sala: fisica o virtual (como en el CHECK de la tabla salas)", example = "fisica")
         TipoSala tipo,
 
         @NotNull(message = "El aforo máximo es obligatorio")

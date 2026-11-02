@@ -58,7 +58,7 @@ public class Sala {
     @Column(name = "ubicacion", length = 150)
     private String ubicacion;
 
-    /** Tipo de sala: FISICA o VIRTUAL. */
+    /** Tipo de sala: fisica o virtual (valores del CHECK de la tabla). */
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", length = 20, nullable = false)
     private TipoSala tipo;
