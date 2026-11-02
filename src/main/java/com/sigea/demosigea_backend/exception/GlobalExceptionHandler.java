@@ -385,6 +385,33 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-Salas, Criterio 3: ya existe una sala con ese nombre en el evento.
+     * Al ser subclase de {@link RecursoDuplicadoException}, Spring elige este manejador por ser
+     * el más específico, y se responde con el código SALA_DUPLICADA.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código SALA_DUPLICADA.
+     */
+    @ExceptionHandler(SalaDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleSalaDuplicada(SalaDuplicadaException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "SALA_DUPLICADA", request);
+    }
+
+    /**
+     * HU-Salas, Criterio 4: el nuevo aforo máximo es menor que el número de inscripciones
+     * activas en alguna actividad de la sala.
+     * Al ser subclase de {@link OperacionNoPermitidaException}, Spring elige este manejador por ser
+     * el más específico, y se responde con el código AFORO_INVALIDO.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código AFORO_INVALIDO.
+     */
+    @ExceptionHandler(AforoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> handleAforoInvalido(AforoInvalidoException ex,
+                                                              HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "AFORO_INVALIDO", request);
+    }
+
+    /**
      * Captura operaciones denegadas por reglas de negocio o violaciones de integridad referencial controlada.
      *
      * @param ex Excepción de operación no permitida.
