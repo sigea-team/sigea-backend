@@ -942,6 +942,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `ubicacion` | `VARCHAR(150)` | `String` | SÍ |  | - | - |
 | `tipo` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo IN ('fisica','virtual'` |
 | `aforo_maximo` | `INT` | `Integer` | NO |  | - | CHECK `aforo_maximo > 0` |
+| `permite_simultaneidad` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-21: admite actividades simultáneas en la misma sala (changeset 18) |
 
 **Índices Definidos**:
 - UNIQUE Índice `salas_evento_id_nombre_idx` sobre (`evento_id`, `nombre`)

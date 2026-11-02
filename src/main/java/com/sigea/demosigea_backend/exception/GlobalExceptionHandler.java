@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
@@ -585,6 +586,29 @@ public class GlobalExceptionHandler {
         return construir(HttpStatus.METHOD_NOT_ALLOWED,
                 "El método " + ex.getMethod() + " no está permitido en este recurso.",
                 "METODO_NO_PERMITIDO", request);
+    }
+
+    /**
+     * HU-21: la actividad no se guarda por cruces con la agenda (CONFLICTO_PROGRAMACION) o por advertencias de
+     * disponibilidad sin confirmar (CONFIRMACION_REQUERIDA). Devuelve la lista de conflictos y advertencias.
+     *
+     * @param ex      excepción con los conflictos y advertencias.
+     * @param request petición HTTP.
+     * @return 409 CONFLICT con {@link ProgramacionRechazadaResponse}.
+     */
+    @ExceptionHandler(ProgramacionActividadException.class)
+    public ResponseEntity<ProgramacionRechazadaResponse> handleProgramacionActividad(
+            ProgramacionActividadException ex, HttpServletRequest request) {
+        ProgramacionRechazadaResponse body = new ProgramacionRechazadaResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                request != null ? request.getRequestURI() : null,
+                ex.getConflictos(),
+                ex.getAdvertencias());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,

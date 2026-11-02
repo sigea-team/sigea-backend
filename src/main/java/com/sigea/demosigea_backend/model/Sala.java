@@ -66,4 +66,12 @@ public class Sala {
     /** Aforo máximo de la sala (debe ser mayor que 0). */
     @Column(name = "aforo_maximo", nullable = false)
     private Integer aforoMaximo;
+
+    /**
+     * HU-21 Criterio 3: si es {@code true}, la sala admite varias actividades a la misma hora cuando todas están
+     * marcadas como simultáneas (p. ej. una sala virtual con varias salas de reunión). Por defecto no lo admite.
+     */
+    @Builder.Default
+    @Column(name = "permite_simultaneidad", nullable = false)
+    private boolean permiteSimultaneidad = false;
 }

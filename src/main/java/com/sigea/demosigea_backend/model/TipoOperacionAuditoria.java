@@ -88,7 +88,12 @@ public enum TipoOperacionAuditoria {
     SALA_ACTUALIZADA("SALAS", "Actualización de una sala del evento"),
     SALA_ELIMINADA("SALAS", "Eliminación de una sala del evento"),
     DISPONIBILIDAD_SALA_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de una sala"),
-    DISPONIBILIDAD_PONENTE_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de un ponente");
+    DISPONIBILIDAD_PONENTE_ACTUALIZADA("SALAS", "Actualización de disponibilidad horaria de un ponente"),
+
+    // HU-21: programación de actividades de la agenda
+    ACTIVIDAD_PROGRAMADA("AGENDA", "Programación de una actividad en la agenda del evento (HU-21)"),
+    ACTIVIDAD_REPROGRAMADA("AGENDA", "Cambio de horario, sala, ponente u otros datos de una actividad (HU-21)"),
+    ACTIVIDAD_ELIMINADA("AGENDA", "Eliminación de una actividad de la agenda (HU-21)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

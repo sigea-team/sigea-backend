@@ -125,6 +125,7 @@ public class SalaService {
                 .ubicacion(request.ubicacion() != null ? request.ubicacion().strip() : null)
                 .tipo(request.tipo())
                 .aforoMaximo(request.aforoMaximo())
+                .permiteSimultaneidad(Boolean.TRUE.equals(request.permiteSimultaneidad()))
                 .build();
 
         Sala guardada = guardarControlandoDuplicado(sala, evento);
@@ -177,6 +178,9 @@ public class SalaService {
         sala.setUbicacion(request.ubicacion() != null ? request.ubicacion().strip() : null);
         sala.setTipo(request.tipo());
         sala.setAforoMaximo(nuevoAforo);
+        if (request.permiteSimultaneidad() != null) {
+            sala.setPermiteSimultaneidad(request.permiteSimultaneidad());
+        }
 
         Sala guardada = guardarControlandoDuplicado(sala, evento);
 
