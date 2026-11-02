@@ -21,7 +21,8 @@ public record SalaResponse(
         @Schema(description = "Ubicación física o URL", example = "Edificio A, piso 2") String ubicacion,
         @Schema(description = "Tipo de sala: fisica o virtual") TipoSala tipo,
         @Schema(description = "Aforo máximo", example = "200") Integer aforoMaximo,
-        @Schema(description = "Franjas de disponibilidad horaria registradas") List<DisponibilidadSalaResponse> disponibilidades
+        @Schema(description = "Franjas de disponibilidad horaria registradas") List<DisponibilidadSalaResponse> disponibilidades,
+        @Schema(description = "HU-21: la sala admite actividades simultáneas", example = "false") boolean permiteSimultaneidad
 ) {
     /**
      * Construye el DTO desde la entidad JPA con sus disponibilidades ya cargadas.
@@ -38,7 +39,8 @@ public record SalaResponse(
                 sala.getUbicacion(),
                 sala.getTipo(),
                 sala.getAforoMaximo(),
-                disponibilidades
+                disponibilidades,
+                sala.isPermiteSimultaneidad()
         );
     }
 }

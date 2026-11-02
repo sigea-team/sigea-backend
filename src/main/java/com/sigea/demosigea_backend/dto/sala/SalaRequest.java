@@ -39,6 +39,10 @@ public record SalaRequest(
 
         @Valid
         @Schema(description = "Franjas de disponibilidad horaria (opcional al crear/actualizar)")
-        List<DisponibilidadHorariaRequest> disponibilidades
+        List<DisponibilidadHorariaRequest> disponibilidades,
+
+        @Schema(description = "HU-21: la sala admite actividades simultáneas. Opcional: si no se envía, al crear es "
+                + "false y al actualizar se conserva el valor actual.", example = "false")
+        Boolean permiteSimultaneidad
 ) {
 }

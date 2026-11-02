@@ -2,9 +2,13 @@ package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.Actividad;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repositorio Spring Data JPA para {@link Actividad}.
@@ -39,4 +43,34 @@ public interface ActividadRepository extends JpaRepository<Actividad, Long> {
      * Se usa para detectar conflictos al actualizar la disponibilidad horaria del ponente.
      */
     List<Actividad> findByPonente_IdAndEvento_Id(Long ponenteId, Long eventoId);
+
+    /**
+     * HU-21 Criterio 1: agenda completa del evento en orden cronológico, con sala, ponente y tipo cargados.
+     *
+     * @param eventoId ID del evento.
+     * @return actividades ordenadas por fecha, hora de inicio e ID.
+     */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.tipoActividad LEFT JOIN FETCH a.sala LEFT JOIN FETCH a.ponente "
+            + "WHERE a.evento.id = :eventoId ORDER BY a.fecha, a.horaInicio, a.id")
+    List<Actividad> findAgendaDelEvento(@Param("eventoId") Long eventoId);
+
+    /**
+     * HU-21 Criterios 2 y 5: actividades del evento en una fecha, para revisar los cruces.
+     *
+     * @param eventoId ID del evento.
+     * @param fecha    fecha de la actividad a revisar.
+     * @return actividades de ese día en orden cronológico.
+     */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.tipoActividad LEFT JOIN FETCH a.sala LEFT JOIN FETCH a.ponente "
+            + "WHERE a.evento.id = :eventoId AND a.fecha = :fecha ORDER BY a.horaInicio, a.id")
+    List<Actividad> findAgendaDelEventoEnFecha(@Param("eventoId") Long eventoId, @Param("fecha") LocalDate fecha);
+
+    /**
+     * Busca una actividad dentro de su evento.
+     *
+     * @param id       ID de la actividad.
+     * @param eventoId ID del evento.
+     * @return la actividad si pertenece al evento.
+     */
+    Optional<Actividad> findByIdAndEvento_Id(Long id, Long eventoId);
 }
