@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
  * Mapea la tabla {@code resultados_evaluacion}. El resultado se genera automáticamente cuando todas
  * las asignaciones de la propuesta han sido completadas, calculando la puntuación ponderada con base
  * en los pesos de los criterios de la rúbrica y el promedio de calificaciones de todos los evaluadores.
+ * La clasificación se obtiene con los umbrales de la convocatoria y se aplica a la propuesta en HU-18.
  * </p>
  *
  * @author SIGEA Development Team
@@ -66,11 +67,26 @@ public class ResultadoEvaluacion {
     @Column(name = "fecha_calculo", nullable = false)
     private LocalDateTime fechaCalculo;
 
+    /**
+     * HU-18, Criterio 2: la clasificación la fijó manualmente el administrador (con motivo en el historial).
+     * El recálculo automático de HU-17 actualiza la puntuación pero no reemplaza esta clasificación.
+     */
+    @Builder.Default
+    @Column(name = "ajuste_manual", nullable = false)
+    private Boolean ajusteManual = false;
+
+    /** HU-18: fecha en que la clasificación se aplicó a la propuesta ({@code null} si aún no se aplicó). */
+    @Column(name = "fecha_clasificacion")
+    private LocalDateTime fechaClasificacion;
+
     /** Establece la fecha de cálculo automáticamente si no fue suministrada antes de persistir. */
     @PrePersist
     void antesDeInsertar() {
         if (fechaCalculo == null) {
             fechaCalculo = LocalDateTime.now();
+        }
+        if (ajusteManual == null) {
+            ajusteManual = false;
         }
     }
 }

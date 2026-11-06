@@ -16,6 +16,7 @@ import com.sigea.demosigea_backend.model.CriterioRubrica;
 import com.sigea.demosigea_backend.model.EstadoAsignacion;
 import com.sigea.demosigea_backend.model.Evaluacion;
 import com.sigea.demosigea_backend.model.Propuesta;
+import com.sigea.demosigea_backend.model.ReglasClasificacion;
 import com.sigea.demosigea_backend.model.ResultadoEvaluacion;
 import com.sigea.demosigea_backend.model.RubricaEvaluacion;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
@@ -358,15 +359,9 @@ public class EvaluacionService {
         }
         puntuacionPonderada = puntuacionPonderada.setScale(2, RoundingMode.HALF_UP);
 
-        // Determinar clasificación
-        ClasificacionResultado clasificacion;
-        if (puntuacionPonderada.compareTo(new BigDecimal("7.0")) >= 0) {
-            clasificacion = ClasificacionResultado.aprobada;
-        } else if (puntuacionPonderada.compareTo(new BigDecimal("5.0")) >= 0) {
-            clasificacion = ClasificacionResultado.aprobada_con_ajustes;
-        } else {
-            clasificacion = ClasificacionResultado.rechazada;
-        }
+        // Determinar clasificación con los umbrales de la convocatoria (HU-18; por defecto 7 y 5)
+        ClasificacionResultado clasificacion = ReglasClasificacion.clasificar(puntuacionPonderada,
+                asignaciones.get(0).getComiteEvaluador().getConvocatoria());
 
         // Upsert del resultado
         Propuesta propuesta = asignaciones.get(0).getPropuesta();
@@ -374,7 +369,12 @@ public class EvaluacionService {
                 .orElse(ResultadoEvaluacion.builder().propuesta(propuesta).build());
 
         resultado.setPuntuacionPonderada(puntuacionPonderada);
-        resultado.setClasificacion(clasificacion);
+        if (Boolean.TRUE.equals(resultado.getAjusteManual()) && resultado.getClasificacion() != null) {
+            // HU-18, Criterio 2: el ajuste manual del administrador no se reemplaza al recalcular
+            clasificacion = resultado.getClasificacion();
+        } else {
+            resultado.setClasificacion(clasificacion);
+        }
         resultado.setFechaCalculo(LocalDateTime.now());
         resultadoRepository.save(resultado);
 

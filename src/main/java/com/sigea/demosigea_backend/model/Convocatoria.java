@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -75,6 +77,33 @@ public class Convocatoria {
     @Enumerated(EnumType.STRING)
     @Column(name = "estado", length = 20, nullable = false)
     private EstadoConvocatoria estado = EstadoConvocatoria.borrador;
+
+    /**
+     * HU-18: puntuación ponderada mínima (escala 0 - 10) para clasificar una propuesta como aprobada.
+     * Por defecto 7, el valor que usaba HU-17.
+     */
+    @Builder.Default
+    @Column(name = "umbral_aceptacion", precision = 4, scale = 2, nullable = false)
+    private BigDecimal umbralAceptacion = ReglasClasificacion.UMBRAL_ACEPTACION_POR_DEFECTO;
+
+    /**
+     * HU-18: puntuación ponderada mínima (escala 0 - 10) para clasificar una propuesta como aprobada con ajustes.
+     * Por debajo de este valor la propuesta queda rechazada. Por defecto 5.
+     */
+    @Builder.Default
+    @Column(name = "umbral_ajustes", precision = 4, scale = 2, nullable = false)
+    private BigDecimal umbralAjustes = ReglasClasificacion.UMBRAL_AJUSTES_POR_DEFECTO;
+
+    /** HU-18: evita insertar umbrales nulos (las columnas son NOT NULL). */
+    @PrePersist
+    void antesDeInsertar() {
+        if (umbralAceptacion == null) {
+            umbralAceptacion = ReglasClasificacion.UMBRAL_ACEPTACION_POR_DEFECTO;
+        }
+        if (umbralAjustes == null) {
+            umbralAjustes = ReglasClasificacion.UMBRAL_AJUSTES_POR_DEFECTO;
+        }
+    }
 
     /**
      * Evalúa si en el momento especificado la convocatoria está abierta para la recepción de propuestas.

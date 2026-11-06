@@ -90,6 +90,11 @@ public enum TipoOperacionAuditoria {
     EVALUACION_REGISTRADA("EVALUACION", "Registro de calificaciones de evaluación de una propuesta (HU-17)"),
     PUNTUACION_CALCULADA("EVALUACION", "Cálculo automático de puntuación ponderada de una propuesta (HU-17)"),
 
+    // ----- Clasificación de propuestas según resultado (HU-18) -----
+    UMBRALES_CLASIFICACION_ACTUALIZADOS("EVALUACION", "Modificación de los umbrales de clasificación de una convocatoria (HU-18)"),
+    PROPUESTA_CLASIFICADA("EVALUACION", "Aplicación automática de la clasificación de una propuesta según los umbrales (HU-18)"),
+    CLASIFICACION_AJUSTADA("EVALUACION", "Ajuste manual, con motivo, de la clasificación de una propuesta (HU-18)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)"),
 

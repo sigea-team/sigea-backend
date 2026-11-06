@@ -267,6 +267,68 @@ class EvaluacionServiceTest {
         assertEquals(ClasificacionResultado.aprobada, capturado.getClasificacion());
     }
 
+    /**
+     * HU-18: registra la única evaluación pendiente de la propuesta (8.0 y 7.0 con pesos 60/40 = 7.60) y devuelve
+     * el resultado que se guardó.
+     */
+    private ResultadoEvaluacion registrarUnicaEvaluacion(Convocatoria conv, ResultadoEvaluacion existente) {
+        Propuesta propuesta = crearPropuesta(1L, conv);
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, propuesta, crearComite(1L, conv), EstadoAsignacion.pendiente);
+        RubricaEvaluacion rubrica = crearRubrica(1L, conv);
+        CriterioRubrica criterio1 = crearCriterio(1L, rubrica, "Originalidad", new BigDecimal("60.00"));
+        CriterioRubrica criterio2 = crearCriterio(2L, rubrica, "Pertinencia", new BigDecimal("40.00"));
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.of(rubrica));
+        when(criterioRubricaRepository.findByRubrica_Id(1L)).thenReturn(List.of(criterio1, criterio2));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Id(eq(1L), anyLong())).thenReturn(Optional.empty());
+        when(asignacionRepository.findByPropuesta_Id(1L)).thenReturn(List.of(asignacion));
+        when(evaluacionRepository.findByAsignacion_Propuesta_Id(1L)).thenReturn(List.of(
+                crearEvaluacion(1L, asignacion, criterio1, new BigDecimal("8.0")),
+                crearEvaluacion(2L, asignacion, criterio2, new BigDecimal("7.0"))));
+        when(resultadoRepository.findByPropuesta_Id(1L)).thenReturn(Optional.ofNullable(existente));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 1L)).thenReturn(List.of());
+
+        service.registrarEvaluacion(new RegistrarEvaluacionRequest(1L, List.of(
+                new CalificacionCriterioRequest(1L, new BigDecimal("8.0"), null),
+                new CalificacionCriterioRequest(2L, new BigDecimal("7.0"), null))));
+
+        ArgumentCaptor<ResultadoEvaluacion> captor = ArgumentCaptor.forClass(ResultadoEvaluacion.class);
+        verify(resultadoRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("HU-18: la clasificación calculada usa los umbrales de la convocatoria")
+    void criterio1_clasificaConUmbralesDeLaConvocatoria() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        conv.setUmbralAceptacion(new BigDecimal("8.00"));
+        conv.setUmbralAjustes(new BigDecimal("6.00"));
+
+        ResultadoEvaluacion guardado = registrarUnicaEvaluacion(conv, null);
+
+        assertEquals(new BigDecimal("7.60"), guardado.getPuntuacionPonderada());
+        assertEquals(ClasificacionResultado.aprobada_con_ajustes, guardado.getClasificacion());
+    }
+
+    @Test
+    @DisplayName("HU-18: el recálculo actualiza la puntuación sin reemplazar un ajuste manual")
+    void recalculo_respetaAjusteManual() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        ResultadoEvaluacion existente = ResultadoEvaluacion.builder()
+                .id(5L).propuesta(crearPropuesta(1L, conv))
+                .puntuacionPonderada(new BigDecimal("6.00"))
+                .clasificacion(ClasificacionResultado.rechazada)
+                .ajusteManual(true)
+                .fechaCalculo(LocalDateTime.now().minusDays(1))
+                .build();
+
+        ResultadoEvaluacion guardado = registrarUnicaEvaluacion(conv, existente);
+
+        assertEquals(new BigDecimal("7.60"), guardado.getPuntuacionPonderada());
+        assertEquals(ClasificacionResultado.rechazada, guardado.getClasificacion());
+        assertTrue(guardado.getAjusteManual());
+    }
+
     // ──────────────────────────────────────────────────────────────────────────────
     // Test Criterio 2
     // ──────────────────────────────────────────────────────────────────────────────

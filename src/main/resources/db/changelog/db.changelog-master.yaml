@@ -45,3 +45,5 @@ databaseChangeLog:
       file: db/changelog/changes/16-hu14-versiones-propuesta.sql
   - include:
       file: db/changelog/changes/19-hu15-rubricas-comite-evaluador.sql
+  - include:
+      file: db/changelog/changes/20-hu18-clasificacion-propuestas.sql

@@ -11,6 +11,8 @@ import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.Convocatoria;
 import com.sigea.demosigea_backend.model.CriterioRubrica;
 import com.sigea.demosigea_backend.model.EstadoAsignacion;
+import com.sigea.demosigea_backend.model.EstadoPropuesta;
+import com.sigea.demosigea_backend.model.Propuesta;
 import com.sigea.demosigea_backend.model.RubricaEvaluacion;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +57,10 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class RubricaEvaluacionService {
+
+    /** HU-18: estados que toma una propuesta al aplicarse su clasificación. */
+    private static final Set<EstadoPropuesta> ESTADOS_CLASIFICADOS =
+            EnumSet.of(EstadoPropuesta.aprobada, EstadoPropuesta.ajustes, EstadoPropuesta.rechazada);
 
     static final BigDecimal CIEN = new BigDecimal("100");
 
@@ -166,6 +173,11 @@ public class RubricaEvaluacionService {
         for (AsignacionEvaluacion asignacion : afectadas) {
             asignacion.setEstado(EstadoAsignacion.pendiente);
             propuestaIds.add(asignacion.getPropuesta().getId());
+            // HU-18: una propuesta ya clasificada vuelve a evaluación; se clasificará con el nuevo resultado.
+            Propuesta propuesta = asignacion.getPropuesta();
+            if (ESTADOS_CLASIFICADOS.contains(propuesta.getEstado())) {
+                propuesta.setEstado(EstadoPropuesta.en_evaluacion);
+            }
         }
         asignacionRepository.saveAll(afectadas);
         // Los resultados calculados con la rúbrica anterior ya no son válidos; HU-17 los recalcula.
