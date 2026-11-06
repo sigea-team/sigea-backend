@@ -978,7 +978,9 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 **Restricciones adicionales**:
 - `historial_clasificaciones_motivo_manual_check`: `tipo <> 'manual' OR (motivo IS NOT NULL AND length(trim(motivo)) >= 10)`.
-- Trigger `trg_historial_clasificaciones_inmutable`: rechaza cualquier `UPDATE`.
+- Trigger `trg_historial_clasificaciones_inmutable`: rechaza cualquier `UPDATE`, salvo poner `usuario_id` en NULL sin cambiar nada más (lo que hace `ON DELETE SET NULL` al eliminar el usuario).
+- Trigger `trg_historial_clasificaciones_sin_borrado`: rechaza el `DELETE` directo (incluido `deleteById`). Solo permite el borrado en cascada al eliminar la propuesta, porque en ese momento la propuesta ya no existe.
+- Trigger `trg_historial_clasificaciones_sin_truncate`: rechaza `TRUNCATE`.
 
 **Índices Definidos**:
 - Índice `idx_historial_clasificaciones_propuesta` sobre (`propuesta_id`, `fecha_hora` DESC)

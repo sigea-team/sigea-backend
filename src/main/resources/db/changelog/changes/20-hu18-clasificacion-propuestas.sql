@@ -83,3 +83,52 @@ JOIN "permisos" origen ON origen."permiso_id" = rp."permiso_id" AND origen."codi
 JOIN "permisos" p ON p."codigo" = 'PROPUESTAS_CLASIFICAR'
 ON CONFLICT DO NOTHING;
 --rollback DELETE FROM "roles_permisos" WHERE "permiso_id" IN (SELECT "permiso_id" FROM "permisos" WHERE "codigo" = 'PROPUESTAS_CLASIFICAR');
+
+--changeset SIGEA:hu18-007-historial-clasificaciones-sin-borrado splitStatements:false
+--comment: Revisión del PR: el historial tampoco se puede borrar directamente (DELETE, deleteById, TRUNCATE).
+--comment: Solo se permite el borrado en cascada al eliminar la propuesta: la acción ON DELETE CASCADE se ejecuta
+--comment: después de borrar la fila de propuestas, así que en ese momento la propuesta ya no existe; en un DELETE
+--comment: directo la propuesta sigue existiendo y se rechaza.
+--comment: El UPDATE sigue prohibido, salvo poner usuario_id en NULL, que es lo que hace ON DELETE SET NULL al eliminar
+--comment: el usuario; sin esa excepción no se podría eliminar un usuario con movimientos en el historial.
+CREATE OR REPLACE FUNCTION "fn_historial_clasificaciones_inmutable"() RETURNS trigger AS $$
+BEGIN
+    IF OLD."usuario_id" IS NOT NULL AND NEW."usuario_id" IS NULL
+       AND (to_jsonb(NEW) - 'usuario_id') = (to_jsonb(OLD) - 'usuario_id') THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'El historial de clasificaciones es inmutable: no se permite UPDATE sobre historial_clasificaciones'
+        USING ERRCODE = 'insufficient_privilege';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION "fn_historial_clasificaciones_sin_borrado"() RETURNS trigger AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM "propuestas" WHERE "propuesta_id" = OLD."propuesta_id") THEN
+        RAISE EXCEPTION 'El historial de clasificaciones es inmutable: solo se elimina en cascada al borrar la propuesta'
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION "fn_historial_clasificaciones_sin_truncate"() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'El historial de clasificaciones es inmutable: no se permite TRUNCATE sobre historial_clasificaciones'
+        USING ERRCODE = 'insufficient_privilege';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS "trg_historial_clasificaciones_sin_borrado" ON "historial_clasificaciones";
+CREATE TRIGGER "trg_historial_clasificaciones_sin_borrado"
+    BEFORE DELETE ON "historial_clasificaciones"
+    FOR EACH ROW EXECUTE FUNCTION "fn_historial_clasificaciones_sin_borrado"();
+
+DROP TRIGGER IF EXISTS "trg_historial_clasificaciones_sin_truncate" ON "historial_clasificaciones";
+CREATE TRIGGER "trg_historial_clasificaciones_sin_truncate"
+    BEFORE TRUNCATE ON "historial_clasificaciones"
+    FOR EACH STATEMENT EXECUTE FUNCTION "fn_historial_clasificaciones_sin_truncate"();
+--rollback DROP TRIGGER IF EXISTS "trg_historial_clasificaciones_sin_truncate" ON "historial_clasificaciones";
+--rollback DROP TRIGGER IF EXISTS "trg_historial_clasificaciones_sin_borrado" ON "historial_clasificaciones";
+--rollback DROP FUNCTION IF EXISTS "fn_historial_clasificaciones_sin_truncate"();
+--rollback DROP FUNCTION IF EXISTS "fn_historial_clasificaciones_sin_borrado"();
