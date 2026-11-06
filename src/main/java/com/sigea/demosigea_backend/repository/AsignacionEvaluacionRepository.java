@@ -133,4 +133,22 @@ public interface AsignacionEvaluacionRepository extends JpaRepository<Asignacion
      * @return {@code true} si existe una asignación de esa propuesta a ese evaluador.
      */
     boolean existsByPropuesta_IdAndComiteEvaluador_Persona_Id(Long propuestaId, Long personaId);
+
+    /**
+     * HU-15: número de propuestas asignadas a un evaluador (impide retirarlo del comité).
+     *
+     * @param comiteEvaluadorId ID del miembro evaluador.
+     * @return asignaciones del evaluador en cualquier estado.
+     */
+    long countByComiteEvaluador_Id(Long comiteEvaluadorId);
+
+    /**
+     * HU-15: propuestas asignadas a cada evaluador del comité de una convocatoria, en una sola consulta.
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @return filas {@code [comiteEvaluadorId (Long), cantidad (Long)]}.
+     */
+    @Query("SELECT a.comiteEvaluador.id, COUNT(a) FROM AsignacionEvaluacion a "
+            + "WHERE a.comiteEvaluador.convocatoria.id = :convocatoriaId GROUP BY a.comiteEvaluador.id")
+    List<Object[]> contarPorEvaluadorDeConvocatoria(@Param("convocatoriaId") Long convocatoriaId);
 }

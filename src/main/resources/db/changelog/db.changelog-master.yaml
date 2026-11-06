@@ -43,3 +43,5 @@ databaseChangeLog:
       file: db/changelog/changes/18-hu21-programacion-actividades.sql
   - include:
       file: db/changelog/changes/16-hu14-versiones-propuesta.sql
+  - include:
+      file: db/changelog/changes/19-hu15-rubricas-comite-evaluador.sql

@@ -794,10 +794,13 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `rubrica_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `convocatoria_id` | `INT` | `Integer` | NO | FK | - | FK -> [`convocatorias.convocatoria_id`](#convocatorias) |
 | `nombre` | `VARCHAR(100)` | `String` | NO |  | - | - |
-| `activo` | `BOOLEAN` | `Boolean` | NO |  | `true` | - |
+| `activo` | `BOOLEAN` | `Boolean` | NO |  | `true` | HU-15: solo una rúbrica activa por convocatoria |
 
 **Relaciones Foráneas Salientes**:
 - Columna `convocatoria_id` -> [`convocatorias.convocatoria_id`](#convocatorias) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+
+**Índices**:
+- `uq_rubricas_evaluacion_activa_convocatoria`: índice único parcial sobre (`convocatoria_id`) `WHERE activo = true` (HU-15, changeset 19)
 
 ---
 
@@ -813,6 +816,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `rubrica_id` | `INT` | `Integer` | NO | FK | - | FK -> [`rubricas_evaluacion.rubrica_id`](#rubricas_evaluacion) |
 | `nombre` | `VARCHAR(100)` | `String` | NO |  | - | - |
 | `peso_porcentual` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | - | CHECK `peso_porcentual > 0 AND peso_porcentual <= 100` |
+| `escala_minima` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | `0` | HU-15: mínimo de la escala de calificación del criterio (changeset 19) |
+| `escala_maxima` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | `10` | HU-15: máximo de la escala. CHECK `escala_minima >= 0 AND escala_maxima <= 10 AND escala_maxima > escala_minima` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `rubrica_id` -> [`rubricas_evaluacion.rubrica_id`](#rubricas_evaluacion) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`

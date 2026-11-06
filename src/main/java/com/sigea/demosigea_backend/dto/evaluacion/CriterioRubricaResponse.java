@@ -10,6 +10,8 @@ import java.math.BigDecimal;
  * @param criterioId     ID del criterio en {@code criterios_rubrica}.
  * @param nombre         Nombre del criterio.
  * @param pesoPorcentual Peso porcentual del criterio en la puntuación final.
+ * @param escalaMinima   Valor mínimo de la escala de calificación del criterio (HU-15).
+ * @param escalaMaxima   Valor máximo de la escala de calificación del criterio (HU-15).
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -18,7 +20,9 @@ import java.math.BigDecimal;
 public record CriterioRubricaResponse(
         Long criterioId,
         String nombre,
-        BigDecimal pesoPorcentual
+        BigDecimal pesoPorcentual,
+        BigDecimal escalaMinima,
+        BigDecimal escalaMaxima
 ) {
 
     /**
@@ -28,6 +32,7 @@ public record CriterioRubricaResponse(
      * @return DTO del criterio.
      */
     public static CriterioRubricaResponse fromEntity(CriterioRubrica c) {
-        return new CriterioRubricaResponse(c.getId(), c.getNombre(), c.getPesoPorcentual());
+        return new CriterioRubricaResponse(c.getId(), c.getNombre(), c.getPesoPorcentual(),
+                c.getEscalaMinima(), c.getEscalaMaxima());
     }
 }

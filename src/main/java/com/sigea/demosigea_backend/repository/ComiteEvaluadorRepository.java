@@ -50,4 +50,13 @@ public interface ComiteEvaluadorRepository extends JpaRepository<ComiteEvaluador
     @Query("SELECT ce FROM ComiteEvaluador ce JOIN FETCH ce.persona per LEFT JOIN FETCH per.afiliacion "
             + "WHERE ce.convocatoria.id = :convocatoriaId ORDER BY per.apellidos, per.nombres")
     List<ComiteEvaluador> findByConvocatoriaConPersona(@Param("convocatoriaId") Long convocatoriaId);
+
+    /**
+     * HU-15, Criterio 4: indica si ya hay un evaluador con ese correo en el comité de la convocatoria.
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @param correo         correo de la persona.
+     * @return {@code true} si el correo ya está registrado en el comité.
+     */
+    boolean existsByConvocatoria_IdAndPersona_CorreoIgnoreCase(Long convocatoriaId, String correo);
 }

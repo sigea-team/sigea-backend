@@ -248,7 +248,7 @@ class EvaluacionServiceTest {
         when(resultadoRepository.save(any(ResultadoEvaluacion.class))).thenReturn(resultadoGuardado);
 
         // Para construir respuesta
-        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of(ev1, ev2));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 1L)).thenReturn(List.of(ev1, ev2));
 
         // Act
         AsignacionEvaluacionResponse response = service.registrarEvaluacion(request);
@@ -343,7 +343,7 @@ class EvaluacionServiceTest {
         when(asignacionRepository.findByPropuesta_Id(1L)).thenReturn(List.of(asig1Completada, asig2));
 
         Evaluacion ev = crearEvaluacion(1L, asig1, criterio, new BigDecimal("9.0"));
-        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of(ev));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 1L)).thenReturn(List.of(ev));
 
         // Act
         AsignacionEvaluacionResponse response = service.registrarEvaluacion(request);
@@ -423,7 +423,7 @@ class EvaluacionServiceTest {
         RubricaEvaluacion rubrica = crearRubrica(5L, conv);
 
         when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
-        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 5L)).thenReturn(List.of());
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.of(rubrica));
         when(criterioRubricaRepository.findByRubrica_Id(5L)).thenReturn(List.of(
                 crearCriterio(11L, rubrica, "Originalidad", new BigDecimal("60.00")),
@@ -447,7 +447,6 @@ class EvaluacionServiceTest {
                 EstadoAsignacion.pendiente);
 
         when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
-        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.empty());
 
         AsignacionEvaluacionResponse response = service.obtenerAsignacion(1L);
@@ -488,7 +487,6 @@ class EvaluacionServiceTest {
         assertThrows(AccessDeniedException.class, () -> service.obtenerAsignacion(1L));
 
         autenticar("admin@test.com", "ROLE_ADMIN");
-        when(evaluacionRepository.findByAsignacion_Id(1L)).thenReturn(List.of());
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.empty());
         assertEquals(1L, service.obtenerAsignacion(1L).asignacionId());
     }

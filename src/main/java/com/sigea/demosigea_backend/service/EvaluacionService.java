@@ -9,6 +9,7 @@ import com.sigea.demosigea_backend.dto.evaluacion.ResultadoEvaluacionResponse;
 import com.sigea.demosigea_backend.exception.EvaluacionCerradaException;
 import com.sigea.demosigea_backend.exception.EvaluacionIncompletaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
+import com.sigea.demosigea_backend.exception.SolicitudInvalidaException;
 import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.ClasificacionResultado;
 import com.sigea.demosigea_backend.model.CriterioRubrica;
@@ -143,6 +144,9 @@ public class EvaluacionService {
         Map<Long, CriterioRubrica> criteriosPorId = criterios.stream()
                 .collect(Collectors.toMap(CriterioRubrica::getId, c -> c));
 
+        // HU-15: cada calificación debe estar dentro de la escala definida para su criterio
+        validarEscalas(request.calificaciones(), criteriosPorId);
+
         for (CalificacionCriterioRequest calReq : request.calificaciones()) {
             CriterioRubrica criterio = criteriosPorId.get(calReq.criterioId());
             if (criterio == null) {
@@ -186,14 +190,66 @@ public class EvaluacionService {
                 asignacion.getId(),
                 Map.of("asignacionId", asignacion.getId(), "propuestaId", propuestaId));
 
-        // 9. Construir y devolver la respuesta
+        // 9. Construir y devolver la respuesta (solo calificaciones de la rúbrica activa; HU-15)
         List<EvaluacionResponse> evaluacionesResp = evaluacionRepository
-                .findByAsignacion_Id(asignacion.getId())
+                .findByAsignacion_IdAndCriterio_Rubrica_Id(asignacion.getId(), rubrica.getId())
                 .stream()
                 .map(EvaluacionResponse::fromEntity)
                 .collect(Collectors.toList());
 
         return AsignacionEvaluacionResponse.fromEntity(asignacion, mapearCriterios(criterios), evaluacionesResp);
+    }
+
+    /**
+     * HU-15: verifica que cada calificación esté dentro de la escala configurada para su criterio.
+     *
+     * @param calificaciones calificaciones enviadas.
+     * @param criteriosPorId criterios de la rúbrica activa por ID.
+     * @throws SolicitudInvalidaException si alguna calificación está fuera de la escala de su criterio.
+     */
+    private static void validarEscalas(List<CalificacionCriterioRequest> calificaciones,
+                                       Map<Long, CriterioRubrica> criteriosPorId) {
+        for (CalificacionCriterioRequest cal : calificaciones) {
+            CriterioRubrica criterio = criteriosPorId.get(cal.criterioId());
+            if (criterio == null || cal.calificacion() == null) {
+                continue; // el criterio inexistente se informa al guardar
+            }
+            BigDecimal minima = escalaMinima(criterio);
+            BigDecimal maxima = escalaMaxima(criterio);
+            if (cal.calificacion().compareTo(minima) < 0 || cal.calificacion().compareTo(maxima) > 0) {
+                throw new SolicitudInvalidaException(String.format(
+                        "La calificación %s del criterio '%s' está fuera de su escala (%s a %s).",
+                        cal.calificacion().stripTrailingZeros().toPlainString(), criterio.getNombre(),
+                        minima.stripTrailingZeros().toPlainString(), maxima.stripTrailingZeros().toPlainString()));
+            }
+        }
+    }
+
+    /**
+     * HU-15: lleva el promedio de un criterio a la escala 0 - 10 para que la puntuación ponderada y su
+     * clasificación no dependan de la escala elegida. Con la escala por defecto (0 - 10) no cambia el valor.
+     *
+     * @param valor    promedio en la escala del criterio.
+     * @param criterio criterio con su escala.
+     * @return valor equivalente en la escala 0 - 10.
+     */
+    static BigDecimal normalizarADiez(BigDecimal valor, CriterioRubrica criterio) {
+        BigDecimal minima = escalaMinima(criterio);
+        BigDecimal maxima = escalaMaxima(criterio);
+        if (minima.compareTo(BigDecimal.ZERO) == 0 && maxima.compareTo(BigDecimal.TEN) == 0) {
+            return valor;
+        }
+        return valor.subtract(minima)
+                .multiply(BigDecimal.TEN)
+                .divide(maxima.subtract(minima), 4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal escalaMinima(CriterioRubrica criterio) {
+        return criterio.getEscalaMinima() != null ? criterio.getEscalaMinima() : CriterioRubrica.ESCALA_MINIMA_POR_DEFECTO;
+    }
+
+    private static BigDecimal escalaMaxima(CriterioRubrica criterio) {
+        return criterio.getEscalaMaxima() != null ? criterio.getEscalaMaxima() : CriterioRubrica.ESCALA_MAXIMA_POR_DEFECTO;
     }
 
     /**
@@ -294,7 +350,8 @@ public class EvaluacionService {
                 continue;
             }
             BigDecimal suma = califs.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal promedio = suma.divide(BigDecimal.valueOf(califs.size()), 4, RoundingMode.HALF_UP);
+            BigDecimal promedio = normalizarADiez(
+                    suma.divide(BigDecimal.valueOf(califs.size()), 4, RoundingMode.HALF_UP), criterio);
             BigDecimal contribucion = promedio.multiply(
                     criterio.getPesoPorcentual().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
             puntuacionPonderada = puntuacionPonderada.add(contribucion);
@@ -352,17 +409,20 @@ public class EvaluacionService {
             verificarEsDelEvaluador(asignacion);
         }
 
-        List<EvaluacionResponse> evaluacionesResp = evaluacionRepository
-                .findByAsignacion_Id(asignacionId)
-                .stream()
-                .map(EvaluacionResponse::fromEntity)
-                .collect(Collectors.toList());
-
         // Criterios de la rúbrica activa: sin ellos el evaluador no sabría qué calificar.
         Long convocatoriaId = asignacion.getComiteEvaluador().getConvocatoria().getId();
-        List<CriterioRubricaResponse> criterios = rubricaRepository
-                .findByConvocatoria_IdAndActivoTrue(convocatoriaId)
+        Optional<RubricaEvaluacion> rubricaActiva = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
+        List<CriterioRubricaResponse> criterios = rubricaActiva
                 .map(r -> mapearCriterios(criterioRubricaRepository.findByRubrica_Id(r.getId())))
+                .orElse(List.of());
+
+        // HU-15: solo las calificaciones hechas con la rúbrica activa. Si la rúbrica se reemplazó, las
+        // calificaciones anteriores se conservan como histórico pero no se muestran como actuales.
+        List<EvaluacionResponse> evaluacionesResp = rubricaActiva
+                .map(r -> evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(asignacionId, r.getId())
+                        .stream()
+                        .map(EvaluacionResponse::fromEntity)
+                        .collect(Collectors.toList()))
                 .orElse(List.of());
 
         return AsignacionEvaluacionResponse.fromEntity(asignacion, criterios, evaluacionesResp);

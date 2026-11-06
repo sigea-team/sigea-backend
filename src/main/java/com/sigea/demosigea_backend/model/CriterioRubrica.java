@@ -37,6 +37,12 @@ import java.math.BigDecimal;
 @Builder
 public class CriterioRubrica {
 
+    /** Límite inferior permitido para cualquier escala (coincide con el mínimo de calificación de HU-17). */
+    public static final BigDecimal ESCALA_MINIMA_POR_DEFECTO = new BigDecimal("0.00");
+
+    /** Límite superior permitido para cualquier escala (coincide con el máximo de calificación de HU-17). */
+    public static final BigDecimal ESCALA_MAXIMA_POR_DEFECTO = new BigDecimal("10.00");
+
     /** Identificador único del criterio (PK autoincremental). */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -58,4 +64,14 @@ public class CriterioRubrica {
      */
     @Column(name = "peso_porcentual", precision = 5, scale = 2, nullable = false)
     private BigDecimal pesoPorcentual;
+
+    /** Valor mínimo de la escala de calificación del criterio (HU-15). Entre 0 y 10. */
+    @Builder.Default
+    @Column(name = "escala_minima", precision = 5, scale = 2, nullable = false)
+    private BigDecimal escalaMinima = ESCALA_MINIMA_POR_DEFECTO;
+
+    /** Valor máximo de la escala de calificación del criterio (HU-15). Entre 0 y 10 y mayor que el mínimo. */
+    @Builder.Default
+    @Column(name = "escala_maxima", precision = 5, scale = 2, nullable = false)
+    private BigDecimal escalaMaxima = ESCALA_MAXIMA_POR_DEFECTO;
 }
