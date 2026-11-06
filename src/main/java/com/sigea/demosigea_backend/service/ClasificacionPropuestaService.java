@@ -276,6 +276,12 @@ public class ClasificacionPropuestaService {
     /**
      * Aplica la clasificación a todas las propuestas evaluadas de una convocatoria (Criterio 1). Las propuestas sin
      * evaluación completa no se clasifican y se informan como omitidas (Criterio 3).
+     * <p>
+     * Concurrencia: las propuestas de la convocatoria se bloquean (en orden de ID, para evitar interbloqueos) antes
+     * de leer sus asignaciones y resultados. Así, dos aplicaciones simultáneas, masivas o individuales, se ejecutan
+     * una después de otra: la segunda ve la clasificación ya aplicada por la primera y no duplica el historial ni la
+     * auditoría.
+     * </p>
      *
      * @param convocatoriaId ID de la convocatoria.
      * @return propuestas clasificadas y omitidas.
@@ -283,7 +289,9 @@ public class ClasificacionPropuestaService {
     @Transactional
     public AplicacionClasificacionResponse aplicarConvocatoria(Long convocatoriaId) {
         Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
-        List<Propuesta> propuestas = propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(convocatoriaId);
+        // Bloqueo por propuesta (como la ruta individual): las lecturas siguientes ven lo que otra aplicación
+        // concurrente haya confirmado mientras se esperaba el bloqueo.
+        List<Propuesta> propuestas = propuestaRepository.findByConvocatoriaIdParaActualizar(convocatoriaId);
         List<Long> ids = propuestas.stream().map(Propuesta::getId).toList();
         Map<Long, List<AsignacionEvaluacion>> asignacionesPorPropuesta = ids.isEmpty() ? Map.of()
                 : asignacionRepository.findDetalleByPropuestaIds(ids).stream()

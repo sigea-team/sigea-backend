@@ -47,6 +47,18 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
     Optional<Propuesta> findByIdParaActualizar(@Param("id") Long id);
 
     /**
+     * HU-18: propuestas de una convocatoria bloqueando sus filas hasta terminar la transacción, en orden de ID para
+     * que dos solicitudes concurrentes tomen los bloqueos en el mismo orden. Evita que dos aplicaciones masivas
+     * simultáneas de la clasificación registren dos veces el mismo movimiento.
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @return propuestas de la convocatoria ordenadas por ID.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Propuesta p WHERE p.convocatoria.id = :convocatoriaId ORDER BY p.id")
+    List<Propuesta> findByConvocatoriaIdParaActualizar(@Param("convocatoriaId") Long convocatoriaId);
+
+    /**
      * HU-14: propuestas del usuario, es decir, aquellas en las que su persona figura como autor
      * o que él mismo envió (creador de la versión 1). Más recientes primero.
      *

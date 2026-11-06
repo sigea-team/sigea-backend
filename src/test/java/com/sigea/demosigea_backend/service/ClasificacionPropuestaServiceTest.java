@@ -33,6 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,6 +56,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -216,7 +218,7 @@ class ClasificacionPropuestaServiceTest {
         Propuesta pendiente = propuesta(41L, convocatoria);
         Propuesta sinEvaluadores = propuesta(42L, convocatoria);
         when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
-        when(propuestaRepository.findByConvocatoria_IdOrderByFechaEnvioDesc(10L))
+        when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L))
                 .thenReturn(List.of(evaluada, pendiente, sinEvaluadores));
         when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L, 41L, 42L))).thenReturn(List.of(
                 asignacion(1L, evaluada, EstadoAsignacion.completada),
@@ -235,6 +237,49 @@ class ClasificacionPropuestaServiceTest {
         assertTrue(respuesta.omitidas().get(1).motivo().contains("no tiene evaluadores"));
         assertEquals(EstadoPropuesta.en_evaluacion, pendiente.getEstado());
         assertEquals(EstadoPropuesta.en_evaluacion, sinEvaluadores.getEstado());
+    }
+
+    @Test
+    @DisplayName("Concurrencia: la aplicación masiva bloquea las propuestas antes de leer sus resultados")
+    void aplicarConvocatoria_bloqueaPropuestasAntesDeLeerResultados() {
+        Convocatoria convocatoria = convocatoria();
+        Propuesta propuesta = propuesta(40L, convocatoria);
+        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
+        when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L)))
+                .thenReturn(List.of(asignacion(1L, propuesta, EstadoAsignacion.completada)));
+        when(resultadoRepository.findByPropuesta_IdIn(List.of(40L)))
+                .thenReturn(List.of(resultado(8L, propuesta, "8.00", ClasificacionResultado.aprobada)));
+
+        service.aplicarConvocatoria(10L);
+
+        InOrder orden = inOrder(propuestaRepository, resultadoRepository);
+        orden.verify(propuestaRepository).findByConvocatoriaIdParaActualizar(10L);
+        orden.verify(resultadoRepository).findByPropuesta_IdIn(List.of(40L));
+        verify(propuestaRepository, never()).findByConvocatoria_IdOrderByFechaEnvioDesc(any());
+    }
+
+    @Test
+    @DisplayName("Concurrencia: si otra solicitud ya aplicó la clasificación, la masiva no duplica historial ni auditoría")
+    void aplicarConvocatoria_yaAplicadaPorOtraSolicitud_noDuplica() {
+        Convocatoria convocatoria = convocatoria();
+        Propuesta propuesta = propuesta(40L, convocatoria);
+        propuesta.setEstado(EstadoPropuesta.aprobada); // estado que dejó la solicitud que obtuvo primero el bloqueo
+        ResultadoEvaluacion resultado = resultado(8L, propuesta, "8.00", ClasificacionResultado.aprobada);
+        resultado.setFechaClasificacion(LocalDateTime.now());
+        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
+        when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L)))
+                .thenReturn(List.of(asignacion(1L, propuesta, EstadoAsignacion.completada)));
+        when(resultadoRepository.findByPropuesta_IdIn(List.of(40L))).thenReturn(List.of(resultado));
+
+        AplicacionClasificacionResponse respuesta = service.aplicarConvocatoria(10L);
+
+        assertEquals(1, respuesta.clasificadas().size());
+        assertTrue(respuesta.clasificadas().get(0).aplicada());
+        verify(historialRepository, never()).save(any());
+        verify(resultadoRepository, never()).save(any());
+        verify(auditoriaService, never()).registrar(any(), any(), any(), any(), any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
