@@ -190,9 +190,9 @@ public class EvaluacionService {
                 asignacion.getId(),
                 Map.of("asignacionId", asignacion.getId(), "propuestaId", propuestaId));
 
-        // 9. Construir y devolver la respuesta
+        // 9. Construir y devolver la respuesta (solo calificaciones de la rúbrica activa; HU-15)
         List<EvaluacionResponse> evaluacionesResp = evaluacionRepository
-                .findByAsignacion_Id(asignacion.getId())
+                .findByAsignacion_IdAndCriterio_Rubrica_Id(asignacion.getId(), rubrica.getId())
                 .stream()
                 .map(EvaluacionResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -409,17 +409,20 @@ public class EvaluacionService {
             verificarEsDelEvaluador(asignacion);
         }
 
-        List<EvaluacionResponse> evaluacionesResp = evaluacionRepository
-                .findByAsignacion_Id(asignacionId)
-                .stream()
-                .map(EvaluacionResponse::fromEntity)
-                .collect(Collectors.toList());
-
         // Criterios de la rúbrica activa: sin ellos el evaluador no sabría qué calificar.
         Long convocatoriaId = asignacion.getComiteEvaluador().getConvocatoria().getId();
-        List<CriterioRubricaResponse> criterios = rubricaRepository
-                .findByConvocatoria_IdAndActivoTrue(convocatoriaId)
+        Optional<RubricaEvaluacion> rubricaActiva = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
+        List<CriterioRubricaResponse> criterios = rubricaActiva
                 .map(r -> mapearCriterios(criterioRubricaRepository.findByRubrica_Id(r.getId())))
+                .orElse(List.of());
+
+        // HU-15: solo las calificaciones hechas con la rúbrica activa. Si la rúbrica se reemplazó, las
+        // calificaciones anteriores se conservan como histórico pero no se muestran como actuales.
+        List<EvaluacionResponse> evaluacionesResp = rubricaActiva
+                .map(r -> evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(asignacionId, r.getId())
+                        .stream()
+                        .map(EvaluacionResponse::fromEntity)
+                        .collect(Collectors.toList()))
                 .orElse(List.of());
 
         return AsignacionEvaluacionResponse.fromEntity(asignacion, criterios, evaluacionesResp);

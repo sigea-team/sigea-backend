@@ -71,6 +71,16 @@ public interface EvaluacionRepository extends JpaRepository<Evaluacion, Long> {
     boolean existsByAsignacion_Id(Long asignacionId);
 
     /**
+     * HU-15: calificaciones de una asignación hechas con los criterios de una rúbrica concreta. Se usa para
+     * mostrar solo las calificaciones de la rúbrica activa; las de rúbricas reemplazadas quedan como histórico.
+     *
+     * @param asignacionId ID de la asignación.
+     * @param rubricaId    ID de la rúbrica.
+     * @return calificaciones de la asignación con esa rúbrica.
+     */
+    List<Evaluacion> findByAsignacion_IdAndCriterio_Rubrica_Id(Long asignacionId, Long rubricaId);
+
+    /**
      * HU-15, Criterio 4: número de calificaciones registradas con los criterios de una rúbrica.
      *
      * @param rubricaId ID de la rúbrica.
