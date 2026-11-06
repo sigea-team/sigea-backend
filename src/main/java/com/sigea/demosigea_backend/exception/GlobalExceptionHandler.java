@@ -715,6 +715,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-18, Criterio 3: se intentó clasificar una propuesta que no ha sido evaluada completamente.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código PROPUESTA_NO_EVALUADA.
+     */
+    @ExceptionHandler(PropuestaNoEvaluadaException.class)
+    public ResponseEntity<ErrorResponse> handlePropuestaNoEvaluada(PropuestaNoEvaluadaException ex,
+                                                                   HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "PROPUESTA_NO_EVALUADA", request);
+    }
+
+    /**
      * HU-14: error técnico al guardar o leer un documento en el almacenamiento.
      *
      * @return {@link ResponseEntity} con estado 500 INTERNAL SERVER ERROR y código ERROR_ALMACENAMIENTO.

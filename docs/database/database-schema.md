@@ -55,6 +55,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`historial_asignaciones`](#historial_asignaciones) (`HistorialAsignacion`): Historial inmutable de asignaciones y reasignaciones de propuestas a evaluadores (HU-16).
 - [`evaluaciones`](#evaluaciones) (`Evaluacion`): Calificaciones otorgadas por el evaluador a cada criterio de la rúbrica.
 - [`resultados_evaluacion`](#resultados_evaluacion) (`ResultadoEvaluacion`): Consolidado final de evaluación de una propuesta con puntuación ponderada y clasificación final.
+- [`historial_clasificaciones`](#historial_clasificaciones) (`HistorialClasificacion`): Historial inmutable de clasificaciones automáticas y ajustes manuales de propuestas (HU-18).
 - [`observaciones_propuesta`](#observaciones_propuesta) (`ObservacionPropuesta`): Observaciones, correcciones y retroalimentación de evaluadores dirigidas a una versión de la propuesta.
 
 ### 6. Espacios Físicos, Virtuales y Disponibilidad
@@ -553,9 +554,12 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `fecha_apertura` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 | `fecha_cierre` | `TIMESTAMP` | `LocalDateTime` | NO |  | - | - |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'borrador'` | CHECK `estado IN ('borrador','publicada','cerrada'` |
+| `umbral_aceptacion` | `NUMERIC(4,2)` | `BigDecimal` | NO |  | `7` | HU-18 (changeset 20). Puntuación ponderada mínima para `aprobada` |
+| `umbral_ajustes` | `NUMERIC(4,2)` | `BigDecimal` | NO |  | `5` | HU-18 (changeset 20). Puntuación ponderada mínima para `aprobada_con_ajustes` |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (fecha_cierre > fecha_apertura)`
+- `convocatorias_umbrales_clasificacion_check`: `umbral_ajustes >= 0 AND umbral_ajustes <= umbral_aceptacion AND umbral_aceptacion <= 10` (HU-18)
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -942,9 +946,48 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `puntuacion_ponderada` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | - | - |
 | `clasificacion` | `VARCHAR(30)` | `String` | NO |  | - | CHECK `clasificacion IN ('aprobada','aprobada_con_ajustes','rechazada'` |
 | `fecha_calculo` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `ajuste_manual` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-18 (changeset 20). `true` si el administrador fijó la clasificación con un motivo; el recálculo de HU-17 no la reemplaza |
+| `fecha_clasificacion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-18 (changeset 20). Cuándo se aplicó la clasificación al estado de la propuesta. NULL = calculada sin aplicar |
+
+**Notas**: `clasificacion` se calcula con los umbrales de la convocatoria (HU-17/HU-18). Al aplicarla, la propuesta toma el estado `aprobada`, `ajustes` o `rechazada`.
 
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+
+---
+
+### `historial_clasificaciones`
+
+**Descripción**: Historial de cada clasificación aplicada a una propuesta: automática (umbrales, HU-18 Criterio 1) o ajuste manual con motivo (HU-18 Criterio 2). Se enlaza a la propuesta y no al resultado porque HU-15 borra el resultado al reemplazar una rúbrica en uso. Creada por el changeset Liquibase `20-hu18-clasificacion-propuestas.sql` (no está en `schema.sql`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.HistorialClasificacion` (`@Entity @Table(name = "historial_clasificaciones")`)  
+**Clave Primaria**: `historial_clasificacion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `historial_clasificacion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `propuesta_id` | `INT` | `Long` | NO | FK | - | FK -> [`propuestas.propuesta_id`](#propuestas) |
+| `tipo` | `VARCHAR(20)` | `TipoClasificacion` | NO |  | - | CHECK `tipo IN ('automatica','manual')` |
+| `clasificacion_anterior` | `VARCHAR(30)` | `ClasificacionResultado` | SÍ |  | - | CHECK `IN ('aprobada','aprobada_con_ajustes','rechazada')`. NULL en la primera clasificación |
+| `clasificacion_nueva` | `VARCHAR(30)` | `ClasificacionResultado` | NO |  | - | CHECK `IN ('aprobada','aprobada_con_ajustes','rechazada')` |
+| `puntuacion_ponderada` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | - | Puntuación en el momento del movimiento |
+| `umbral_aceptacion` | `NUMERIC(4,2)` | `BigDecimal` | NO |  | - | Umbral vigente en el momento del movimiento |
+| `umbral_ajustes` | `NUMERIC(4,2)` | `BigDecimal` | NO |  | - | Umbral vigente en el momento del movimiento |
+| `motivo` | `TEXT` | `String` | SÍ |  | - | Obligatorio (mín. 10 caracteres) cuando `tipo = 'manual'` |
+| `usuario_id` | `INT` | `Long` | SÍ | FK | - | FK -> [`usuarios.usuario_id`](#usuarios) |
+| `fecha_hora` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+
+**Restricciones adicionales**:
+- `historial_clasificaciones_motivo_manual_check`: `tipo <> 'manual' OR (motivo IS NOT NULL AND length(trim(motivo)) >= 10)`.
+- Trigger `trg_historial_clasificaciones_inmutable`: rechaza cualquier `UPDATE`, salvo poner `usuario_id` en NULL sin cambiar nada más (lo que hace `ON DELETE SET NULL` al eliminar el usuario).
+- Trigger `trg_historial_clasificaciones_sin_borrado`: rechaza el `DELETE` directo (incluido `deleteById`). Solo permite el borrado en cascada al eliminar la propuesta, porque en ese momento la propuesta ya no existe.
+- Trigger `trg_historial_clasificaciones_sin_truncate`: rechaza `TRUNCATE`.
+
+**Índices Definidos**:
+- Índice `idx_historial_clasificaciones_propuesta` sobre (`propuesta_id`, `fecha_hora` DESC)
+
+**Relaciones Foráneas Salientes**:
+- Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE`
 
 ---
 

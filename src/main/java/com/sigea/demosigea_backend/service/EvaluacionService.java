@@ -14,8 +14,10 @@ import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.ClasificacionResultado;
 import com.sigea.demosigea_backend.model.CriterioRubrica;
 import com.sigea.demosigea_backend.model.EstadoAsignacion;
+import com.sigea.demosigea_backend.model.EstadoPropuesta;
 import com.sigea.demosigea_backend.model.Evaluacion;
 import com.sigea.demosigea_backend.model.Propuesta;
+import com.sigea.demosigea_backend.model.ReglasClasificacion;
 import com.sigea.demosigea_backend.model.ResultadoEvaluacion;
 import com.sigea.demosigea_backend.model.RubricaEvaluacion;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
@@ -40,6 +42,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +70,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class EvaluacionService {
+
+    /** HU-18: estados que toma una propuesta al aplicarse su clasificación. */
+    private static final Set<EstadoPropuesta> ESTADOS_CLASIFICADOS =
+            EnumSet.of(EstadoPropuesta.aprobada, EstadoPropuesta.ajustes, EstadoPropuesta.rechazada);
 
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
@@ -139,6 +146,10 @@ public class EvaluacionService {
                     "Hay criterios sin calificar. Todos los criterios de la rúbrica deben ser calificados.",
                     criteriosFaltantes);
         }
+
+        // HU-18: bloquea la propuesta antes de escribir calificaciones y recalcular. La clasificación (individual o
+        // masiva) toma el mismo bloqueo, así que no puede leer la puntuación mientras se recalcula.
+        propuestaRepository.findByIdParaActualizar(asignacion.getPropuesta().getId());
 
         // 5. Persistir cada calificación (upsert)
         Map<Long, CriterioRubrica> criteriosPorId = criterios.stream()
@@ -358,23 +369,41 @@ public class EvaluacionService {
         }
         puntuacionPonderada = puntuacionPonderada.setScale(2, RoundingMode.HALF_UP);
 
-        // Determinar clasificación
-        ClasificacionResultado clasificacion;
-        if (puntuacionPonderada.compareTo(new BigDecimal("7.0")) >= 0) {
-            clasificacion = ClasificacionResultado.aprobada;
-        } else if (puntuacionPonderada.compareTo(new BigDecimal("5.0")) >= 0) {
-            clasificacion = ClasificacionResultado.aprobada_con_ajustes;
-        } else {
-            clasificacion = ClasificacionResultado.rechazada;
-        }
+        // Determinar clasificación con los umbrales de la convocatoria (HU-18; por defecto 7 y 5)
+        ClasificacionResultado clasificacion = ReglasClasificacion.clasificar(puntuacionPonderada,
+                asignaciones.get(0).getComiteEvaluador().getConvocatoria());
 
         // Upsert del resultado
         Propuesta propuesta = asignaciones.get(0).getPropuesta();
         ResultadoEvaluacion resultado = resultadoRepository.findByPropuesta_Id(propuestaId)
                 .orElse(ResultadoEvaluacion.builder().propuesta(propuesta).build());
 
+        BigDecimal puntuacionAnterior = resultado.getPuntuacionPonderada();
+        boolean estabaAplicada = resultado.getFechaClasificacion() != null;
+        boolean cambioPuntuacion = puntuacionAnterior == null || puntuacionAnterior.compareTo(puntuacionPonderada) != 0;
         resultado.setPuntuacionPonderada(puntuacionPonderada);
-        resultado.setClasificacion(clasificacion);
+        if (estabaAplicada && !cambioPuntuacion) {
+            // HU-18: misma puntuación; la clasificación aplicada sigue siendo válida
+            clasificacion = resultado.getClasificacion();
+        } else if (Boolean.TRUE.equals(resultado.getAjusteManual()) && resultado.getClasificacion() != null) {
+            // HU-18, Criterio 2: el ajuste manual del administrador no se reemplaza al recalcular
+            clasificacion = resultado.getClasificacion();
+        } else {
+            resultado.setClasificacion(clasificacion);
+        }
+
+        // HU-18: si la puntuación cambió después de aplicar la clasificación, esa clasificación ya no corresponde a la
+        // puntuación vigente. Se retira (la propuesta vuelve a evaluación) y debe aplicarse de nuevo.
+        boolean clasificacionRetirada = estabaAplicada && cambioPuntuacion;
+        if (clasificacionRetirada) {
+            resultado.setFechaClasificacion(null);
+            if (ESTADOS_CLASIFICADOS.contains(propuesta.getEstado())) {
+                propuesta.setEstado(EstadoPropuesta.en_evaluacion);
+                propuestaRepository.save(propuesta);
+            }
+            log.info("La puntuación de la propuesta {} cambió de {} a {}: se retira la clasificación aplicada.",
+                    propuestaId, puntuacionAnterior, puntuacionPonderada);
+        }
         resultado.setFechaCalculo(LocalDateTime.now());
         resultadoRepository.save(resultado);
 
@@ -388,7 +417,8 @@ public class EvaluacionService {
                 resultado.getId(),
                 Map.of("propuestaId", propuestaId,
                         "puntuacionPonderada", puntuacionPonderada.toPlainString(),
-                        "clasificacion", clasificacion.name()));
+                        "clasificacion", clasificacion.name(),
+                        "clasificacionRetirada", clasificacionRetirada));
     }
 
     /**

@@ -13,6 +13,7 @@ import com.sigea.demosigea_backend.model.ComiteEvaluador;
 import com.sigea.demosigea_backend.model.Convocatoria;
 import com.sigea.demosigea_backend.model.CriterioRubrica;
 import com.sigea.demosigea_backend.model.EstadoAsignacion;
+import com.sigea.demosigea_backend.model.EstadoPropuesta;
 import com.sigea.demosigea_backend.model.Evaluacion;
 import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Propuesta;
@@ -48,6 +49,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -265,6 +267,154 @@ class EvaluacionServiceTest {
         // Puntuación esperada: 8.0 * 0.60 + 7.0 * 0.40 = 4.80 + 2.80 = 7.60
         assertEquals(new BigDecimal("7.60"), capturado.getPuntuacionPonderada());
         assertEquals(ClasificacionResultado.aprobada, capturado.getClasificacion());
+    }
+
+    /**
+     * HU-18: registra la única evaluación pendiente de la propuesta (8.0 y 7.0 con pesos 60/40 = 7.60) y devuelve
+     * el resultado que se guardó.
+     */
+    private ResultadoEvaluacion registrarUnicaEvaluacion(Convocatoria conv, ResultadoEvaluacion existente) {
+        Propuesta propuesta = crearPropuesta(1L, conv);
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, propuesta, crearComite(1L, conv), EstadoAsignacion.pendiente);
+        RubricaEvaluacion rubrica = crearRubrica(1L, conv);
+        CriterioRubrica criterio1 = crearCriterio(1L, rubrica, "Originalidad", new BigDecimal("60.00"));
+        CriterioRubrica criterio2 = crearCriterio(2L, rubrica, "Pertinencia", new BigDecimal("40.00"));
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.of(rubrica));
+        when(criterioRubricaRepository.findByRubrica_Id(1L)).thenReturn(List.of(criterio1, criterio2));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Id(eq(1L), anyLong())).thenReturn(Optional.empty());
+        when(asignacionRepository.findByPropuesta_Id(1L)).thenReturn(List.of(asignacion));
+        when(evaluacionRepository.findByAsignacion_Propuesta_Id(1L)).thenReturn(List.of(
+                crearEvaluacion(1L, asignacion, criterio1, new BigDecimal("8.0")),
+                crearEvaluacion(2L, asignacion, criterio2, new BigDecimal("7.0"))));
+        when(resultadoRepository.findByPropuesta_Id(1L)).thenReturn(Optional.ofNullable(existente));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 1L)).thenReturn(List.of());
+
+        service.registrarEvaluacion(new RegistrarEvaluacionRequest(1L, List.of(
+                new CalificacionCriterioRequest(1L, new BigDecimal("8.0"), null),
+                new CalificacionCriterioRequest(2L, new BigDecimal("7.0"), null))));
+
+        ArgumentCaptor<ResultadoEvaluacion> captor = ArgumentCaptor.forClass(ResultadoEvaluacion.class);
+        verify(resultadoRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("HU-18: la clasificación calculada usa los umbrales de la convocatoria")
+    void criterio1_clasificaConUmbralesDeLaConvocatoria() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        conv.setUmbralAceptacion(new BigDecimal("8.00"));
+        conv.setUmbralAjustes(new BigDecimal("6.00"));
+
+        ResultadoEvaluacion guardado = registrarUnicaEvaluacion(conv, null);
+
+        assertEquals(new BigDecimal("7.60"), guardado.getPuntuacionPonderada());
+        assertEquals(ClasificacionResultado.aprobada_con_ajustes, guardado.getClasificacion());
+    }
+
+    @Test
+    @DisplayName("HU-18: bloquea la propuesta antes de escribir calificaciones y recalcular el resultado")
+    void registrarEvaluacion_bloqueaPropuestaAntesDeRecalcular() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+
+        registrarUnicaEvaluacion(conv, null);
+
+        org.mockito.InOrder orden = org.mockito.Mockito.inOrder(propuestaRepository, evaluacionRepository,
+                resultadoRepository);
+        orden.verify(propuestaRepository).findByIdParaActualizar(1L);
+        orden.verify(evaluacionRepository, org.mockito.Mockito.atLeastOnce()).save(any(Evaluacion.class));
+        orden.verify(resultadoRepository).findByPropuesta_Id(1L);
+        orden.verify(resultadoRepository).save(any(ResultadoEvaluacion.class));
+    }
+
+    @Test
+    @DisplayName("HU-18: si la puntuación cambia después de clasificar, se retira la clasificación aplicada")
+    void recalculo_conPuntuacionDistinta_retiraClasificacionAplicada() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        ResultadoEvaluacion existente = ResultadoEvaluacion.builder()
+                .id(5L).propuesta(crearPropuesta(1L, conv))
+                .puntuacionPonderada(new BigDecimal("4.00"))
+                .clasificacion(ClasificacionResultado.rechazada)
+                .fechaCalculo(LocalDateTime.now().minusDays(1))
+                .fechaClasificacion(LocalDateTime.now().minusHours(1))
+                .build();
+
+        ResultadoEvaluacion guardado = registrarPropuestaClasificada(conv, existente, EstadoPropuesta.rechazada);
+
+        assertEquals(new BigDecimal("7.60"), guardado.getPuntuacionPonderada());
+        assertEquals(ClasificacionResultado.aprobada, guardado.getClasificacion());
+        assertNull(guardado.getFechaClasificacion()); // ya no hay clasificación aplicada con puntuación obsoleta
+        ArgumentCaptor<Propuesta> propuestaGuardada = ArgumentCaptor.forClass(Propuesta.class);
+        verify(propuestaRepository).save(propuestaGuardada.capture());
+        assertEquals(EstadoPropuesta.en_evaluacion, propuestaGuardada.getValue().getEstado());
+    }
+
+    @Test
+    @DisplayName("HU-18: con la misma puntuación se conserva la clasificación aplicada")
+    void recalculo_mismaPuntuacion_conservaClasificacionAplicada() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        LocalDateTime aplicada = LocalDateTime.now().minusHours(1);
+        ResultadoEvaluacion existente = ResultadoEvaluacion.builder()
+                .id(5L).propuesta(crearPropuesta(1L, conv))
+                .puntuacionPonderada(new BigDecimal("7.60"))
+                .clasificacion(ClasificacionResultado.aprobada)
+                .fechaCalculo(LocalDateTime.now().minusDays(1))
+                .fechaClasificacion(aplicada)
+                .build();
+
+        ResultadoEvaluacion guardado = registrarPropuestaClasificada(conv, existente, EstadoPropuesta.aprobada);
+
+        assertEquals(ClasificacionResultado.aprobada, guardado.getClasificacion());
+        assertEquals(aplicada, guardado.getFechaClasificacion());
+        verify(propuestaRepository, never()).save(any());
+    }
+
+    /** Como {@link #registrarUnicaEvaluacion}, con la propuesta ya clasificada en el estado indicado. */
+    private ResultadoEvaluacion registrarPropuestaClasificada(Convocatoria conv, ResultadoEvaluacion existente,
+                                                             EstadoPropuesta estado) {
+        Propuesta propuesta = crearPropuesta(1L, conv);
+        propuesta.setEstado(estado);
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, propuesta, crearComite(1L, conv), EstadoAsignacion.completada);
+        RubricaEvaluacion rubrica = crearRubrica(1L, conv);
+        CriterioRubrica criterio1 = crearCriterio(1L, rubrica, "Originalidad", new BigDecimal("60.00"));
+        CriterioRubrica criterio2 = crearCriterio(2L, rubrica, "Pertinencia", new BigDecimal("40.00"));
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(1L)).thenReturn(Optional.of(rubrica));
+        when(criterioRubricaRepository.findByRubrica_Id(1L)).thenReturn(List.of(criterio1, criterio2));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Id(eq(1L), anyLong())).thenReturn(Optional.empty());
+        when(asignacionRepository.findByPropuesta_Id(1L)).thenReturn(List.of(asignacion));
+        when(evaluacionRepository.findByAsignacion_Propuesta_Id(1L)).thenReturn(List.of(
+                crearEvaluacion(1L, asignacion, criterio1, new BigDecimal("8.0")),
+                crearEvaluacion(2L, asignacion, criterio2, new BigDecimal("7.0"))));
+        when(resultadoRepository.findByPropuesta_Id(1L)).thenReturn(Optional.of(existente));
+        when(evaluacionRepository.findByAsignacion_IdAndCriterio_Rubrica_Id(1L, 1L)).thenReturn(List.of());
+
+        service.registrarEvaluacion(new RegistrarEvaluacionRequest(1L, List.of(
+                new CalificacionCriterioRequest(1L, new BigDecimal("8.0"), null),
+                new CalificacionCriterioRequest(2L, new BigDecimal("7.0"), null))));
+
+        ArgumentCaptor<ResultadoEvaluacion> captor = ArgumentCaptor.forClass(ResultadoEvaluacion.class);
+        verify(resultadoRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("HU-18: el recálculo actualiza la puntuación sin reemplazar un ajuste manual")
+    void recalculo_respetaAjusteManual() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(30));
+        ResultadoEvaluacion existente = ResultadoEvaluacion.builder()
+                .id(5L).propuesta(crearPropuesta(1L, conv))
+                .puntuacionPonderada(new BigDecimal("6.00"))
+                .clasificacion(ClasificacionResultado.rechazada)
+                .ajusteManual(true)
+                .fechaCalculo(LocalDateTime.now().minusDays(1))
+                .build();
+
+        ResultadoEvaluacion guardado = registrarUnicaEvaluacion(conv, existente);
+
+        assertEquals(new BigDecimal("7.60"), guardado.getPuntuacionPonderada());
+        assertEquals(ClasificacionResultado.rechazada, guardado.getClasificacion());
+        assertTrue(guardado.getAjusteManual());
     }
 
     // ──────────────────────────────────────────────────────────────────────────────

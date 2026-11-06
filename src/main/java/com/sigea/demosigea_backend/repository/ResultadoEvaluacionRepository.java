@@ -4,6 +4,8 @@ import com.sigea.demosigea_backend.model.ResultadoEvaluacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,4 +29,20 @@ public interface ResultadoEvaluacionRepository extends JpaRepository<ResultadoEv
      * @return el resultado calculado, o vacío si aún no se han completado todas las evaluaciones.
      */
     Optional<ResultadoEvaluacion> findByPropuesta_Id(Long propuestaId);
+
+    /**
+     * HU-18: resultados de varias propuestas en una sola consulta (listado de clasificación de una convocatoria).
+     *
+     * @param propuestaIds IDs de las propuestas.
+     * @return resultados existentes.
+     */
+    List<ResultadoEvaluacion> findByPropuesta_IdIn(Collection<Long> propuestaIds);
+
+    /**
+     * HU-18: resultados de las propuestas de una convocatoria (recalcular la clasificación al cambiar los umbrales).
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @return resultados de la convocatoria.
+     */
+    List<ResultadoEvaluacion> findByPropuesta_Convocatoria_Id(Long convocatoriaId);
 }
