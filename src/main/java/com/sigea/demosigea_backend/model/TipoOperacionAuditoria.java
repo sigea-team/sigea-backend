@@ -74,6 +74,14 @@ public enum TipoOperacionAuditoria {
     CONVOCATORIA_PUBLICADA("CONVOCATORIAS", "Publicación de una convocatoria (HU-11)"),
     CONVOCATORIA_FECHA_CIERRE_MODIFICADA("CONVOCATORIAS", "Modificación de la fecha límite de una convocatoria publicada (HU-11)"),
 
+    // ----- Rúbrica y comité evaluador (HU-15) -----
+    RUBRICA_CREADA("EVALUACION", "Creación de la rúbrica de evaluación de una convocatoria (HU-15)"),
+    RUBRICA_ACTUALIZADA("EVALUACION", "Modificación de una rúbrica sin evaluaciones registradas (HU-15)"),
+    RUBRICA_REEMPLAZADA("EVALUACION", "Reemplazo confirmado de una rúbrica con evaluaciones registradas (HU-15)"),
+    EVALUADOR_REGISTRADO("EVALUACION", "Registro de un miembro del comité evaluador de una convocatoria (HU-15)"),
+    EVALUADOR_ACTUALIZADO("EVALUACION", "Modificación del área de experticia de un evaluador (HU-15)"),
+    EVALUADOR_RETIRADO("EVALUACION", "Retiro de un evaluador sin propuestas asignadas del comité (HU-15)"),
+
     // ----- Asignación de propuestas a evaluadores (HU-16) -----
     PROPUESTA_ASIGNADA("EVALUACION", "Asignación de una propuesta a un evaluador del comité (HU-16)"),
     PROPUESTA_REASIGNADA("EVALUACION", "Reasignación de una propuesta a otro evaluador del comité (HU-16)"),

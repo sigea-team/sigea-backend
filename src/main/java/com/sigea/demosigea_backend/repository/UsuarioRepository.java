@@ -3,8 +3,10 @@ package com.sigea.demosigea_backend.repository;
 import com.sigea.demosigea_backend.model.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,4 +58,14 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
      */
     @Query("SELECT u FROM Usuario u JOIN FETCH u.persona p ORDER BY p.nombres, p.apellidos")
     List<Usuario> findAllConPersonaOrdenados();
+
+    /**
+     * HU-15: de las personas indicadas, las que tienen cuenta de usuario (una sola consulta para el listado
+     * del comité evaluador).
+     *
+     * @param personaIds IDs de las personas.
+     * @return IDs de las personas con cuenta.
+     */
+    @Query("SELECT u.persona.id FROM Usuario u WHERE u.persona.id IN :personaIds")
+    List<Long> findPersonaIdsConCuenta(@Param("personaIds") Collection<Long> personaIds);
 }

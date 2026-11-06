@@ -1,7 +1,10 @@
 package com.sigea.demosigea_backend.repository;
 
+import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.Evaluacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -66,4 +69,23 @@ public interface EvaluacionRepository extends JpaRepository<Evaluacion, Long> {
      * @return {@code true} si existe al menos una calificación.
      */
     boolean existsByAsignacion_Id(Long asignacionId);
+
+    /**
+     * HU-15, Criterio 4: número de calificaciones registradas con los criterios de una rúbrica.
+     *
+     * @param rubricaId ID de la rúbrica.
+     * @return calificaciones que dependen de la rúbrica.
+     */
+    long countByCriterio_Rubrica_Id(Long rubricaId);
+
+    /**
+     * HU-15, Criterio 4: asignaciones que ya tienen calificaciones con los criterios de una rúbrica.
+     * Son las que deben volver a evaluarse si la rúbrica se reemplaza.
+     *
+     * @param rubricaId ID de la rúbrica.
+     * @return asignaciones afectadas, con su propuesta cargada.
+     */
+    @Query("SELECT a FROM AsignacionEvaluacion a JOIN FETCH a.propuesta "
+            + "WHERE EXISTS (SELECT 1 FROM Evaluacion e WHERE e.asignacion = a AND e.criterio.rubrica.id = :rubricaId)")
+    List<AsignacionEvaluacion> findAsignacionesConCalificacionesDeRubrica(@Param("rubricaId") Long rubricaId);
 }

@@ -27,4 +27,12 @@ public interface CriterioRubricaRepository extends JpaRepository<CriterioRubrica
      * @return lista de criterios con sus nombres y pesos porcentuales.
      */
     List<CriterioRubrica> findByRubrica_Id(Long rubricaId);
+
+    /**
+     * Criterios de una rúbrica en el orden en que se registraron (HU-15).
+     *
+     * @param rubricaId ID de la rúbrica.
+     * @return criterios ordenados por su ID.
+     */
+    List<CriterioRubrica> findByRubrica_IdOrderByIdAsc(Long rubricaId);
 }

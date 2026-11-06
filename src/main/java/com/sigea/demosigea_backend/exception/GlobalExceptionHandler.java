@@ -517,6 +517,68 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-15, Criterio 2: la rúbrica no cumple las reglas (pesos que no suman 100 %, criterios repetidos o
+     * escalas inválidas). En {@code erroresValidacion} se indica el campo con el problema.
+     *
+     * @return {@link ResponseEntity} con estado 400 BAD_REQUEST y código RUBRICA_INVALIDA.
+     */
+    @ExceptionHandler(RubricaInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleRubricaInvalida(RubricaInvalidaException ex,
+                                                               HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                "RUBRICA_INVALIDA",
+                null,
+                ex.getCampos(),
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * HU-15, Criterio 4: la rúbrica ya tiene calificaciones registradas. Se advierte el impacto en
+     * {@code erroresValidacion} y el cliente debe reintentar con {@code ?confirmar=true}.
+     * Al ser subclase de {@link ConfirmacionRequeridaException}, Spring elige este manejador por ser el más específico.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código RUBRICA_EN_USO.
+     */
+    @ExceptionHandler(RubricaEnUsoException.class)
+    public ResponseEntity<ErrorResponse> handleRubricaEnUso(RubricaEnUsoException ex,
+                                                            HttpServletRequest request) {
+        Map<String, String> impacto = new LinkedHashMap<>();
+        impacto.put("calificacionesRegistradas", String.valueOf(ex.getCalificacionesRegistradas()));
+        impacto.put("asignacionesAfectadas", String.valueOf(ex.getAsignacionesAfectadas()));
+        impacto.put("propuestasAfectadas", String.valueOf(ex.getPropuestasAfectadas()));
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                "RUBRICA_EN_USO",
+                null,
+                impacto,
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    /**
+     * HU-15, Criterio 4: ya existe un evaluador con ese correo en el comité de la convocatoria.
+     *
+     * @return {@link ResponseEntity} con estado 409 CONFLICT y código EVALUADOR_DUPLICADO.
+     */
+    @ExceptionHandler(EvaluadorDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> handleEvaluadorDuplicado(EvaluadorDuplicadoException ex,
+                                                                  HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "EVALUADOR_DUPLICADO", request);
+    }
+
+    /**
      * Cuerpo JSON malformado o con valores no convertibles (p. ej. una modalidad que no existe
      * o una fecha con formato inválido).
      *
