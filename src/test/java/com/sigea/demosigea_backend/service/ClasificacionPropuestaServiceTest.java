@@ -122,8 +122,16 @@ class ClasificacionPropuestaServiceTest {
                 .fechaCalculo(LocalDateTime.now()).build();
     }
 
-    private void propuestaEvaluada(Propuesta propuesta, ResultadoEvaluacion resultado) {
+    /** Rutas individuales: primero la convocatoria (compartido) y luego la propuesta (exclusivo). */
+    private void bloqueosDe(Propuesta propuesta) {
+        Convocatoria convocatoria = propuesta.getConvocatoria();
+        when(propuestaRepository.findConvocatoriaIdById(propuesta.getId())).thenReturn(Optional.of(convocatoria.getId()));
+        when(convocatoriaRepository.findByIdParaCompartir(convocatoria.getId())).thenReturn(Optional.of(convocatoria));
         when(propuestaRepository.findByIdParaActualizar(propuesta.getId())).thenReturn(Optional.of(propuesta));
+    }
+
+    private void propuestaEvaluada(Propuesta propuesta, ResultadoEvaluacion resultado) {
+        bloqueosDe(propuesta);
         when(asignacionRepository.findByPropuesta_Id(propuesta.getId())).thenReturn(List.of(
                 asignacion(1L, propuesta, EstadoAsignacion.completada),
                 asignacion(2L, propuesta, EstadoAsignacion.completada)));
@@ -217,7 +225,7 @@ class ClasificacionPropuestaServiceTest {
         Propuesta evaluada = propuesta(40L, convocatoria);
         Propuesta pendiente = propuesta(41L, convocatoria);
         Propuesta sinEvaluadores = propuesta(42L, convocatoria);
-        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(convocatoriaRepository.findByIdParaCompartir(10L)).thenReturn(Optional.of(convocatoria));
         when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L))
                 .thenReturn(List.of(evaluada, pendiente, sinEvaluadores));
         when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L, 41L, 42L))).thenReturn(List.of(
@@ -244,7 +252,7 @@ class ClasificacionPropuestaServiceTest {
     void aplicarConvocatoria_bloqueaPropuestasAntesDeLeerResultados() {
         Convocatoria convocatoria = convocatoria();
         Propuesta propuesta = propuesta(40L, convocatoria);
-        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(convocatoriaRepository.findByIdParaCompartir(10L)).thenReturn(Optional.of(convocatoria));
         when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
         when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L)))
                 .thenReturn(List.of(asignacion(1L, propuesta, EstadoAsignacion.completada)));
@@ -253,10 +261,66 @@ class ClasificacionPropuestaServiceTest {
 
         service.aplicarConvocatoria(10L);
 
-        InOrder orden = inOrder(propuestaRepository, resultadoRepository);
+        InOrder orden = inOrder(convocatoriaRepository, propuestaRepository, resultadoRepository);
+        orden.verify(convocatoriaRepository).findByIdParaCompartir(10L);
         orden.verify(propuestaRepository).findByConvocatoriaIdParaActualizar(10L);
         orden.verify(resultadoRepository).findByPropuesta_IdIn(List.of(40L));
         verify(propuestaRepository, never()).findByConvocatoria_IdOrderByFechaEnvioDesc(any());
+        verify(convocatoriaRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("Concurrencia: la ruta individual bloquea convocatoria y propuesta antes de leer el resultado")
+    void aplicar_bloqueaConvocatoriaYPropuestaAntesDeLeer() {
+        Propuesta propuesta = propuesta(40L, convocatoria());
+        propuestaEvaluada(propuesta, resultado(8L, propuesta, "8.00", ClasificacionResultado.aprobada));
+
+        service.aplicar(40L);
+
+        InOrder orden = inOrder(convocatoriaRepository, propuestaRepository, resultadoRepository);
+        orden.verify(convocatoriaRepository).findByIdParaCompartir(10L);
+        orden.verify(propuestaRepository).findByIdParaActualizar(40L);
+        orden.verify(resultadoRepository).findByPropuesta_Id(40L);
+    }
+
+    @Test
+    @DisplayName("Concurrencia: tras esperar un cambio de umbrales, la aplicación usa los umbrales nuevos")
+    void aplicarConvocatoria_usaUmbralesLeidosConBloqueo() {
+        // Lo que devuelve la lectura bloqueada: el cambio de umbrales (8 / 6) ya está confirmado.
+        Convocatoria convocatoria = convocatoria();
+        convocatoria.setUmbralAceptacion(new BigDecimal("8.00"));
+        convocatoria.setUmbralAjustes(new BigDecimal("6.00"));
+        Propuesta propuesta = propuesta(40L, convocatoria);
+        // Clasificación sugerida calculada con los umbrales anteriores (7 / 5)
+        ResultadoEvaluacion resultado = resultado(8L, propuesta, "7.50", ClasificacionResultado.aprobada);
+        when(convocatoriaRepository.findByIdParaCompartir(10L)).thenReturn(Optional.of(convocatoria));
+        when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
+        when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L)))
+                .thenReturn(List.of(asignacion(1L, propuesta, EstadoAsignacion.completada)));
+        when(resultadoRepository.findByPropuesta_IdIn(List.of(40L))).thenReturn(List.of(resultado));
+
+        service.aplicarConvocatoria(10L);
+
+        assertEquals(ClasificacionResultado.aprobada_con_ajustes, resultado.getClasificacion());
+        assertEquals(EstadoPropuesta.ajustes, propuesta.getEstado());
+        ArgumentCaptor<HistorialClasificacion> captor = ArgumentCaptor.forClass(HistorialClasificacion.class);
+        verify(historialRepository).save(captor.capture());
+        assertEquals(0, new BigDecimal("8").compareTo(captor.getValue().getUmbralAceptacion()));
+    }
+
+    @Test
+    @DisplayName("Concurrencia: el cambio de umbrales toma el bloqueo exclusivo de la convocatoria antes de leerla")
+    void configurarUmbrales_bloqueaConvocatoria() {
+        Convocatoria convocatoria = convocatoria();
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
+        when(resultadoRepository.findByPropuesta_Convocatoria_Id(10L)).thenReturn(List.of());
+
+        service.configurarUmbrales(10L, new UmbralesClasificacionRequest(new BigDecimal("8"), new BigDecimal("6")));
+
+        InOrder orden = inOrder(convocatoriaRepository, resultadoRepository);
+        orden.verify(convocatoriaRepository).findByIdParaActualizar(10L);
+        orden.verify(resultadoRepository).findByPropuesta_Convocatoria_Id(10L);
+        verify(convocatoriaRepository, never()).findById(any());
     }
 
     @Test
@@ -267,7 +331,7 @@ class ClasificacionPropuestaServiceTest {
         propuesta.setEstado(EstadoPropuesta.aprobada); // estado que dejó la solicitud que obtuvo primero el bloqueo
         ResultadoEvaluacion resultado = resultado(8L, propuesta, "8.00", ClasificacionResultado.aprobada);
         resultado.setFechaClasificacion(LocalDateTime.now());
-        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(convocatoriaRepository.findByIdParaCompartir(10L)).thenReturn(Optional.of(convocatoria));
         when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
         when(asignacionRepository.findDetalleByPropuestaIds(List.of(40L)))
                 .thenReturn(List.of(asignacion(1L, propuesta, EstadoAsignacion.completada)));
@@ -322,6 +386,7 @@ class ClasificacionPropuestaServiceTest {
         assertThrows(SolicitudInvalidaException.class, () -> service.ajustar(40L,
                 new AjusteClasificacionRequest(ClasificacionResultado.rechazada, "   corto   ")));
         verify(propuestaRepository, never()).findByIdParaActualizar(any());
+        verify(convocatoriaRepository, never()).findByIdParaCompartir(any());
         verify(historialRepository, never()).save(any());
     }
 
@@ -347,7 +412,7 @@ class ClasificacionPropuestaServiceTest {
     @DisplayName("Criterio 3: con evaluaciones pendientes impide la clasificación")
     void criterio3_evaluacionesPendientes_impide() {
         Propuesta propuesta = propuesta(40L, convocatoria());
-        when(propuestaRepository.findByIdParaActualizar(40L)).thenReturn(Optional.of(propuesta));
+        bloqueosDe(propuesta);
         when(asignacionRepository.findByPropuesta_Id(40L)).thenReturn(List.of(
                 asignacion(1L, propuesta, EstadoAsignacion.completada),
                 asignacion(2L, propuesta, EstadoAsignacion.pendiente)));
@@ -365,7 +430,7 @@ class ClasificacionPropuestaServiceTest {
     @DisplayName("Criterio 3: sin evaluadores asignados impide la clasificación")
     void criterio3_sinEvaluadores_impide() {
         Propuesta propuesta = propuesta(40L, convocatoria());
-        when(propuestaRepository.findByIdParaActualizar(40L)).thenReturn(Optional.of(propuesta));
+        bloqueosDe(propuesta);
         when(asignacionRepository.findByPropuesta_Id(40L)).thenReturn(List.of());
         when(resultadoRepository.findByPropuesta_Id(40L)).thenReturn(Optional.empty());
 
@@ -386,8 +451,9 @@ class ClasificacionPropuestaServiceTest {
     @Test
     @DisplayName("Propuesta inexistente responde no encontrada")
     void aplicar_propuestaInexistente() {
-        when(propuestaRepository.findByIdParaActualizar(99L)).thenReturn(Optional.empty());
+        when(propuestaRepository.findConvocatoriaIdById(99L)).thenReturn(Optional.empty());
         assertThrows(RecursoNoEncontradoException.class, () -> service.aplicar(99L));
+        verify(propuestaRepository, never()).findByIdParaActualizar(any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -399,6 +465,7 @@ class ClasificacionPropuestaServiceTest {
     void configurarUmbrales_ordenInvalido() {
         assertThrows(SolicitudInvalidaException.class, () -> service.configurarUmbrales(10L,
                 new UmbralesClasificacionRequest(new BigDecimal("5"), new BigDecimal("7"))));
+        verify(convocatoriaRepository, never()).findByIdParaActualizar(any());
         verify(convocatoriaRepository, never()).save(any());
     }
 
@@ -406,7 +473,7 @@ class ClasificacionPropuestaServiceTest {
     @DisplayName("Umbrales: reclasifica resultados sin aplicar e informa los ya aplicados que cambiarían")
     void configurarUmbrales_reclasificaPendientes() {
         Convocatoria convocatoria = convocatoria();
-        when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
         Propuesta p1 = propuesta(40L, convocatoria);
         Propuesta p2 = propuesta(41L, convocatoria);
         Propuesta p3 = propuesta(42L, convocatoria);

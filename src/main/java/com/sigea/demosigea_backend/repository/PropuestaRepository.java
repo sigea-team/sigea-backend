@@ -59,6 +59,16 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
     List<Propuesta> findByConvocatoriaIdParaActualizar(@Param("convocatoriaId") Long convocatoriaId);
 
     /**
+     * HU-18: ID de la convocatoria de una propuesta, sin cargar entidades. Permite bloquear la convocatoria antes que
+     * la propuesta (mismo orden de bloqueos que la clasificación masiva).
+     *
+     * @param propuestaId ID de la propuesta.
+     * @return ID de la convocatoria, o vacío si la propuesta no existe.
+     */
+    @Query("SELECT p.convocatoria.id FROM Propuesta p WHERE p.id = :propuestaId")
+    Optional<Long> findConvocatoriaIdById(@Param("propuestaId") Long propuestaId);
+
+    /**
      * HU-14: propuestas del usuario, es decir, aquellas en las que su persona figura como autor
      * o que él mismo envió (creador de la versión 1). Más recientes primero.
      *

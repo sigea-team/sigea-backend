@@ -65,6 +65,15 @@ import java.util.stream.Collectors;
  * Correspondencia con la historia de usuario: aceptada = {@code aprobada}; aceptada con modificaciones =
  * {@code aprobada_con_ajustes} (estado de la propuesta {@code ajustes}); rechazada = {@code rechazada}.
  * </p>
+ * <p>
+ * <b>Concurrencia.</b> Todas las operaciones toman los bloqueos en el mismo orden, para que no haya interbloqueos:
+ * <ol>
+ *   <li>Convocatoria: exclusivo al cambiar umbrales; compartido al aplicar o ajustar clasificaciones.</li>
+ *   <li>Propuestas: exclusivo, en orden de ID (también lo toma el recálculo de HU-17 en {@code EvaluacionService}).</li>
+ * </ol>
+ * Los datos que deciden la clasificación (umbrales, asignaciones, resultado) se leen después de tener los bloqueos,
+ * así que siempre son los últimos confirmados.
+ * </p>
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -128,7 +137,9 @@ public class ClasificacionPropuestaService {
         if (error != null) {
             throw new SolicitudInvalidaException(error);
         }
-        Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        // Bloqueo exclusivo: espera a las clasificaciones en curso y las siguientes esperan a este cambio.
+        Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizar(convocatoriaId)
+                .orElseThrow(() -> noEncontrada(convocatoriaId));
         BigDecimal aceptacionAnterior = ReglasClasificacion.umbralAceptacion(convocatoria);
         BigDecimal ajustesAnterior = ReglasClasificacion.umbralAjustes(convocatoria);
 
@@ -261,6 +272,7 @@ public class ClasificacionPropuestaService {
      */
     @Transactional
     public PropuestaClasificacionResponse aplicar(Long propuestaId) {
+        Convocatoria convocatoria = bloquearConvocatoriaDe(propuestaId);
         Propuesta propuesta = buscarPropuesta(propuestaId, true);
         List<AsignacionEvaluacion> asignaciones = asignacionRepository.findByPropuesta_Id(propuestaId);
         ResultadoEvaluacion resultado = resultadoRepository.findByPropuesta_Id(propuestaId).orElse(null);
@@ -269,18 +281,18 @@ public class ClasificacionPropuestaService {
             throw new PropuestaNoEvaluadaException("La propuesta no se puede clasificar: " + motivo);
         }
         Usuario usuario = usuarioAutenticado().orElse(null);
-        aplicarAutomatica(propuesta, resultado, usuario);
-        return construirRespuesta(propuesta, propuesta.getConvocatoria(), asignaciones, resultado);
+        aplicarAutomatica(propuesta, resultado, convocatoria, usuario);
+        return construirRespuesta(propuesta, convocatoria, asignaciones, resultado);
     }
 
     /**
      * Aplica la clasificación a todas las propuestas evaluadas de una convocatoria (Criterio 1). Las propuestas sin
      * evaluación completa no se clasifican y se informan como omitidas (Criterio 3).
      * <p>
-     * Concurrencia: las propuestas de la convocatoria se bloquean (en orden de ID, para evitar interbloqueos) antes
-     * de leer sus asignaciones y resultados. Así, dos aplicaciones simultáneas, masivas o individuales, se ejecutan
-     * una después de otra: la segunda ve la clasificación ya aplicada por la primera y no duplica el historial ni la
-     * auditoría.
+     * Concurrencia: se bloquea la convocatoria en modo compartido (un cambio de umbrales espera, o se espera a que
+     * termine) y luego las propuestas (en orden de ID) antes de leer umbrales, asignaciones y resultados. Así, dos
+     * aplicaciones simultáneas se ejecutan una después de otra y la segunda no duplica historial ni auditoría; un
+     * cambio de umbrales o un recálculo de HU-17 en curso termina antes de que se lean sus datos.
      * </p>
      *
      * @param convocatoriaId ID de la convocatoria.
@@ -288,9 +300,10 @@ public class ClasificacionPropuestaService {
      */
     @Transactional
     public AplicacionClasificacionResponse aplicarConvocatoria(Long convocatoriaId) {
-        Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        Convocatoria convocatoria = convocatoriaRepository.findByIdParaCompartir(convocatoriaId)
+                .orElseThrow(() -> noEncontrada(convocatoriaId));
         // Bloqueo por propuesta (como la ruta individual): las lecturas siguientes ven lo que otra aplicación
-        // concurrente haya confirmado mientras se esperaba el bloqueo.
+        // o un recálculo de HU-17 haya confirmado mientras se esperaba el bloqueo.
         List<Propuesta> propuestas = propuestaRepository.findByConvocatoriaIdParaActualizar(convocatoriaId);
         List<Long> ids = propuestas.stream().map(Propuesta::getId).toList();
         Map<Long, List<AsignacionEvaluacion>> asignacionesPorPropuesta = ids.isEmpty() ? Map.of()
@@ -313,7 +326,7 @@ public class ClasificacionPropuestaService {
                 omitidas.add(new PropuestaOmitidaResponse(propuesta.getId(), propuesta.getTitulo(), motivo));
                 continue;
             }
-            aplicarAutomatica(propuesta, resultado, usuario);
+            aplicarAutomatica(propuesta, resultado, convocatoria, usuario);
             clasificadas.add(construirRespuesta(propuesta, convocatoria, asignaciones, resultado));
         }
         log.info("Clasificación aplicada en la convocatoria {}: {} clasificadas, {} omitidas.",
@@ -324,8 +337,8 @@ public class ClasificacionPropuestaService {
     /**
      * Aplica la clasificación por umbrales (o la manual vigente) al resultado y al estado de la propuesta.
      */
-    private void aplicarAutomatica(Propuesta propuesta, ResultadoEvaluacion resultado, Usuario usuario) {
-        Convocatoria convocatoria = propuesta.getConvocatoria();
+    private void aplicarAutomatica(Propuesta propuesta, ResultadoEvaluacion resultado, Convocatoria convocatoria,
+                                   Usuario usuario) {
         boolean manual = Boolean.TRUE.equals(resultado.getAjusteManual());
         ClasificacionResultado anterior = resultado.getFechaClasificacion() != null ? resultado.getClasificacion() : null;
         ClasificacionResultado nueva = manual
@@ -395,6 +408,7 @@ public class ClasificacionPropuestaService {
             throw new SolicitudInvalidaException(
                     "Para ajustar manualmente la clasificación debe registrar un motivo de al menos 10 caracteres.");
         }
+        Convocatoria convocatoria = bloquearConvocatoriaDe(propuestaId);
         Propuesta propuesta = buscarPropuesta(propuestaId, true);
         List<AsignacionEvaluacion> asignaciones = asignacionRepository.findByPropuesta_Id(propuestaId);
         ResultadoEvaluacion resultado = resultadoRepository.findByPropuesta_Id(propuestaId).orElse(null);
@@ -413,7 +427,6 @@ public class ClasificacionPropuestaService {
                     "La propuesta ya está clasificada como '%s'.", ReglasClasificacion.etiqueta(nueva)));
         }
 
-        Convocatoria convocatoria = propuesta.getConvocatoria();
         ClasificacionResultado porUmbrales = ReglasClasificacion.clasificar(resultado.getPuntuacionPonderada(), convocatoria);
         Usuario usuario = usuarioAutenticado().orElse(null);
         LocalDateTime ahora = LocalDateTime.now();
@@ -533,9 +546,24 @@ public class ClasificacionPropuestaService {
     }
 
     private Convocatoria buscarConvocatoria(Long convocatoriaId) {
-        return convocatoriaRepository.findById(convocatoriaId)
+        return convocatoriaRepository.findById(convocatoriaId).orElseThrow(() -> noEncontrada(convocatoriaId));
+    }
+
+    private static RecursoNoEncontradoException noEncontrada(Long convocatoriaId) {
+        return new RecursoNoEncontradoException("No se encontró la convocatoria con ID: " + convocatoriaId);
+    }
+
+    /**
+     * Bloquea en modo compartido la convocatoria de la propuesta antes de bloquear la propuesta (orden común de
+     * bloqueos). El ID se consulta sin cargar entidades para que la convocatoria se lea ya bloqueada y con los
+     * umbrales confirmados más recientes.
+     */
+    private Convocatoria bloquearConvocatoriaDe(Long propuestaId) {
+        Long convocatoriaId = propuestaRepository.findConvocatoriaIdById(propuestaId)
                 .orElseThrow(() -> new RecursoNoEncontradoException(
-                        "No se encontró la convocatoria con ID: " + convocatoriaId));
+                        "No se encontró la propuesta con ID: " + propuestaId));
+        return convocatoriaRepository.findByIdParaCompartir(convocatoriaId)
+                .orElseThrow(() -> noEncontrada(convocatoriaId));
     }
 
     private Propuesta buscarPropuesta(Long propuestaId, boolean bloquear) {
