@@ -29,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
@@ -90,7 +91,7 @@ class ComiteEvaluadorServiceTest {
     }
 
     private void guardadoSimulado() {
-        when(comiteRepository.save(any(ComiteEvaluador.class))).thenAnswer(inv -> {
+        when(comiteRepository.saveAndFlush(any(ComiteEvaluador.class))).thenAnswer(inv -> {
             ComiteEvaluador ce = inv.getArgument(0);
             ce.setId(3L);
             return ce;
@@ -195,7 +196,7 @@ class ComiteEvaluadorServiceTest {
                 () -> service.registrar(10L, soloCorreo("nadie@ufps.edu.co")));
 
         assertTrue(ex.getMessage().contains("numeroDocumento"));
-        verify(comiteRepository, never()).save(any());
+        verify(comiteRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -211,7 +212,7 @@ class ComiteEvaluadorServiceTest {
                 () -> service.registrar(10L, personaNueva("luis@ufps.edu.co", "1090123456", null)));
 
         assertEquals("numeroDocumento", ex.getCampo());
-        verify(comiteRepository, never()).save(any());
+        verify(comiteRepository, never()).saveAndFlush(any());
     }
 
     // ------------------------------------------------------------------
@@ -229,8 +230,23 @@ class ComiteEvaluadorServiceTest {
                 () -> service.registrar(10L, soloCorreo("ANA.PEREZ@ufps.edu.co")));
 
         assertTrue(ex.getMessage().contains("ana.perez@ufps.edu.co"));
-        verify(comiteRepository, never()).save(any());
+        verify(comiteRepository, never()).saveAndFlush(any());
         verify(personaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Criterio 4: si dos registros simultáneos chocan con el índice único, se informa como duplicado")
+    void registrar_carreraConIndiceUnico_seInformaComoDuplicado() {
+        convocatoriaExiste();
+        when(comiteRepository.existsByConvocatoria_IdAndPersona_CorreoIgnoreCase(10L, "ana.perez@ufps.edu.co"))
+                .thenReturn(false);
+        when(personaRepository.findByCorreoIgnoreCase("ana.perez@ufps.edu.co")).thenReturn(Optional.of(ana));
+        when(comiteRepository.saveAndFlush(any(ComiteEvaluador.class)))
+                .thenThrow(new DataIntegrityViolationException("comites_evaluadores_convocatoria_id_persona_id_idx"));
+
+        assertThrows(EvaluadorDuplicadoException.class,
+                () -> service.registrar(10L, soloCorreo("ana.perez@ufps.edu.co")));
+        verify(auditoriaService, never()).registrar(any(), any(), any(), anyMap());
     }
 
     @Test

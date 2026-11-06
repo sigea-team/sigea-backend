@@ -23,6 +23,7 @@ import com.sigea.demosigea_backend.repository.RolRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -125,11 +126,19 @@ public class ComiteEvaluadorService {
         boolean personaNueva = existente.isEmpty();
         Persona persona = existente.orElseGet(() -> crearPersona(correo, request));
 
-        ComiteEvaluador miembro = comiteRepository.save(ComiteEvaluador.builder()
-                .convocatoria(convocatoria)
-                .persona(persona)
-                .areaExperticia(request.areaExperticia().trim())
-                .build());
+        ComiteEvaluador miembro;
+        try {
+            // saveAndFlush: si dos solicitudes simultáneas pasan la comprobación anterior, el índice único
+            // (convocatoria_id, persona_id) rechaza la segunda aquí y se informa como duplicado, no como 500.
+            miembro = comiteRepository.saveAndFlush(ComiteEvaluador.builder()
+                    .convocatoria(convocatoria)
+                    .persona(persona)
+                    .areaExperticia(request.areaExperticia().trim())
+                    .build());
+        } catch (DataIntegrityViolationException e) {
+            throw new EvaluadorDuplicadoException(
+                    "Ya existe un evaluador con el correo " + correo + " en el comité de esta convocatoria.");
+        }
 
         boolean tieneCuenta = asegurarRolEvaluador(persona);
 
