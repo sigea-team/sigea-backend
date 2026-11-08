@@ -6,9 +6,10 @@
 
 --changeset SIGEA:hu22-001-actividades-por-programar
 --comment: HU-22 Criterios 1, 2 y 4. Permite registrar actividades sin fecha, horario ni sala (estado 'por_programar')
---comment: para que la generación automática las ubique. Una actividad en cualquier otro estado sigue exigiendo los
---comment: cuatro datos. duracion_minutos guarda cuánto dura la actividad para poder ubicarla; se rellena con la
---comment: duración de las actividades que ya existen. El CHECK hora_fin > hora_inicio se mantiene (con NULL no aplica).
+--comment: para que la generación automática las ubique: en ese estado los cuatro datos deben ser NULL (y la duración
+--comment: obligatoria); en cualquier otro estado los cuatro son obligatorios. duracion_minutos guarda cuánto dura la
+--comment: actividad para poder ubicarla; se rellena con la duración de las actividades que ya existen. El CHECK
+--comment: hora_fin > hora_inicio se mantiene (con NULL no aplica).
 ALTER TABLE "actividades" ADD COLUMN IF NOT EXISTS "duracion_minutos" INT;
 UPDATE "actividades"
    SET "duracion_minutos" = (EXTRACT(EPOCH FROM ("hora_fin" - "hora_inicio")) / 60)::INT
@@ -20,7 +21,8 @@ ALTER TABLE "actividades" ALTER COLUMN "sala_id" DROP NOT NULL;
 ALTER TABLE "actividades" ADD CONSTRAINT "actividades_duracion_check"
     CHECK ("duracion_minutos" IS NULL OR ("duracion_minutos" > 0 AND "duracion_minutos" <= 1440));
 ALTER TABLE "actividades" ADD CONSTRAINT "actividades_programacion_completa_check"
-    CHECK (("estado" = 'por_programar' AND "duracion_minutos" IS NOT NULL)
+    CHECK (("estado" = 'por_programar' AND "duracion_minutos" IS NOT NULL
+            AND "fecha" IS NULL AND "hora_inicio" IS NULL AND "hora_fin" IS NULL AND "sala_id" IS NULL)
         OR ("estado" <> 'por_programar' AND "fecha" IS NOT NULL AND "hora_inicio" IS NOT NULL
             AND "hora_fin" IS NOT NULL AND "sala_id" IS NOT NULL));
 --rollback DELETE FROM "actividades" WHERE "estado" = 'por_programar';

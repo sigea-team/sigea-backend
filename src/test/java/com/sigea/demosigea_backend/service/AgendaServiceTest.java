@@ -269,6 +269,23 @@ class AgendaServiceTest {
         }
 
         @Test
+        @DisplayName("un cruce previo, hecho a mano, no impide aplicar la propuesta (solo se revisan las nuevas)")
+        void cruceManualPrevioNoBloqueaAplicar() {
+            // Dos actividades programadas a mano que se cruzan entre sí (Ana en ambas)
+            programada(1L, "A", DIA, 8, 9, auditorio, ana);
+            programada(5L, "B", DIA, 8, 9, virtual, ana);
+            Actividad nueva = porProgramar(2L, "Nueva", 60, null, ModalidadEvento.presencial);
+
+            GeneracionAgendaResponse r = service.aplicar(EVENTO, false);
+
+            assertTrue(r.aplicada());
+            assertEquals(1, r.asignadas().size());
+            assertEquals(LocalTime.of(9, 0), nueva.getHoraInicio());
+            // El cruce previo se sigue informando al validar
+            assertFalse(service.validar(EVENTO).conflictos().isEmpty());
+        }
+
+        @Test
         @DisplayName("salas reutilizables: no ubica nada donde otro evento ya usa la sala")
         void respetaSalaUsadaPorOtroEvento() {
             deOtroEvento(500L, DIA, 8, 11, auditorio);

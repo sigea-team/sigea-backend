@@ -1114,7 +1114,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
 - `actividades_duracion_check`: `duracion_minutos IS NULL OR (duracion_minutos > 0 AND duracion_minutos <= 1440)` (HU-22)
-- `actividades_programacion_completa_check`: `(estado = 'por_programar' AND duracion_minutos IS NOT NULL) OR (estado <> 'por_programar' AND fecha, hora_inicio, hora_fin y sala_id NOT NULL)` (HU-22)
+- `actividades_programacion_completa_check`: `(estado = 'por_programar' AND duracion_minutos IS NOT NULL AND fecha, hora_inicio, hora_fin y sala_id IS NULL) OR (estado <> 'por_programar' AND fecha, hora_inicio, hora_fin y sala_id NOT NULL)` (HU-22)
 
 **Índices Definidos**:
 - Índice `idx_actividades_evento` sobre (`evento_id`, `fecha`)
