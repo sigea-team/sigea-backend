@@ -70,8 +70,8 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `disponibilidad_ponentes` ➡️ Franjas horarias disponibles de conferencistas.
 
 ### 7. Programación y Agenda del Evento
-- `actividades` ➡️ Cronograma de actividades (fecha, hora inicio/fin, sala, ponente). Modalidad: `'presencial'`, `'virtual'`, `'hibrida'`.
-- `agendas_publicadas` ➡️ Publicación de la agenda diaria (`'no_publicada'`, `'publicada'`).
+- `actividades` ➡️ Cronograma de actividades (fecha, hora inicio/fin, sala, ponente). Modalidad: `'presencial'`, `'virtual'`, `'hibrida'`. HU-22 (changeset 22): en estado `'por_programar'` no tiene fecha, horas ni sala, solo `duracion_minutos`.
+- `agendas_publicadas` ➡️ Publicación de la agenda diaria (`'no_publicada'`, `'publicada'`). Entidad `AgendaPublicada` (HU-22).
 
 ### 8. Inscripciones, Acreditación y Asistencia
 - `inscripciones_evento` ➡️ Inscripción a evento por categoría (`'estudiante'`, `'egresado'`, `'docente'`, `'particular'`).

@@ -6,6 +6,7 @@ import com.sigea.demosigea_backend.dto.actividad.AdvertenciaActividadResponse.Ti
 import com.sigea.demosigea_backend.dto.actividad.ConflictoActividadResponse;
 import com.sigea.demosigea_backend.dto.actividad.ConflictoActividadResponse.TipoConflicto;
 import com.sigea.demosigea_backend.dto.actividad.ValidacionActividadResponse;
+import com.sigea.demosigea_backend.dto.agenda.ActividadPorProgramarRequest;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.ProgramacionActividadException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
@@ -35,6 +36,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -49,11 +52,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,6 +81,7 @@ class ActividadServiceTest {
     @Mock private DisponibilidadSalaRepository disponibilidadSalaRepository;
     @Mock private DisponibilidadPonenteRepository disponibilidadPonenteRepository;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private AvisoCambiosAgenda avisoCambiosAgenda;
 
     @InjectMocks
     private ActividadService service;
@@ -473,6 +479,136 @@ class ActividadServiceTest {
                     () -> service.crear(EVENTO, solicitud(10, 12, auditorio, ana, false, true)));
 
             assertEquals(ProgramacionActividadException.CONFLICTO_PROGRAMACION, e.getCodigo());
+        }
+    }
+
+    // ── HU-22: actividades por programar y avisos de cambios ──
+
+    @Nested
+    @DisplayName("HU-22: actividades por programar")
+    class PorProgramar {
+
+        private ActividadPorProgramarRequest porProgramar(int minutos, Persona p) {
+            return new ActividadPorProgramarRequest("Ponencia IA", 5L, minutos, p != null ? p.getId() : null,
+                    null, null, null, false);
+        }
+
+        private Actividad pendiente(Long id) {
+            Actividad a = Actividad.builder().id(id).evento(evento).nombre("Pendiente").tipoActividad(taller)
+                    .estado(Actividad.ESTADO_POR_PROGRAMAR).duracionMinutos(90).build();
+            when(actividadRepository.findByIdAndEvento_Id(id, EVENTO)).thenReturn(Optional.of(a));
+            return a;
+        }
+
+        @Test
+        @DisplayName("Criterio 1: registra una actividad sin fecha, horario ni sala, con su duración")
+        void registraPorProgramar() {
+            ActividadResponse r = service.registrarPorProgramar(EVENTO, porProgramar(60, ana));
+
+            assertEquals(Actividad.ESTADO_POR_PROGRAMAR, r.estado());
+            assertNull(r.fecha());
+            assertNull(r.horaInicio());
+            assertNull(r.salaId());
+            assertEquals(60, r.duracionMinutos());
+            assertEquals("Ana Pérez", r.ponenteNombre());
+            verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.ACTIVIDAD_REGISTRADA_POR_PROGRAMAR),
+                    eq("actividades"), eq(99L), anyMap());
+        }
+
+        @Test
+        @DisplayName("valida el ponente igual que la programación manual")
+        void validaPonente() {
+            when(participacionRepository.existsByEvento_IdAndPersona_Id(EVENTO, ana.getId())).thenReturn(false);
+            assertThrows(SolicitudInvalidaException.class,
+                    () -> service.registrarPorProgramar(EVENTO, porProgramar(60, ana)));
+            verify(actividadRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("no modifica como por programar una actividad que ya tiene horario")
+        void noModificaProgramada() {
+            Actividad propia = programada(2L, "Mi taller", 9, 11, auditorio, ana, false);
+            when(actividadRepository.findByIdAndEvento_Id(2L, EVENTO)).thenReturn(Optional.of(propia));
+            assertThrows(OperacionNoPermitidaException.class,
+                    () -> service.actualizarPorProgramar(EVENTO, 2L, porProgramar(60, null)));
+        }
+
+        @Test
+        @DisplayName("Criterio 1 (ajuste manual): programarla a mano la deja programada y no automática")
+        void programarAMano() {
+            Actividad a = pendiente(3L);
+
+            ActividadResponse r = service.actualizar(EVENTO, 3L, solicitud(14, 16, auditorio, ana, false, false));
+
+            assertEquals(Actividad.ESTADO_PROGRAMADA, r.estado());
+            assertEquals(120, r.duracionMinutos());
+            assertFalse(r.asignacionAutomatica());
+            assertEquals(LocalTime.of(14, 0), a.getHoraInicio());
+            ArgumentCaptor<AvisoCambiosAgenda.Programacion> antes =
+                    ArgumentCaptor.forClass(AvisoCambiosAgenda.Programacion.class);
+            verify(avisoCambiosAgenda).actividadModificada(eq(a), antes.capture());
+            assertFalse(antes.getValue().programada());
+        }
+
+        @Test
+        @DisplayName("Criterio 1 (ajuste manual): un ajuste a mano quita la marca de asignación automática")
+        void ajusteQuitaMarcaAutomatica() {
+            Actividad propia = programada(2L, "Mi taller", 9, 11, auditorio, ana, false);
+            propia.setAsignacionAutomatica(true);
+            when(actividadRepository.findByIdAndEvento_Id(2L, EVENTO)).thenReturn(Optional.of(propia));
+
+            service.actualizar(EVENTO, 2L, solicitud(9, 10, auditorio, ana, false, false));
+
+            assertFalse(propia.isAsignacionAutomatica());
+        }
+
+        @Test
+        @DisplayName("devolver a por programar quita fecha, horario y sala, conserva la duración y avisa")
+        void desprogramar() {
+            Actividad propia = programada(2L, "Mi taller", 9, 11, auditorio, ana, false);
+            when(actividadRepository.findByIdAndEvento_Id(2L, EVENTO)).thenReturn(Optional.of(propia));
+
+            ActividadResponse r = service.desprogramar(EVENTO, 2L);
+
+            assertEquals(Actividad.ESTADO_POR_PROGRAMAR, r.estado());
+            assertNull(propia.getFecha());
+            assertNull(propia.getSala());
+            assertEquals(120, propia.getDuracionMinutos());
+            ArgumentCaptor<AvisoCambiosAgenda.Programacion> antes =
+                    ArgumentCaptor.forClass(AvisoCambiosAgenda.Programacion.class);
+            verify(avisoCambiosAgenda).actividadRetirada(eq(propia), antes.capture());
+            assertEquals(DIA, antes.getValue().fecha());
+            assertEquals(LocalTime.of(9, 0), antes.getValue().inicio());
+            verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.ACTIVIDAD_DESPROGRAMADA), eq("actividades"),
+                    eq(2L), anyMap());
+        }
+
+        @Test
+        @DisplayName("Criterio 5: modificar una actividad pasa su programación anterior al aviso de cambios")
+        void modificarAvisa() {
+            Actividad propia = programada(2L, "Mi taller", 9, 11, auditorio, ana, false);
+            when(actividadRepository.findByIdAndEvento_Id(2L, EVENTO)).thenReturn(Optional.of(propia));
+
+            service.actualizar(EVENTO, 2L, solicitud(14, 15, salaB, ana, false, false));
+
+            ArgumentCaptor<AvisoCambiosAgenda.Programacion> antes =
+                    ArgumentCaptor.forClass(AvisoCambiosAgenda.Programacion.class);
+            verify(avisoCambiosAgenda).actividadModificada(eq(propia), antes.capture());
+            assertEquals(LocalTime.of(9, 0), antes.getValue().inicio());
+            assertEquals(auditorio.getId(), antes.getValue().salaId());
+        }
+
+        @Test
+        @DisplayName("Criterio 5: al eliminar se avisa a los inscritos antes de borrar la actividad")
+        void eliminarAvisaAntesDeBorrar() {
+            Actividad propia = programada(2L, "Mi taller", 9, 11, auditorio, ana, false);
+            when(actividadRepository.findByIdAndEvento_Id(2L, EVENTO)).thenReturn(Optional.of(propia));
+
+            service.eliminar(EVENTO, 2L);
+
+            InOrder orden = inOrder(avisoCambiosAgenda, actividadRepository);
+            orden.verify(avisoCambiosAgenda).actividadRetirada(eq(propia), any(AvisoCambiosAgenda.Programacion.class));
+            orden.verify(actividadRepository).delete(propia);
         }
     }
 }

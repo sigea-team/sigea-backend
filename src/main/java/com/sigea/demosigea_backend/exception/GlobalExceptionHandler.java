@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
+import com.sigea.demosigea_backend.dto.agenda.AgendaRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
@@ -756,6 +757,29 @@ public class GlobalExceptionHandler {
                 request != null ? request.getRequestURI() : null,
                 ex.getConflictos(),
                 ex.getAdvertencias());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * HU-22, Criterios 3 y 4: la agenda no se publica porque tiene actividades sin sala u horario
+     * (AGENDA_INCOMPLETA), cruces (AGENDA_CON_CONFLICTOS) o no tiene actividades (AGENDA_VACIA).
+     *
+     * @param ex      excepción con las actividades incompletas y los cruces.
+     * @param request petición HTTP.
+     * @return 409 CONFLICT con {@link AgendaRechazadaResponse}.
+     */
+    @ExceptionHandler(AgendaNoPublicableException.class)
+    public ResponseEntity<AgendaRechazadaResponse> handleAgendaNoPublicable(AgendaNoPublicableException ex,
+                                                                           HttpServletRequest request) {
+        AgendaRechazadaResponse body = new AgendaRechazadaResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                request != null ? request.getRequestURI() : null,
+                ex.getIncompletas(),
+                ex.getConflictos());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 

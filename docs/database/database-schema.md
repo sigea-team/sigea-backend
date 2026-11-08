@@ -1100,20 +1100,25 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `tipo_actividad_id` | `INT` | `Integer` | NO | FK | - | FK -> [`tipos_actividad.tipo_actividad_id`](#tipos_actividad) |
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `nombre` | `VARCHAR(200)` | `String` | NO |  | - | - |
-| `fecha` | `DATE` | `LocalDate` | NO |  | - | - |
-| `hora_inicio` | `TIME` | `LocalTime` | NO |  | - | - |
-| `hora_fin` | `TIME` | `LocalTime` | NO |  | - | - |
-| `sala_id` | `INT` | `Integer` | NO | FK | - | FK -> [`salas.sala_id`](#salas) |
+| `fecha` | `DATE` | `LocalDate` | SÍ |  | - | HU-22 (changeset 22): NULL mientras `estado = 'por_programar'` |
+| `hora_inicio` | `TIME` | `LocalTime` | SÍ |  | - | HU-22: NULL mientras está por programar |
+| `hora_fin` | `TIME` | `LocalTime` | SÍ |  | - | HU-22: NULL mientras está por programar |
+| `duracion_minutos` | `INT` | `Integer` | SÍ |  | - | HU-22 (changeset 22). Duración para la generación automática; obligatoria si está por programar |
+| `sala_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`salas.sala_id`](#salas). HU-22: NULL mientras está por programar |
 | `ponente_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `modalidad` | `VARCHAR(20)` | `String` | SÍ |  | - | CHECK `modalidad IN ('presencial','virtual','hibrida'` |
 | `permite_simultaneidad` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
-| `estado` | `VARCHAR(20)` | `String` | NO |  | `'programada'` | - |
+| `estado` | `VARCHAR(20)` | `String` | NO |  | `'programada'` | Sin CHECK de valores. Usados: `'programada'`, `'por_programar'` (HU-22), `'cancelada'` |
+| `asignacion_automatica` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-22 (changeset 22). La ubicó la generación automática y no se ha ajustado a mano |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (hora_fin > hora_inicio)`
+- `actividades_duracion_check`: `duracion_minutos IS NULL OR (duracion_minutos > 0 AND duracion_minutos <= 1440)` (HU-22)
+- `actividades_programacion_completa_check`: `(estado = 'por_programar' AND duracion_minutos IS NOT NULL) OR (estado <> 'por_programar' AND fecha, hora_inicio, hora_fin y sala_id NOT NULL)` (HU-22)
 
 **Índices Definidos**:
 - Índice `idx_actividades_evento` sobre (`evento_id`, `fecha`)
+- Índice `idx_actividades_evento_estado` sobre (`evento_id`, `estado`) (HU-22)
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1127,8 +1132,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `agendas_publicadas`
 
-**Descripción**: Control de publicación y visibilidad de la programación diaria del evento hacia el público.  
-**Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.AgendaPublicada` (anotada con `@Entity @Table(name = "agendas_publicadas")`)  
+**Descripción**: Control de publicación y visibilidad de la programación diaria del evento hacia el público. HU-22: los participantes solo ven las actividades de los días en `'publicada'`.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.AgendaPublicada` (`@Entity @Table(name = "agendas_publicadas")`), estado `EstadoAgenda`  
 **Clave Primaria**: `agenda_id`
 
 | Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
@@ -1136,7 +1141,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `agenda_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `fecha_dia` | `DATE` | `LocalDate` | NO |  | - | - |
-| `fecha_publicacion` | `TIME` | `LocalTime` | SÍ |  | - | - |
+| `fecha_publicacion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | Última publicación del día |
 | `estado` | `VARCHAR(20)` | `String` | NO |  | `'no_publicada'` | CHECK `estado IN ('no_publicada','publicada'` |
 
 **Índices Definidos**:
@@ -1188,6 +1193,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 **Índices Definidos**:
 - UNIQUE Índice `inscripciones_actividad_inscripcion_id_actividad_id_idx` sobre (`inscripcion_id`, `actividad_id`)
+- Índice `idx_inscripciones_actividad_actividad` sobre (`actividad_id`) (HU-22, changeset 22: notificar cambios a los inscritos)
 
 **Relaciones Foráneas Salientes**:
 - Columna `inscripcion_id` -> [`inscripciones_evento.inscripcion_id`](#inscripciones_evento) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`

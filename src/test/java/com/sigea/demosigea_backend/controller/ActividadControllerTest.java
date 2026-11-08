@@ -61,7 +61,8 @@ class ActividadControllerTest {
     void crear_retorna201() throws Exception {
         when(actividadService.crear(eq(1L), any(ActividadRequest.class))).thenReturn(new ActividadResponse(
                 99L, 1L, "Taller IA", 5L, "Taller", LocalDate.of(2027, 3, 10), LocalTime.of(9, 0),
-                LocalTime.of(11, 0), 10L, "Auditorio", 20L, "Ana Pérez", null, null, null, false, "programada", List.of()));
+                LocalTime.of(11, 0), 10L, "Auditorio", 20L, "Ana Pérez", null, null, null, false, "programada", List.of(),
+                120, false));
 
         mockMvc.perform(post("/api/v1/eventos/1/actividades").contentType(MediaType.APPLICATION_JSON).content(VALIDA))
                 .andExpect(status().isCreated())
