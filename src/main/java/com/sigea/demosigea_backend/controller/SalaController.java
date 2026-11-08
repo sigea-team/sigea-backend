@@ -200,4 +200,40 @@ public class SalaController {
     ) {
         return ResponseEntity.ok(salaService.actualizarDisponibilidadSala(eventoId, salaId, franjas));
     }
+
+    @Operation(summary = "Vincular sala existente al evento",
+            description = "Asocia una sala institucional del catálogo al evento, permitiendo reutilizarla.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Sala vinculada exitosamente",
+                    content = @Content(schema = @Schema(implementation = SalaResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Evento o sala no encontrados",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/vincular/{salaId}")
+    @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<SalaResponse> vincular(
+            @PathVariable Long eventoId,
+            @PathVariable Long salaId
+    ) {
+        return ResponseEntity.ok(salaService.vincularSalaAEvento(eventoId, salaId));
+    }
+
+    @Operation(summary = "Desvincular sala del evento",
+            description = "Remueve la asociación de la sala con este evento sin eliminar la sala del catálogo general.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Sala desvinculada exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Evento o sala no encontrados",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "La sala tiene actividades programadas en este evento",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/{salaId}/desvincular")
+    @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<Void> desvincular(
+            @PathVariable Long eventoId,
+            @PathVariable Long salaId
+    ) {
+        salaService.desvincularSalaDeEvento(eventoId, salaId);
+        return ResponseEntity.noContent().build();
+    }
 }

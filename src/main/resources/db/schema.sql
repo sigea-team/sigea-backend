@@ -262,11 +262,18 @@ CREATE TABLE "observaciones_propuesta" (
 
 CREATE TABLE "salas" (
   "sala_id" SERIAL PRIMARY KEY,
-  "evento_id" INT NOT NULL,
+  "evento_id" INT,
   "nombre" VARCHAR(100) NOT NULL,
   "ubicacion" VARCHAR(150),
   "tipo" VARCHAR(20) NOT NULL CHECK (tipo IN ('fisica','virtual')),
   "aforo_maximo" INT NOT NULL CHECK (aforo_maximo > 0)
+);
+
+CREATE TABLE "evento_salas" (
+  "evento_id" INT NOT NULL,
+  "sala_id" INT NOT NULL,
+  "creado_en" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("evento_id", "sala_id")
 );
 
 CREATE TABLE "disponibilidad_salas" (

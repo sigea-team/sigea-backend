@@ -9,6 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -16,6 +18,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Entidad JPA que representa una sala (física o virtual) disponible para programar
@@ -45,10 +50,20 @@ public class Sala {
     @Column(name = "sala_id")
     private Long id;
 
-    /** Evento al que pertenece la sala. */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "evento_id", nullable = false)
+    /** Evento al que pertenece la sala (opcional si es institucional desvinculada). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "evento_id")
     private Evento evento;
+
+    /** Eventos a los que la sala está vinculada (reutilizable entre eventos). */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "evento_salas",
+            joinColumns = @JoinColumn(name = "sala_id"),
+            inverseJoinColumns = @JoinColumn(name = "evento_id")
+    )
+    @Builder.Default
+    private Set<Evento> eventos = new HashSet<>();
 
     /** Nombre de la sala (único por evento, sin distinguir mayúsculas). */
     @Column(name = "nombre", length = 100, nullable = false)

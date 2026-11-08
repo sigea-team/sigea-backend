@@ -47,3 +47,5 @@ databaseChangeLog:
       file: db/changelog/changes/19-hu15-rubricas-comite-evaluador.sql
   - include:
       file: db/changelog/changes/20-hu18-clasificacion-propuestas.sql
+  - include:
+      file: db/changelog/changes/21-hu-salas-reutilizables-disponibilidad.sql

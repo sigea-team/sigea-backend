@@ -6,6 +6,8 @@ import com.sigea.demosigea_backend.dto.sala.ConflictoDisponibilidadResponse;
 import com.sigea.demosigea_backend.dto.sala.DisponibilidadHorariaRequest;
 import com.sigea.demosigea_backend.dto.sala.DisponibilidadPonenteResponse;
 import com.sigea.demosigea_backend.dto.sala.DisponibilidadSalaResponse;
+import com.sigea.demosigea_backend.dto.sala.EventoSalaInfo;
+import com.sigea.demosigea_backend.dto.sala.OcupacionSalaResponse;
 import com.sigea.demosigea_backend.dto.sala.SalaRequest;
 import com.sigea.demosigea_backend.dto.sala.SalaResponse;
 import com.sigea.demosigea_backend.exception.AforoInvalidoException;
@@ -36,6 +38,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Servicio de negocio para la gestión de salas y disponibilidad horaria — HU-Salas.
@@ -465,7 +468,271 @@ public class SalaService {
                 disponibilidadSalaRepository.findBySala_IdOrderByFechaAscHoraInicioAsc(sala.getId()).stream()
                         .map(DisponibilidadSalaResponse::fromEntity)
                         .toList();
-        return SalaResponse.fromEntity(sala, disponibilidades);
+
+        List<EventoSalaInfo> eventosVinculados = new ArrayList<>();
+        if (sala.getEventos() != null) {
+            for (Evento e : sala.getEventos()) {
+                if (e != null) {
+                    eventosVinculados.add(new EventoSalaInfo(
+                            e.getId(), e.getNombre(), e.getSemestre(), e.getEstado() != null ? e.getEstado().name() : null));
+                }
+            }
+        }
+        if (sala.getEvento() != null && eventosVinculados.stream().noneMatch(ev -> Objects.equals(ev.id(), sala.getEvento().getId()))) {
+            Evento e = sala.getEvento();
+            eventosVinculados.add(new EventoSalaInfo(
+                    e.getId(), e.getNombre(), e.getSemestre(), e.getEstado() != null ? e.getEstado().name() : null));
+        }
+
+        List<OcupacionSalaResponse> ocupaciones = actividadRepository.findActividadesPorSala(sala.getId()).stream()
+                .map(a -> new OcupacionSalaResponse(
+                        a.getId(),
+                        a.getNombre(),
+                        a.getEvento() != null ? a.getEvento().getId() : null,
+                        a.getEvento() != null ? a.getEvento().getNombre() : "",
+                        a.getFecha(),
+                        a.getHoraInicio(),
+                        a.getHoraFin()))
+                .toList();
+
+        return SalaResponse.fromEntity(sala, disponibilidades, eventosVinculados, ocupaciones);
+    }
+
+    // ------------------------------------------------------------------
+    // CRUD Global / Institucional de Salas (desvinculadas de eventos)
+    // ------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<SalaResponse> listarTodas() {
+        return salaRepository.findAllByOrderByNombreAscIdAsc().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SalaResponse obtenerGlobal(Long salaId) {
+        return toResponse(buscarSalaGlobal(salaId));
+    }
+
+    @Transactional
+    public SalaResponse crearGlobal(SalaRequest request) {
+        String nombre = request.nombre().strip();
+        if (salaRepository.existsByNombreIgnoreCase(nombre)) {
+            throw new SalaDuplicadaException(String.format("Ya existe una sala llamada '%s' en el catálogo institucional.", nombre));
+        }
+
+        Sala sala = Sala.builder()
+                .evento(null)
+                .nombre(nombre)
+                .ubicacion(request.ubicacion() != null ? request.ubicacion().strip() : null)
+                .tipo(request.tipo())
+                .aforoMaximo(request.aforoMaximo())
+                .permiteSimultaneidad(Boolean.TRUE.equals(request.permiteSimultaneidad()))
+                .build();
+
+        Sala guardada = salaRepository.saveAndFlush(sala);
+
+        if (request.disponibilidades() != null && !request.disponibilidades().isEmpty()) {
+            guardarFranjasSala(guardada, request.disponibilidades());
+        }
+
+        auditoriaService.registrar(TipoOperacionAuditoria.SALA_CREADA, ENTIDAD, guardada.getId(),
+                DetalleAuditoria.de("nombre", guardada.getNombre(), "tipo", guardada.getTipo(),
+                        "aforoMaximo", guardada.getAforoMaximo()));
+
+        log.info("Sala institucional creada: {} '{}'", guardada.getId(), guardada.getNombre());
+        return toResponse(guardada);
+    }
+
+    @Transactional
+    public SalaResponse actualizarGlobal(Long salaId, SalaRequest request) {
+        Sala sala = buscarSalaGlobal(salaId);
+
+        String nombre = request.nombre().strip();
+        if (salaRepository.existsByNombreIgnoreCaseAndIdNot(nombre, salaId)) {
+            throw new SalaDuplicadaException(String.format("Ya existe otra sala llamada '%s'.", nombre));
+        }
+
+        int nuevoAforo = request.aforoMaximo();
+        int aforoActual = sala.getAforoMaximo();
+        if (nuevoAforo < aforoActual) {
+            validarAforoContraInscripciones(sala, nuevoAforo);
+        }
+
+        sala.setNombre(nombre);
+        sala.setUbicacion(request.ubicacion() != null ? request.ubicacion().strip() : null);
+        sala.setTipo(request.tipo());
+        sala.setAforoMaximo(nuevoAforo);
+        if (request.permiteSimultaneidad() != null) {
+            sala.setPermiteSimultaneidad(request.permiteSimultaneidad());
+        }
+
+        Sala guardada = salaRepository.saveAndFlush(sala);
+
+        if (request.disponibilidades() != null) {
+            disponibilidadSalaRepository.deleteBySala_Id(salaId);
+            disponibilidadSalaRepository.flush();
+            if (!request.disponibilidades().isEmpty()) {
+                guardarFranjasSala(guardada, request.disponibilidades());
+            }
+        }
+
+        auditoriaService.registrar(TipoOperacionAuditoria.SALA_ACTUALIZADA, ENTIDAD, salaId,
+                DetalleAuditoria.de("nombre", guardada.getNombre(), "aforoMaximo", guardada.getAforoMaximo()));
+
+        log.info("Sala institucional actualizada: {} '{}'", salaId, guardada.getNombre());
+        return toResponse(guardada);
+    }
+
+    @Transactional
+    public void eliminarGlobal(Long salaId) {
+        Sala sala = buscarSalaGlobal(salaId);
+
+        long numActividades = actividadRepository.countBySala_Id(salaId);
+        if (numActividades > 0) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No se puede eliminar la sala '%s' porque tiene %d actividad(es) programada(s). "
+                            + "Reasigne o elimine las actividades antes de eliminar la sala.",
+                    sala.getNombre(), numActividades));
+        }
+
+        salaRepository.delete(sala);
+
+        auditoriaService.registrar(TipoOperacionAuditoria.SALA_ELIMINADA, ENTIDAD, salaId,
+                DetalleAuditoria.de("nombre", sala.getNombre()));
+
+        log.info("Sala institucional eliminada: {} '{}'", salaId, sala.getNombre());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DisponibilidadSalaResponse> obtenerDisponibilidadGlobal(Long salaId) {
+        buscarSalaGlobal(salaId);
+        return disponibilidadSalaRepository.findBySala_IdOrderByFechaAscHoraInicioAsc(salaId).stream()
+                .map(DisponibilidadSalaResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public ActualizacionDisponibilidadSalaResponse actualizarDisponibilidadGlobal(
+            Long salaId, List<DisponibilidadHorariaRequest> franjas) {
+
+        Sala sala = buscarSalaGlobal(salaId);
+
+        disponibilidadSalaRepository.deleteBySala_Id(salaId);
+        disponibilidadSalaRepository.flush();
+
+        List<DisponibilidadSalaResponse> nuevasFranjas = Collections.emptyList();
+        if (franjas != null && !franjas.isEmpty()) {
+            guardarFranjasSala(sala, franjas);
+            nuevasFranjas = disponibilidadSalaRepository.findBySala_IdOrderByFechaAscHoraInicioAsc(salaId).stream()
+                    .map(DisponibilidadSalaResponse::fromEntity)
+                    .toList();
+        }
+
+        List<Actividad> actividades = actividadRepository.findActividadesPorSala(salaId);
+        List<ConflictoDisponibilidadResponse> conflictos = detectarConflictosGenerales(actividades, franjas);
+
+        auditoriaService.registrar(TipoOperacionAuditoria.DISPONIBILIDAD_SALA_ACTUALIZADA, ENTIDAD, salaId,
+                DetalleAuditoria.de("franjasGuardadas", franjas != null ? franjas.size() : 0, "conflictos", conflictos.size()));
+
+        log.info("Disponibilidad institucional de sala {} actualizada. Conflictos: {}", salaId, conflictos.size());
+        return new ActualizacionDisponibilidadSalaResponse(salaId, nuevasFranjas, conflictos, !conflictos.isEmpty());
+    }
+
+    @Transactional(readOnly = true)
+    public List<OcupacionSalaResponse> obtenerOcupacionesGlobal(Long salaId, LocalDate fecha) {
+        buscarSalaGlobal(salaId);
+        List<Actividad> actividades = fecha != null
+                ? actividadRepository.findActividadesPorSalaYFecha(salaId, fecha)
+                : actividadRepository.findActividadesPorSala(salaId);
+
+        return actividades.stream().map(a -> new OcupacionSalaResponse(
+                a.getId(),
+                a.getNombre(),
+                a.getEvento() != null ? a.getEvento().getId() : null,
+                a.getEvento() != null ? a.getEvento().getNombre() : "",
+                a.getFecha(),
+                a.getHoraInicio(),
+                a.getHoraFin()
+        )).toList();
+    }
+
+    // ------------------------------------------------------------------
+    // Vinculación / Desvinculación de Salas a Eventos
+    // ------------------------------------------------------------------
+
+    @Transactional
+    public SalaResponse vincularSalaAEvento(Long eventoId, Long salaId) {
+        Evento evento = buscarEvento(eventoId);
+        Sala sala = buscarSalaGlobal(salaId);
+
+        if (sala.getEventos() == null) {
+            sala.setEventos(new java.util.HashSet<>());
+        }
+        if (!sala.getEventos().contains(evento)) {
+            sala.getEventos().add(evento);
+            salaRepository.save(sala);
+            auditoriaService.registrar(TipoOperacionAuditoria.SALA_ACTUALIZADA, ENTIDAD, salaId,
+                    DetalleAuditoria.de("eventoId", eventoId, "accion", "VINCULAR"));
+            log.info("Sala {} '{}' vinculada al evento {} '{}'", salaId, sala.getNombre(), eventoId, evento.getNombre());
+        }
+
+        return toResponse(sala);
+    }
+
+    @Transactional
+    public void desvincularSalaDeEvento(Long eventoId, Long salaId) {
+        Evento evento = buscarEvento(eventoId);
+        Sala sala = buscarSalaGlobal(salaId);
+
+        List<Actividad> acts = actividadRepository.findBySala_IdAndEvento_Id(salaId, eventoId);
+        if (!acts.isEmpty()) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No se puede desvincular la sala '%s' del evento '%s' porque tiene %d actividad(es) programada(s) en él. "
+                            + "Elimine o reasigne las actividades antes de desvincularla.",
+                    sala.getNombre(), evento.getNombre(), acts.size()));
+        }
+
+        if (sala.getEventos() != null) {
+            sala.getEventos().remove(evento);
+        }
+        if (sala.getEvento() != null && Objects.equals(sala.getEvento().getId(), eventoId)) {
+            sala.setEvento(null);
+        }
+        salaRepository.save(sala);
+
+        auditoriaService.registrar(TipoOperacionAuditoria.SALA_ACTUALIZADA, ENTIDAD, salaId,
+                DetalleAuditoria.de("eventoId", eventoId, "accion", "DESVINCULAR"));
+        log.info("Sala {} '{}' desvinculada del evento {} '{}'", salaId, sala.getNombre(), eventoId, evento.getNombre());
+    }
+
+    private Sala buscarSalaGlobal(Long salaId) {
+        return salaRepository.findById(salaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        String.format("No se encontró la sala con ID %d.", salaId)));
+    }
+
+    private List<ConflictoDisponibilidadResponse> detectarConflictosGenerales(
+            List<Actividad> actividades, List<DisponibilidadHorariaRequest> franjas) {
+        if (actividades == null || actividades.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ConflictoDisponibilidadResponse> conflictos = new ArrayList<>();
+        for (Actividad act : actividades) {
+            boolean cubierta = franjas != null && franjas.stream().anyMatch(f ->
+                    f.fecha().equals(act.getFecha())
+                            && !act.getHoraInicio().isBefore(f.horaInicio())
+                            && !act.getHoraFin().isAfter(f.horaFin()));
+            if (!cubierta) {
+                String horario = act.getHoraInicio() + "–" + act.getHoraFin();
+                String ev = act.getEvento() != null ? " (Evento: " + act.getEvento().getNombre() + ")" : "";
+                conflictos.add(new ConflictoDisponibilidadResponse(
+                        act.getId(), act.getNombre(), act.getFecha(), act.getHoraInicio(), act.getHoraFin(),
+                        String.format("La actividad '%s' (%s)%s queda fuera de la nueva disponibilidad de la sala.",
+                                act.getNombre(), horario, ev)));
+            }
+        }
+        return conflictos;
     }
 
     private void guardarFranjasSala(Sala sala, List<DisponibilidadHorariaRequest> franjas) {
@@ -500,7 +767,7 @@ public class SalaService {
             String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
             if (msg.contains(INDICE_NOMBRE) || msg.contains("salas_evento_id_nombre_idx")) {
                 log.warn("El índice único rechazó la sala duplicada '{}' en evento {}. Se responde 409.",
-                        sala.getNombre(), evento.getId());
+                        sala.getNombre(), evento != null ? evento.getId() : "global");
                 throw duplicado(sala.getNombre(), evento);
             }
             throw ex;
@@ -508,7 +775,7 @@ public class SalaService {
     }
 
     private static SalaDuplicadaException duplicado(String nombre, Evento evento) {
-        return new SalaDuplicadaException(String.format(
-                "Ya existe una sala llamada '%s' en el evento '%s'.", nombre, evento.getNombre()));
+        String ev = evento != null ? " en el evento '" + evento.getNombre() + "'" : " en el catálogo institucional";
+        return new SalaDuplicadaException(String.format("Ya existe una sala llamada '%s'%s.", nombre, ev));
     }
 }
