@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.actividad.ActividadRequest;
 import com.sigea.demosigea_backend.dto.actividad.ActividadResponse;
 import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.actividad.ValidacionActividadResponse;
+import com.sigea.demosigea_backend.dto.agenda.ActividadPorProgramarRequest;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.service.ActividadService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,7 +35,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Programación de las actividades de la agenda de un evento (HU-21).
+ * Programación de las actividades de la agenda de un evento (HU-21) y registro de actividades por programar para la
+ * generación automática (HU-22).
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -123,6 +125,49 @@ public class ActividadController {
     public ResponseEntity<ActividadResponse> actualizar(@PathVariable Long eventoId, @PathVariable Long actividadId,
                                                         @Valid @RequestBody ActividadRequest request) {
         return ResponseEntity.ok(actividadService.actualizar(eventoId, actividadId, request));
+    }
+
+    @Operation(summary = "Registrar una actividad por programar",
+            description = "HU-22 Criterio 1: registra la actividad con su duración, sin fecha, horario ni sala, para que "
+                    + "la generación automática de la agenda la ubique.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Actividad registrada en estado por_programar."),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Evento, tipo de actividad u otra referencia inexistente.")
+    })
+    @PostMapping("/por-programar")
+    @PreAuthorize(GESTIONAR)
+    public ResponseEntity<ActividadResponse> registrarPorProgramar(@PathVariable Long eventoId,
+                                                                   @Valid @RequestBody ActividadPorProgramarRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(actividadService.registrarPorProgramar(eventoId, request));
+    }
+
+    @Operation(summary = "Modificar una actividad por programar",
+            description = "HU-22: cambia nombre, duración, ponente u otros datos de una actividad que aún no tiene horario.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Actividad actualizada."),
+            @ApiResponse(responseCode = "409", description = "La actividad ya tiene horario y sala.")
+    })
+    @PutMapping("/{actividadId}/por-programar")
+    @PreAuthorize(GESTIONAR)
+    public ResponseEntity<ActividadResponse> actualizarPorProgramar(@PathVariable Long eventoId,
+                                                                    @PathVariable Long actividadId,
+                                                                    @Valid @RequestBody ActividadPorProgramarRequest request) {
+        return ResponseEntity.ok(actividadService.actualizarPorProgramar(eventoId, actividadId, request));
+    }
+
+    @Operation(summary = "Devolver una actividad a por programar",
+            description = "HU-22 Criterio 1 (ajuste manual): quita fecha, horario y sala. Si la agenda ya estaba "
+                    + "publicada, avisa a los inscritos (Criterio 5).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Actividad por programar."),
+            @ApiResponse(responseCode = "409", description = "El evento está cerrado o la actividad está cancelada.")
+    })
+    @PostMapping("/{actividadId}/desprogramar")
+    @PreAuthorize(GESTIONAR)
+    public ResponseEntity<ActividadResponse> desprogramar(@PathVariable Long eventoId, @PathVariable Long actividadId) {
+        return ResponseEntity.ok(actividadService.desprogramar(eventoId, actividadId));
     }
 
     @Operation(summary = "Eliminar una actividad")

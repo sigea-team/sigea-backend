@@ -91,6 +91,23 @@ public class NotificacionService {
     }
 
     /**
+     * HU-22, Criterio 5: crea la misma notificación para los usuarios activos inscritos en una actividad. Debe
+     * llamarse dentro de la transacción de la operación que la origina y antes de borrar la actividad (al borrarla
+     * se borran en cascada sus inscripciones).
+     *
+     * @param actividadId Actividad cuyos inscritos se notifican.
+     * @return Número de usuarios notificados.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int notificarAInscritosDeActividad(Long actividadId, TipoNotificacion tipo, String titulo, String mensaje) {
+        String tituloAjustado = titulo.length() > LARGO_TITULO ? titulo.substring(0, LARGO_TITULO - 1) + "…" : titulo;
+        int creadas = notificacionRepository.crearParaInscritosDeActividad(actividadId, tipo.name(), tituloAjustado,
+                mensaje, "actividades", actividadId, LocalDateTime.now(clock));
+        log.info("Notificación {} creada para {} inscrito(s) de la actividad #{}", tipo, creadas, actividadId);
+        return creadas;
+    }
+
+    /**
      * Notificaciones del usuario autenticado, de la más reciente a la más antigua.
      *
      * @param soloNoLeidas Si es {@code true}, devuelve solo las pendientes.

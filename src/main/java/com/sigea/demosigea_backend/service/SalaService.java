@@ -366,6 +366,10 @@ public class SalaService {
 
         List<ConflictoDisponibilidadResponse> conflictos = new ArrayList<>();
         for (Actividad actividad : actividades) {
+            // HU-22: las actividades por programar no tienen horario que revisar.
+            if (!actividad.tieneHorarioCompleto()) {
+                continue;
+            }
             if (!estaCubierta(actividad.getFecha(), actividad.getHoraInicio(), actividad.getHoraFin(), franjas)) {
                 conflictos.add(new ConflictoDisponibilidadResponse(
                         actividad.getId(),
@@ -394,6 +398,10 @@ public class SalaService {
 
         List<ConflictoDisponibilidadResponse> conflictos = new ArrayList<>();
         for (Actividad actividad : actividades) {
+            // HU-22: las actividades por programar no tienen horario que revisar.
+            if (!actividad.tieneHorarioCompleto()) {
+                continue;
+            }
             if (!estaCubierta(actividad.getFecha(), actividad.getHoraInicio(), actividad.getHoraFin(), franjas)) {
                 conflictos.add(new ConflictoDisponibilidadResponse(
                         actividad.getId(),

@@ -10,7 +10,8 @@ import java.time.LocalTime;
 import java.util.List;
 
 /**
- * Actividad programada en la agenda del evento (HU-21).
+ * Actividad de la agenda del evento (HU-21). En HU-22 puede estar en estado {@code por_programar}: entonces fecha,
+ * horas y sala vienen en null.
  *
  * @param id                  ID de la actividad.
  * @param eventoId            ID del evento.
@@ -30,6 +31,8 @@ import java.util.List;
  * @param simultanea          Si se marcó como simultánea.
  * @param estado              Estado de la actividad.
  * @param advertencias        Advertencias aceptadas al guardar (vacía en los listados).
+ * @param duracionMinutos     HU-22: duración en minutos.
+ * @param asignacionAutomatica HU-22: true si la ubicó la generación automática y no se ha ajustado a mano.
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -54,7 +57,9 @@ public record ActividadResponse(
         ModalidadEvento modalidad,
         boolean simultanea,
         String estado,
-        List<AdvertenciaActividadResponse> advertencias
+        List<AdvertenciaActividadResponse> advertencias,
+        Integer duracionMinutos,
+        boolean asignacionAutomatica
 ) {
 
     /** Construye la respuesta sin advertencias (listados y consultas). */
@@ -82,7 +87,9 @@ public record ActividadResponse(
                 a.getModalidad(),
                 a.isPermiteSimultaneidad(),
                 a.getEstado(),
-                advertencias == null ? List.of() : List.copyOf(advertencias)
+                advertencias == null ? List.of() : List.copyOf(advertencias),
+                a.getDuracionMinutos(),
+                a.isAsignacionAutomatica()
         );
     }
 

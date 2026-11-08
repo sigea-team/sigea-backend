@@ -7,6 +7,7 @@ import com.sigea.demosigea_backend.dto.actividad.AdvertenciaActividadResponse.Ti
 import com.sigea.demosigea_backend.dto.actividad.ConflictoActividadResponse;
 import com.sigea.demosigea_backend.dto.actividad.ConflictoActividadResponse.TipoConflicto;
 import com.sigea.demosigea_backend.dto.actividad.ValidacionActividadResponse;
+import com.sigea.demosigea_backend.dto.agenda.ActividadPorProgramarRequest;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.ProgramacionActividadException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
@@ -36,6 +37,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -57,6 +59,12 @@ import java.util.Objects;
  * </ul>
  * Además (HU-20), si el horario queda fuera de la disponibilidad registrada de la sala o del ponente, se advierte y
  * se exige confirmación ({@code confirmarAdvertencias}).
+ * <p>
+ * HU-22: registra actividades sin horario ({@code por_programar}) para la generación automática
+ * ({@link #registrarPorProgramar}), las devuelve a ese estado ({@link #desprogramar}) y, si la agenda ya está
+ * publicada, avisa a los inscritos de los cambios ({@link AvisoCambiosAgenda}, Criterio 5). Programar a mano una
+ * actividad por programar (PUT de HU-21) la deja {@code programada}; es el ajuste manual del Criterio 1.
+ * </p>
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -68,7 +76,7 @@ import java.util.Objects;
 public class ActividadService {
 
     private static final String ENTIDAD = "actividades";
-    static final String ESTADO_CANCELADA = "cancelada";
+    static final String ESTADO_CANCELADA = Actividad.ESTADO_CANCELADA;
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final ActividadRepository actividadRepository;
@@ -82,6 +90,7 @@ public class ActividadService {
     private final DisponibilidadSalaRepository disponibilidadSalaRepository;
     private final DisponibilidadPonenteRepository disponibilidadPonenteRepository;
     private final AuditoriaService auditoriaService;
+    private final AvisoCambiosAgenda avisoCambiosAgenda;
 
     // ──────────────────────────────────────────────────────────────────────────────
     // Consultas
@@ -154,6 +163,7 @@ public class ActividadService {
         Actividad actividad = Actividad.builder().evento(evento).build();
         aplicar(actividad, request, revision);
         Actividad guardada = actividadRepository.save(actividad);
+        avisoCambiosAgenda.actividadModificada(guardada, AvisoCambiosAgenda.Programacion.NINGUNA);
 
         log.info("Actividad {} programada en el evento {} ({} {}-{}, sala {})", guardada.getId(), eventoId,
                 guardada.getFecha(), guardada.getHoraInicio(), guardada.getHoraFin(), revision.sala().getId());
@@ -177,12 +187,14 @@ public class ActividadService {
         Evento evento = eventoParaProgramar(eventoId);
         Actividad actividad = buscarActividad(eventoId, actividadId);
         Map<String, Object> antes = instantanea(actividad);
+        AvisoCambiosAgenda.Programacion programacionAntes = AvisoCambiosAgenda.Programacion.de(actividad);
 
         Revision revision = revisar(evento, actividadId, request);
         exigirSinConflictos(revision, request);
 
         aplicar(actividad, request, revision);
         Actividad guardada = actividadRepository.save(actividad);
+        avisoCambiosAgenda.actividadModificada(guardada, programacionAntes);
 
         log.info("Actividad {} reprogramada en el evento {}", actividadId, eventoId);
         auditoriaService.registrar(TipoOperacionAuditoria.ACTIVIDAD_REPROGRAMADA, ENTIDAD, actividadId,
@@ -203,6 +215,8 @@ public class ActividadService {
         eventoParaProgramar(eventoId);
         Actividad actividad = buscarActividad(eventoId, actividadId);
         Map<String, Object> antes = instantanea(actividad);
+        // Criterio 5 (HU-22): avisar antes de borrar; las inscripciones se borran en cascada con la actividad.
+        avisoCambiosAgenda.actividadRetirada(actividad, AvisoCambiosAgenda.Programacion.de(actividad));
         try {
             actividadRepository.delete(actividad);
             actividadRepository.flush();
@@ -214,6 +228,125 @@ public class ActividadService {
         log.info("Actividad {} eliminada del evento {}", actividadId, eventoId);
         auditoriaService.registrar(TipoOperacionAuditoria.ACTIVIDAD_ELIMINADA, ENTIDAD, actividadId,
                 DetalleAuditoria.de("antes", antes));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // HU-22: actividades por programar
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * HU-22, Criterio 1: registra una actividad sin fecha, horario ni sala, para que la generación automática de la
+     * agenda la ubique.
+     *
+     * @param eventoId ID del evento.
+     * @param request  datos de la actividad y su duración.
+     * @return la actividad en estado {@code por_programar}.
+     */
+    @Transactional
+    public ActividadResponse registrarPorProgramar(Long eventoId, ActividadPorProgramarRequest request) {
+        Evento evento = eventoParaProgramar(eventoId);
+        Actividad actividad = Actividad.builder().evento(evento).estado(Actividad.ESTADO_POR_PROGRAMAR).build();
+        aplicarPorProgramar(actividad, eventoId, request);
+        Actividad guardada = actividadRepository.save(actividad);
+
+        log.info("Actividad {} registrada por programar en el evento {} ({} min)", guardada.getId(), eventoId,
+                guardada.getDuracionMinutos());
+        auditoriaService.registrar(TipoOperacionAuditoria.ACTIVIDAD_REGISTRADA_POR_PROGRAMAR, ENTIDAD,
+                guardada.getId(), DetalleAuditoria.de("despues", instantanea(guardada)));
+        return ActividadResponse.fromEntity(guardada);
+    }
+
+    /**
+     * HU-22: modifica los datos de una actividad que sigue por programar (nombre, duración, ponente, etc.).
+     *
+     * @param eventoId    ID del evento.
+     * @param actividadId ID de la actividad.
+     * @param request     nuevos datos.
+     * @return la actividad actualizada.
+     * @throws OperacionNoPermitidaException si la actividad ya tiene horario (se modifica con el PUT de HU-21).
+     */
+    @Transactional
+    public ActividadResponse actualizarPorProgramar(Long eventoId, Long actividadId,
+                                                    ActividadPorProgramarRequest request) {
+        eventoParaProgramar(eventoId);
+        Actividad actividad = buscarActividad(eventoId, actividadId);
+        if (!actividad.estaPorProgramar()) {
+            throw new OperacionNoPermitidaException("La actividad «" + actividad.getNombre()
+                    + "» ya tiene horario y sala. Modifícala desde la agenda o devuélvela a por programar.");
+        }
+        Map<String, Object> antes = instantanea(actividad);
+        aplicarPorProgramar(actividad, eventoId, request);
+        Actividad guardada = actividadRepository.save(actividad);
+
+        auditoriaService.registrar(TipoOperacionAuditoria.ACTIVIDAD_REGISTRADA_POR_PROGRAMAR, ENTIDAD, actividadId,
+                DetalleAuditoria.de("antes", antes, "despues", instantanea(guardada)));
+        return ActividadResponse.fromEntity(guardada);
+    }
+
+    /**
+     * HU-22, Criterio 1 (ajuste manual): quita la fecha, el horario y la sala de una actividad, que vuelve a por
+     * programar conservando su duración. Si la agenda ya estaba publicada se avisa a sus inscritos (Criterio 5).
+     *
+     * @param eventoId    ID del evento.
+     * @param actividadId ID de la actividad.
+     * @return la actividad por programar.
+     */
+    @Transactional
+    public ActividadResponse desprogramar(Long eventoId, Long actividadId) {
+        eventoParaProgramar(eventoId);
+        Actividad actividad = buscarActividad(eventoId, actividadId);
+        if (actividad.estaPorProgramar()) {
+            return ActividadResponse.fromEntity(actividad);
+        }
+        if (actividad.estaCancelada()) {
+            throw new OperacionNoPermitidaException("La actividad «" + actividad.getNombre() + "» está cancelada.");
+        }
+        Map<String, Object> antes = instantanea(actividad);
+        AvisoCambiosAgenda.Programacion programacionAntes = AvisoCambiosAgenda.Programacion.de(actividad);
+        if (actividad.getDuracionMinutos() == null) {
+            actividad.setDuracionMinutos(duracion(actividad.getHoraInicio(), actividad.getHoraFin()));
+        }
+        quitarHorario(actividad);
+        Actividad guardada = actividadRepository.save(actividad);
+        avisoCambiosAgenda.actividadRetirada(guardada, programacionAntes);
+
+        log.info("Actividad {} del evento {} devuelta a por programar", actividadId, eventoId);
+        auditoriaService.registrar(TipoOperacionAuditoria.ACTIVIDAD_DESPROGRAMADA, ENTIDAD, actividadId,
+                DetalleAuditoria.de("antes", antes, "despues", instantanea(guardada)));
+        return ActividadResponse.fromEntity(guardada);
+    }
+
+    /** Deja la actividad sin fecha, horario ni sala, en estado por programar. */
+    static void quitarHorario(Actividad a) {
+        a.setFecha(null);
+        a.setHoraInicio(null);
+        a.setHoraFin(null);
+        a.setSala(null);
+        a.setEstado(Actividad.ESTADO_POR_PROGRAMAR);
+        a.setAsignacionAutomatica(false);
+    }
+
+    private void aplicarPorProgramar(Actividad a, Long eventoId, ActividadPorProgramarRequest r) {
+        TipoActividad tipo = tipoActividadRepository.findByIdAndEvento_Id(r.tipoActividadId(), eventoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "El tipo de actividad con ID " + r.tipoActividadId() + " no existe en este evento."));
+        LineaTematica linea = r.lineaTematicaId() == null ? null
+                : lineaTematicaRepository.findByIdAndEvento_Id(r.lineaTematicaId(), eventoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "La línea temática con ID " + r.lineaTematicaId() + " no existe en este evento."));
+        a.setNombre(r.nombre().strip());
+        a.setTipoActividad(tipo);
+        a.setLineaTematica(linea);
+        a.setPonente(resolverPonente(eventoId, r.ponenteId()));
+        a.setPropuesta(resolverPropuesta(eventoId, r.propuestaId()));
+        a.setModalidad(r.modalidad());
+        a.setPermiteSimultaneidad(r.esSimultanea());
+        a.setDuracionMinutos(r.duracionMinutos());
+    }
+
+    /** Minutos entre dos horas del mismo día. */
+    static int duracion(LocalTime inicio, LocalTime fin) {
+        return (int) Duration.between(inicio, fin).toMinutes();
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -425,6 +558,12 @@ public class ActividadService {
         a.setLineaTematica(rev.linea());
         a.setModalidad(r.modalidad());
         a.setPermiteSimultaneidad(r.esSimultanea());
+        // HU-22: programarla a mano la deja programada (si estaba por programar) y deja de ser automática.
+        a.setDuracionMinutos(duracion(r.horaInicio(), r.horaFin()));
+        a.setAsignacionAutomatica(false);
+        if (a.estaPorProgramar()) {
+            a.setEstado(Actividad.ESTADO_PROGRAMADA);
+        }
     }
 
     private Persona resolverPonente(Long eventoId, Long ponenteId) {
@@ -485,6 +624,9 @@ public class ActividadService {
                 "horaFin", String.valueOf(a.getHoraFin()),
                 "salaId", a.getSala() != null ? a.getSala().getId() : null,
                 "ponenteId", a.getPonente() != null ? a.getPonente().getId() : null,
-                "simultanea", a.isPermiteSimultaneidad());
+                "simultanea", a.isPermiteSimultaneidad(),
+                "estado", a.getEstado(),
+                "duracionMinutos", a.getDuracionMinutos(),
+                "asignacionAutomatica", a.isAsignacionAutomatica());
     }
 }

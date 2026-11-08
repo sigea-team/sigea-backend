@@ -49,3 +49,5 @@ databaseChangeLog:
       file: db/changelog/changes/20-hu18-clasificacion-propuestas.sql
   - include:
       file: db/changelog/changes/21-hu-salas-reutilizables-disponibilidad.sql
+  - include:
+      file: db/changelog/changes/22-hu22-generar-publicar-agenda.sql
