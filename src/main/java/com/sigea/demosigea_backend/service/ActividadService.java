@@ -256,6 +256,40 @@ public class ActividadService {
         List<ConflictoActividadResponse> conflictos = detectarConflictos(
                 actividadId, r.horaInicio(), r.horaFin(), sala, ponente, r.esSimultanea(), mismoDia);
 
+        // Control de cruces de la sala en TODOS los eventos (salas reutilizables)
+        List<Actividad> actividadesSalaMismoDia = actividadRepository.findActividadesPorSalaYFecha(sala.getId(), r.fecha());
+        if (actividadesSalaMismoDia != null) {
+            for (Actividad otraSala : actividadesSalaMismoDia) {
+                if (Objects.equals(otraSala.getId(), actividadId) || ESTADO_CANCELADA.equalsIgnoreCase(otraSala.getEstado())) {
+                    continue;
+                }
+                if (mismoDia.stream().anyMatch(a -> Objects.equals(a.getId(), otraSala.getId()))) {
+                    continue;
+                }
+                boolean seTraslapan = r.horaInicio().isBefore(otraSala.getHoraFin()) && otraSala.getHoraInicio().isBefore(r.horaFin());
+                if (!seTraslapan) continue;
+
+                boolean ambasSimultaneas = r.esSimultanea() && otraSala.isPermiteSimultaneidad();
+                String horario = otraSala.getHoraInicio().format(HORA) + "–" + otraSala.getHoraFin().format(HORA);
+                String evNombre = otraSala.getEvento() != null ? otraSala.getEvento().getNombre() : "otro evento";
+                String nombreOtra = "«" + otraSala.getNombre() + "» (" + horario + ") del evento «" + evNombre + "»";
+
+                if (!ambasSimultaneas) {
+                    conflictos.add(conflicto(
+                            TipoConflicto.SALA,
+                            otraSala,
+                            "La sala «" + sala.getNombre() + "» ya está ocupada por " + nombreOtra + "."
+                    ));
+                } else if (!sala.isPermiteSimultaneidad()) {
+                    conflictos.add(conflicto(
+                            TipoConflicto.SALA,
+                            otraSala,
+                            "La sala «" + sala.getNombre() + "» no está configurada para actividades simultáneas y ya tiene " + nombreOtra + "."
+                    ));
+                }
+            }
+        }
+
         List<AdvertenciaActividadResponse> advertencias = new ArrayList<>();
         List<Franja> franjasSala = disponibilidadSalaRepository.findBySala_IdOrderByFechaAscHoraInicioAsc(sala.getId())
                 .stream().map(d -> new Franja(d.getFecha(), d.getHoraInicio(), d.getHoraFin())).toList();

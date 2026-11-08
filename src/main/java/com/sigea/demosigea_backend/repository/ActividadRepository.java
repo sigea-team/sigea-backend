@@ -39,6 +39,21 @@ public interface ActividadRepository extends JpaRepository<Actividad, Long> {
     List<Actividad> findBySala_IdAndEvento_Id(Long salaId, Long eventoId);
 
     /**
+     * Actividades activas en una sala en una fecha dada a través de todos los eventos.
+     * Permite controlar cruces y solapamientos en salas reutilizables entre eventos.
+     */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.evento LEFT JOIN FETCH a.sala "
+            + "WHERE a.sala.id = :salaId AND a.fecha = :fecha AND LOWER(a.estado) != 'cancelada' ORDER BY a.horaInicio, a.id")
+    List<Actividad> findActividadesPorSalaYFecha(@Param("salaId") Long salaId, @Param("fecha") LocalDate fecha);
+
+    /**
+     * Todas las actividades activas en una sala a través de todos los eventos.
+     */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.evento LEFT JOIN FETCH a.sala "
+            + "WHERE a.sala.id = :salaId AND LOWER(a.estado) != 'cancelada' ORDER BY a.fecha, a.horaInicio, a.id")
+    List<Actividad> findActividadesPorSala(@Param("salaId") Long salaId);
+
+    /**
      * HU-Salas, Criterio 5: actividades de un ponente en un evento específico.
      * Se usa para detectar conflictos al actualizar la disponibilidad horaria del ponente.
      */
