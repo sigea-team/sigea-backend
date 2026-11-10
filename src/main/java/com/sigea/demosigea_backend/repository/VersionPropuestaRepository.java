@@ -34,6 +34,9 @@ public interface VersionPropuestaRepository extends JpaRepository<VersionPropues
     /** Primera versión de la propuesta (la del envío inicial). */
     Optional<VersionPropuesta> findFirstByPropuesta_IdOrderByNumeroVersionAsc(Long propuestaId);
 
+    /** HU-19: cuántas propuestas de la convocatoria tienen versión definitiva aprobada. */
+    long countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(Long convocatoriaId);
+
     /** HU-19: versión definitiva vigente de la propuesta, si la tiene. */
     Optional<VersionPropuesta> findByPropuesta_IdAndEsDefinitivaTrue(Long propuestaId);
 
