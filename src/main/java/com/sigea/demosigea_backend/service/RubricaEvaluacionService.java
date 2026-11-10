@@ -29,6 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -48,6 +51,9 @@ import java.util.Set;
  *       reemplaza con confirmación explícita. Al reemplazarla, la rúbrica anterior queda inactiva (sus
  *       calificaciones se conservan como histórico) y las asignaciones afectadas vuelven a {@code pendiente}
  *       para calificarse con la nueva rúbrica.</li>
+ *   <li><b>Regla de bloqueo</b>: la rúbrica solo se crea o modifica <b>antes de la fecha de apertura</b> de la
+ *       convocatoria. Desde la apertura queda fija, para que todas las propuestas se califiquen con los mismos
+ *       criterios. Una convocatoria sin fecha de apertura (borrador incompleto) sigue siendo editable.</li>
  *   <li><b>HU-19</b>: si alguna propuesta de la convocatoria ya tiene versión definitiva aprobada, la rúbrica en uso
  *       no se puede reemplazar (la evaluación de esas propuestas está cerrada).</li>
  * </ul>
@@ -76,6 +82,9 @@ public class RubricaEvaluacionService {
     private final ResultadoEvaluacionRepository resultadoRepository;
     private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
+    private final Clock clock;
+
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /**
      * Rúbrica activa de la convocatoria con sus criterios.
@@ -131,6 +140,7 @@ public class RubricaEvaluacionService {
     @Transactional
     public ResultadoConfiguracion configurar(Long convocatoriaId, RubricaRequest request, boolean confirmar) {
         Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        exigirAntesDeApertura(convocatoria);
         validar(request);
 
         Optional<RubricaEvaluacion> activa = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
@@ -269,6 +279,22 @@ public class RubricaEvaluacionService {
     // ------------------------------------------------------------------
     // Utilidades
     // ------------------------------------------------------------------
+
+    /**
+     * La rúbrica queda fija desde la fecha de apertura de la convocatoria: todas las propuestas se califican con
+     * los mismos criterios.
+     *
+     * @throws OperacionNoPermitidaException si la convocatoria ya abrió.
+     */
+    private void exigirAntesDeApertura(Convocatoria convocatoria) {
+        LocalDateTime apertura = convocatoria.getFechaApertura();
+        if (apertura != null && !LocalDateTime.now(clock).isBefore(apertura)) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "La rúbrica solo se puede modificar antes de que abra la convocatoria. La convocatoria '%s' abrió "
+                            + "el %s y su rúbrica ya no se puede cambiar.",
+                    convocatoria.getTitulo(), apertura.format(FORMATO_FECHA)));
+        }
+    }
 
     private Convocatoria buscarConvocatoria(Long convocatoriaId) {
         return convocatoriaRepository.findById(convocatoriaId)

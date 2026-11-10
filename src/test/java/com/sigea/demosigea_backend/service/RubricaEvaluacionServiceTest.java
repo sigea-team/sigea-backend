@@ -61,6 +61,11 @@ class RubricaEvaluacionServiceTest {
     @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
 
+    /** Reloj fijo: 1 de noviembre de 2026, 10:00 (Bogotá). */
+    private static final java.time.Clock RELOJ = java.time.Clock.fixed(
+            java.time.LocalDateTime.of(2026, 11, 1, 10, 0).atZone(java.time.ZoneId.of("America/Bogota")).toInstant(),
+            java.time.ZoneId.of("America/Bogota"));
+
     private RubricaEvaluacionService service;
     private Convocatoria convocatoria;
 
@@ -68,7 +73,7 @@ class RubricaEvaluacionServiceTest {
     void setUp() {
         service = new RubricaEvaluacionService(rubricaRepository, criterioRepository, convocatoriaRepository,
                 evaluacionRepository, asignacionRepository, resultadoRepository, versionPropuestaRepository,
-                auditoriaService);
+                auditoriaService, RELOJ);
         convocatoria = Convocatoria.builder().id(10L).titulo("Convocatoria de Ponencias 2026").build();
     }
 
@@ -135,6 +140,33 @@ class RubricaEvaluacionServiceTest {
         assertEquals(0, BigDecimal.TEN.compareTo(resultado.rubrica().criterios().get(0).escalaMaxima()));
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.RUBRICA_CREADA), eq("rubricas_evaluacion"),
                 eq(7L), anyMap());
+    }
+
+    @Test
+    @DisplayName("Bloqueo: la rúbrica no se modifica cuando la convocatoria ya abrió")
+    void configurar_convocatoriaYaAbierta_rechaza() {
+        convocatoria.setFechaApertura(java.time.LocalDateTime.of(2026, 10, 15, 8, 0));
+        convocatoriaExiste();
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () ->
+                service.configurar(10L, rubrica(criterio("Originalidad", "100")), true));
+
+        assertTrue(ex.getMessage().contains("antes de que abra la convocatoria"));
+        verify(rubricaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Bloqueo: antes de la fecha de apertura la rúbrica sí se puede configurar")
+    void configurar_antesDeApertura_permite() {
+        convocatoria.setFechaApertura(java.time.LocalDateTime.of(2026, 11, 20, 8, 0));
+        convocatoriaExiste();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
+        persistenciaSimulada(7L);
+
+        RubricaEvaluacionService.ResultadoConfiguracion resultado =
+                service.configurar(10L, rubrica(criterio("Originalidad", "100")), false);
+
+        assertTrue(resultado.creada());
     }
 
     @Test
