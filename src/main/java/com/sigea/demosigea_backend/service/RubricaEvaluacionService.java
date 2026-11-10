@@ -22,7 +22,6 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
-import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,8 +53,6 @@ import java.util.Set;
  *   <li><b>Regla de bloqueo</b>: la rúbrica solo se crea o modifica <b>antes de la fecha de apertura</b> de la
  *       convocatoria. Desde la apertura queda fija, para que todas las propuestas se califiquen con los mismos
  *       criterios. Una convocatoria sin fecha de apertura (borrador incompleto) sigue siendo editable.</li>
- *   <li><b>HU-19</b>: si alguna propuesta de la convocatoria ya tiene versión definitiva aprobada, la rúbrica en uso
- *       no se puede reemplazar (la evaluación de esas propuestas está cerrada).</li>
  * </ul>
  * Una convocatoria tiene como máximo una rúbrica activa: es la que usa HU-17 para calificar.
  *
@@ -80,7 +77,6 @@ public class RubricaEvaluacionService {
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
-    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
     private final Clock clock;
 
@@ -134,12 +130,15 @@ public class RubricaEvaluacionService {
      * @throws RecursoNoEncontradoException si la convocatoria no existe.
      * @throws RubricaInvalidaException     si los pesos no suman 100, hay criterios repetidos o escalas inválidas.
      * @throws RubricaEnUsoException        si la rúbrica tiene calificaciones y no se confirmó el reemplazo.
-     * @throws OperacionNoPermitidaException si la rúbrica está en uso y alguna propuesta de la convocatoria ya
-     *                                       tiene versión definitiva aprobada (HU-19).
+     * @throws OperacionNoPermitidaException si la convocatoria ya abrió (la rúbrica queda fija desde la apertura).
      */
     @Transactional
     public ResultadoConfiguracion configurar(Long convocatoriaId, RubricaRequest request, boolean confirmar) {
-        Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        // Bloqueo exclusivo de la convocatoria: espera a las clasificaciones y cambios de umbrales en curso
+        // (HU-18 toma el mismo bloqueo) y los siguientes esperan a este cambio.
+        Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizar(convocatoriaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "No se encontró la convocatoria con ID: " + convocatoriaId));
         exigirAntesDeApertura(convocatoria);
         validar(request);
 
@@ -165,15 +164,6 @@ public class RubricaEvaluacionService {
             auditoriaService.registrar(TipoOperacionAuditoria.RUBRICA_ACTUALIZADA, "rubricas_evaluacion",
                     actual.getId(), datosAuditoria(convocatoriaId, actual, criterios.size()));
             return new ResultadoConfiguracion(RubricaResponse.of(actual, criterios, 0), false);
-        }
-
-        // HU-19: con propuestas en versión definitiva, la evaluación de la convocatoria está cerrada.
-        long definitivas = versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(convocatoriaId);
-        if (definitivas > 0) {
-            throw new OperacionNoPermitidaException(String.format(
-                    "No se puede reemplazar la rúbrica '%s': %d propuesta(s) de la convocatoria ya tienen versión "
-                            + "definitiva aprobada y su evaluación está cerrada.",
-                    actual.getNombre(), definitivas));
         }
 
         // Criterio 4: la rúbrica ya se usó para calificar.

@@ -80,6 +80,7 @@ class ClasificacionPropuestaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private java.time.Clock clock;
 
     @InjectMocks
     private ClasificacionPropuestaService service;
@@ -586,5 +587,46 @@ class ClasificacionPropuestaServiceTest {
 
         assertTrue(respuesta.aplicada());
         assertEquals("aprobada", respuesta.estadoPropuesta());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // Umbrales fijos desde la apertura de la convocatoria
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    /** Fija la hora actual que ve el servicio (Bogotá). */
+    private void ahoraEs(LocalDateTime momento) {
+        java.time.ZoneId bogota = java.time.ZoneId.of("America/Bogota");
+        when(clock.getZone()).thenReturn(bogota);
+        when(clock.instant()).thenReturn(momento.atZone(bogota).toInstant());
+    }
+
+    @Test
+    @DisplayName("Umbrales: no se modifican cuando la convocatoria ya abrió")
+    void configurarUmbrales_convocatoriaYaAbierta_rechaza() {
+        Convocatoria convocatoria = convocatoria();
+        convocatoria.setFechaApertura(LocalDateTime.of(2026, 10, 15, 8, 0));
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
+        ahoraEs(LocalDateTime.of(2026, 11, 1, 10, 0));
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () ->
+                service.configurarUmbrales(10L, new UmbralesClasificacionRequest(new BigDecimal("8"), new BigDecimal("6"))));
+
+        assertTrue(ex.getMessage().contains("antes de que abra la convocatoria"));
+        verify(convocatoriaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Umbrales: antes de la apertura sí se pueden modificar")
+    void configurarUmbrales_antesDeApertura_permite() {
+        Convocatoria convocatoria = convocatoria();
+        convocatoria.setFechaApertura(LocalDateTime.of(2026, 11, 20, 8, 0));
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
+        when(resultadoRepository.findByPropuesta_Convocatoria_Id(10L)).thenReturn(List.of());
+        ahoraEs(LocalDateTime.of(2026, 11, 1, 10, 0));
+
+        service.configurarUmbrales(10L, new UmbralesClasificacionRequest(new BigDecimal("8"), new BigDecimal("6")));
+
+        assertEquals(0, new BigDecimal("8").compareTo(convocatoria.getUmbralAceptacion()));
+        verify(convocatoriaRepository).save(convocatoria);
     }
 }
