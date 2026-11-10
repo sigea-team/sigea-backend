@@ -8,6 +8,7 @@ import com.sigea.demosigea_backend.dto.clasificacion.HistorialClasificacionRespo
 import com.sigea.demosigea_backend.dto.clasificacion.PropuestaClasificacionResponse;
 import com.sigea.demosigea_backend.dto.clasificacion.UmbralesClasificacionRequest;
 import com.sigea.demosigea_backend.dto.clasificacion.UmbralesClasificacionResponse;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.PropuestaNoEvaluadaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.SolicitudInvalidaException;
@@ -29,6 +30,7 @@ import com.sigea.demosigea_backend.repository.HistorialClasificacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -92,12 +94,17 @@ public class ClasificacionPropuestaService {
     /** Grupo del listado para propuestas cuya evaluación no está completa. */
     static final String GRUPO_EVALUACION_INCOMPLETA = "evaluacion_incompleta";
 
+    /** HU-19: una propuesta con versión definitiva aprobada ya no cambia de clasificación. */
+    static final String MOTIVO_VERSION_DEFINITIVA =
+            "Ya tiene versión definitiva aprobada; su clasificación no se puede cambiar.";
+
     private final PropuestaRepository propuestaRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
     private final HistorialClasificacionRepository historialRepository;
     private final UsuarioRepository usuarioRepository;
+    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -274,6 +281,7 @@ public class ClasificacionPropuestaService {
     public PropuestaClasificacionResponse aplicar(Long propuestaId) {
         Convocatoria convocatoria = bloquearConvocatoriaDe(propuestaId);
         Propuesta propuesta = buscarPropuesta(propuestaId, true);
+        exigirSinVersionDefinitiva(propuestaId);
         List<AsignacionEvaluacion> asignaciones = asignacionRepository.findByPropuesta_Id(propuestaId);
         ResultadoEvaluacion resultado = resultadoRepository.findByPropuesta_Id(propuestaId).orElse(null);
         String motivo = motivoEvaluacionIncompleta(asignaciones, resultado);
@@ -321,6 +329,11 @@ public class ClasificacionPropuestaService {
         for (Propuesta propuesta : propuestas) {
             List<AsignacionEvaluacion> asignaciones = asignacionesPorPropuesta.getOrDefault(propuesta.getId(), List.of());
             ResultadoEvaluacion resultado = resultadosPorPropuesta.get(propuesta.getId());
+            if (versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuesta.getId())) {
+                omitidas.add(new PropuestaOmitidaResponse(propuesta.getId(), propuesta.getTitulo(),
+                        MOTIVO_VERSION_DEFINITIVA));
+                continue;
+            }
             String motivo = motivoEvaluacionIncompleta(asignaciones, resultado);
             if (motivo != null) {
                 omitidas.add(new PropuestaOmitidaResponse(propuesta.getId(), propuesta.getTitulo(), motivo));
@@ -410,6 +423,7 @@ public class ClasificacionPropuestaService {
         }
         Convocatoria convocatoria = bloquearConvocatoriaDe(propuestaId);
         Propuesta propuesta = buscarPropuesta(propuestaId, true);
+        exigirSinVersionDefinitiva(propuestaId);
         List<AsignacionEvaluacion> asignaciones = asignacionRepository.findByPropuesta_Id(propuestaId);
         ResultadoEvaluacion resultado = resultadoRepository.findByPropuesta_Id(propuestaId).orElse(null);
         String incompleta = motivoEvaluacionIncompleta(asignaciones, resultado);
@@ -507,7 +521,7 @@ public class ClasificacionPropuestaService {
                 ? ReglasClasificacion.clasificar(puntuacion, convocatoria) : null;
         ClasificacionResultado vigente = completa ? resultado.getClasificacion() : null;
         boolean aplicada = completa && vigente != null && resultado.getFechaClasificacion() != null
-                && propuesta.getEstado() == ReglasClasificacion.estadoPropuesta(vigente);
+                && estadoCorresponde(propuesta.getEstado(), vigente);
         return new PropuestaClasificacionResponse(
                 propuesta.getId(),
                 propuesta.getTitulo(),
@@ -543,6 +557,23 @@ public class ClasificacionPropuestaService {
             case GRUPO_SIN_CLASIFICAR -> 3;
             default -> 4;
         };
+    }
+
+    /**
+     * El estado de la propuesta corresponde a la clasificación aplicada. HU-19: una propuesta aprobada con ajustes
+     * pasa a {@code aprobada} cuando se aprueba su versión definitiva, y su clasificación sigue aplicada.
+     */
+    private static boolean estadoCorresponde(EstadoPropuesta estado, ClasificacionResultado clasificacion) {
+        return estado == ReglasClasificacion.estadoPropuesta(clasificacion)
+                || (clasificacion == ClasificacionResultado.aprobada_con_ajustes && estado == EstadoPropuesta.aprobada);
+    }
+
+    /** HU-19: tras aprobar la versión definitiva, la clasificación (y el estado de la propuesta) no cambian. */
+    private void exigirSinVersionDefinitiva(Long propuestaId) {
+        if (versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuestaId)) {
+            throw new OperacionNoPermitidaException(
+                    "La propuesta ya tiene versión definitiva aprobada; su clasificación no se puede cambiar.");
+        }
     }
 
     private Convocatoria buscarConvocatoria(Long convocatoriaId) {

@@ -51,3 +51,5 @@ databaseChangeLog:
       file: db/changelog/changes/21-hu-salas-reutilizables-disponibilidad.sql
   - include:
       file: db/changelog/changes/22-hu22-generar-publicar-agenda.sql
+  - include:
+      file: db/changelog/changes/23-hu19-observaciones-version-definitiva.sql

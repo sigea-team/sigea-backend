@@ -124,4 +124,7 @@ public interface ActividadRepository extends JpaRepository<Actividad, Long> {
      * @return la actividad si pertenece al evento.
      */
     Optional<Actividad> findByIdAndEvento_Id(Long id, Long eventoId);
+
+    /** HU-19: actividades del evento vinculadas a una propuesta (para saber cuáles ya están programadas). */
+    List<Actividad> findByEvento_IdAndPropuestaIsNotNull(Long eventoId);
 }

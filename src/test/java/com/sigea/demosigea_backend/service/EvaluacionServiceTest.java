@@ -26,6 +26,7 @@ import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import com.sigea.demosigea_backend.model.Usuario;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,6 +100,9 @@ class EvaluacionServiceTest {
 
     @Mock
     private UsuarioRepository usuarioRepository;
+
+    @Mock
+    private VersionPropuestaRepository versionPropuestaRepository;
 
     @InjectMocks
     private EvaluacionService service;
@@ -535,6 +539,25 @@ class EvaluacionServiceTest {
                 "El mensaje debe indicar que el periodo está cerrado.");
         verify(evaluacionRepository, never()).save(any());
         verify(resultadoRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("HU-19: con la versión definitiva aprobada no se puede modificar la evaluación")
+    void hu19_impideEvaluarPropuestaConVersionDefinitiva() {
+        Convocatoria conv = crearConvocatoria(1L, LocalDateTime.now().plusDays(5));
+        Propuesta propuesta = crearPropuesta(1L, conv);
+        ComiteEvaluador comite = crearComite(1L, conv);
+        AsignacionEvaluacion asignacion = crearAsignacion(1L, propuesta, comite, EstadoAsignacion.completada);
+        RegistrarEvaluacionRequest request = new RegistrarEvaluacionRequest(
+                1L, List.of(new CalificacionCriterioRequest(1L, new BigDecimal("7.0"), "Buena")));
+        when(asignacionRepository.findById(1L)).thenReturn(Optional.of(asignacion));
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(1L)).thenReturn(true);
+
+        EvaluacionCerradaException ex = assertThrows(EvaluacionCerradaException.class,
+                () -> service.registrarEvaluacion(request));
+
+        assertTrue(ex.getMessage().contains("versión definitiva"));
+        verify(evaluacionRepository, never()).save(any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────────

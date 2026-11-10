@@ -28,6 +28,7 @@ import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -82,6 +83,7 @@ public class EvaluacionService {
     private final RubricaEvaluacionRepository rubricaRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
     private final PropuestaRepository propuestaRepository;
+    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
 
     /**
@@ -111,6 +113,14 @@ public class EvaluacionService {
 
         // Solo el evaluador dueño de la asignación puede calificarla
         verificarEsDelEvaluador(asignacion);
+
+        // HU-19: con la versión definitiva aprobada, la evaluación queda cerrada.
+        Long propuestaDeAsignacion = asignacion.getPropuesta() != null ? asignacion.getPropuesta().getId() : null;
+        if (propuestaDeAsignacion != null
+                && versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuestaDeAsignacion)) {
+            throw new EvaluacionCerradaException(
+                    "La propuesta ya tiene versión definitiva aprobada; su evaluación no se puede modificar.");
+        }
 
         Long convocatoriaId = asignacion.getComiteEvaluador().getConvocatoria().getId();
 

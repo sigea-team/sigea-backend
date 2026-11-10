@@ -29,6 +29,7 @@ import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.DocumentoPropuestaRepository;
 import com.sigea.demosigea_backend.repository.LineaTematicaRepository;
+import com.sigea.demosigea_backend.repository.ObservacionPropuestaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
@@ -72,6 +73,8 @@ import java.util.Set;
  *   <li><b>Criterio 5:</b> si la propuesta ya tiene versión definitiva (RF29), se bloquea su edición salvo
  *       autorización explícita del administrador, que es de un solo uso.</li>
  * </ul>
+ * HU-19, Criterio 2: la nueva versión queda vinculada a los ajustes requeridos sin resolver de las anteriores
+ * ({@code observaciones_propuesta.version_atencion_id}).
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -95,6 +98,7 @@ public class VersionPropuestaService {
     private final LineaTematicaRepository lineaTematicaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AsignacionEvaluacionRepository asignacionEvaluacionRepository;
+    private final ObservacionPropuestaRepository observacionPropuestaRepository;
     private final ValidadorDocumentosPropuesta validadorDocumentos;
     private final AlmacenamientoArchivos almacenamiento;
     private final AuditoriaService auditoriaService;
@@ -215,6 +219,8 @@ public class VersionPropuestaService {
         }
         propuestaRepository.save(propuesta);
         VersionPropuesta guardada = versionPropuestaRepository.save(version);
+        // HU-19, Criterio 2: la versión queda vinculada a los ajustes sin resolver que la originaron.
+        int ajustesVinculados = observacionPropuestaRepository.vincularPendientesAVersion(propuestaId, numero, guardada);
 
         Map<String, Object> detalle = new LinkedHashMap<>();
         detalle.put("propuestaId", propuestaId);
@@ -223,12 +229,17 @@ public class VersionPropuestaService {
         detalle.put("documentosConservados", conservados.size());
         detalle.put("datosModificados", cambiaronDatos);
         detalle.put("usoAutorizacionExplicita", usaAutorizacion);
+        detalle.put("ajustesVinculados", ajustesVinculados);
         auditoriaService.registrar(TipoOperacionAuditoria.PROPUESTA_VERSION_CREADA, "versiones_propuesta",
                 guardada.getId(), detalle);
         log.info("Propuesta ID {}: creada versión {} por usuario {}", propuestaId, numero, usuario.getId());
 
+        String mensaje = "Se registró la versión " + numero + " de la propuesta. Las versiones anteriores se conservan como evidencia."
+                + (ajustesVinculados > 0
+                ? " La versión quedó vinculada a " + ajustesVinculados + " ajuste(s) solicitado(s), pendientes de revisión."
+                : "");
         return new EnvioPropuestaResponse(
-                "Se registró la versión " + numero + " de la propuesta. Las versiones anteriores se conservan como evidencia.",
+                mensaje,
                 PropuestaResponse.fromEntity(propuesta, autoresDe(propuestaId)),
                 VersionPropuestaResponse.fromEntity(guardada));
     }

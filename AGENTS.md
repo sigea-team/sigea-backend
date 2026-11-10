@@ -62,7 +62,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `historial_asignaciones` ➡️ Historial inmutable de asignaciones y reasignaciones de propuestas a evaluadores (`'asignacion'`, `'reasignacion'`) (HU-16, changeset 13).
 - `evaluaciones` ➡️ Calificación detallada por criterio.
 - `resultados_evaluacion` ➡️ Consolidado y clasificación final (`'aprobada'`, `'aprobada_con_ajustes'`, `'rechazada'`).
-- `observaciones_propuesta` ➡️ Retroalimentación y correcciones solicitadas a versiones.
+- `observaciones_propuesta` ➡️ Retroalimentación y correcciones solicitadas a versiones. HU-19 (changeset 23): `requiere_ajuste` (bloquea la versión definitiva hasta resolverse), `version_atencion_id` (versión del autor que la atiende), quién la registró y la resolvió. Entidad `ObservacionPropuesta`.
 
 ### 6. Espacios Físicos, Virtuales y Disponibilidad
 - `salas` ➡️ Espacios físicos o virtuales (`'fisica'`, `'virtual'`) con aforo máximo.
