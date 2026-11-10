@@ -473,28 +473,47 @@ class ClasificacionPropuestaServiceTest {
     }
 
     @Test
-    @DisplayName("Umbrales: reclasifica resultados sin aplicar e informa los ya aplicados que cambiarían")
+    @DisplayName("Umbrales: con una propuesta ya clasificada no se pueden cambiar")
+    void configurarUmbrales_conPropuestaClasificada_rechaza() {
+        Convocatoria convocatoria = convocatoria();
+        BigDecimal aceptacionOriginal = convocatoria.getUmbralAceptacion();
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
+        ResultadoEvaluacion sinAplicar = resultado(1L, propuesta(40L, convocatoria), "7.50", ClasificacionResultado.aprobada);
+        ResultadoEvaluacion aplicado = resultado(2L, propuesta(41L, convocatoria), "7.50", ClasificacionResultado.aprobada);
+        aplicado.setFechaClasificacion(LocalDateTime.now());
+        when(resultadoRepository.findByPropuesta_Convocatoria_Id(10L)).thenReturn(List.of(sinAplicar, aplicado));
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
+                () -> service.configurarUmbrales(10L,
+                        new UmbralesClasificacionRequest(new BigDecimal("8.00"), new BigDecimal("6.00"))));
+
+        assertTrue(ex.getMessage().contains("1 propuesta(s)"));
+        assertEquals(aceptacionOriginal, convocatoria.getUmbralAceptacion());
+        assertEquals(ClasificacionResultado.aprobada, sinAplicar.getClasificacion());
+        verify(convocatoriaRepository, never()).save(any());
+        verify(resultadoRepository, never()).saveAll(anyList());
+        verify(auditoriaService, never()).registrar(any(), any(), any(), anyMap());
+    }
+
+    @Test
+    @DisplayName("Umbrales: sin propuestas clasificadas, recalcula la clasificación sugerida (salvo ajuste manual)")
     void configurarUmbrales_reclasificaPendientes() {
         Convocatoria convocatoria = convocatoria();
         when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
         Propuesta p1 = propuesta(40L, convocatoria);
-        Propuesta p2 = propuesta(41L, convocatoria);
         Propuesta p3 = propuesta(42L, convocatoria);
         ResultadoEvaluacion sinAplicar = resultado(1L, p1, "7.50", ClasificacionResultado.aprobada);
-        ResultadoEvaluacion aplicado = resultado(2L, p2, "7.50", ClasificacionResultado.aprobada);
-        aplicado.setFechaClasificacion(LocalDateTime.now());
         ResultadoEvaluacion manual = resultado(3L, p3, "7.50", ClasificacionResultado.rechazada);
         manual.setAjusteManual(true);
-        when(resultadoRepository.findByPropuesta_Convocatoria_Id(10L)).thenReturn(List.of(sinAplicar, aplicado, manual));
+        when(resultadoRepository.findByPropuesta_Convocatoria_Id(10L)).thenReturn(List.of(sinAplicar, manual));
 
         UmbralesClasificacionResponse respuesta = service.configurarUmbrales(10L,
                 new UmbralesClasificacionRequest(new BigDecimal("8.00"), new BigDecimal("6.00")));
 
         assertEquals(0, new BigDecimal("8").compareTo(convocatoria.getUmbralAceptacion()));
         assertEquals(ClasificacionResultado.aprobada_con_ajustes, sinAplicar.getClasificacion());
-        assertEquals(ClasificacionResultado.aprobada, aplicado.getClasificacion());
         assertEquals(ClasificacionResultado.rechazada, manual.getClasificacion());
-        assertEquals(1L, respuesta.propuestasPorReaplicar());
+        assertEquals(0L, respuesta.propuestasPorReaplicar());
         verify(resultadoRepository).saveAll(anyList());
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.UMBRALES_CLASIFICACION_ACTUALIZADOS),
                 eq("convocatorias"), eq(10L), anyMap());

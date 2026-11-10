@@ -45,4 +45,13 @@ public interface ResultadoEvaluacionRepository extends JpaRepository<ResultadoEv
      * @return resultados de la convocatoria.
      */
     List<ResultadoEvaluacion> findByPropuesta_Convocatoria_Id(Long convocatoriaId);
+
+    /**
+     * Cuántas propuestas de la convocatoria tienen su clasificación aplicada (HU-18). Desde la primera, la rúbrica
+     * (HU-15) y los umbrales (HU-18) de la convocatoria quedan fijos.
+     *
+     * @param convocatoriaId ID de la convocatoria.
+     * @return propuestas con la clasificación aplicada.
+     */
+    long countByPropuesta_Convocatoria_IdAndFechaClasificacionIsNotNull(Long convocatoriaId);
 }

@@ -22,6 +22,7 @@ public record UmbralesClasificacionResponse(
         @Schema(example = "10") Long convocatoriaId,
         @Schema(example = "7.00") BigDecimal umbralAceptacion,
         @Schema(example = "5.00") BigDecimal umbralAjustes,
-        @Schema(example = "0") long propuestasPorReaplicar
+        @Schema(description = "Siempre 0: los umbrales solo se cambian mientras no hay propuestas clasificadas. "
+                + "Se conserva por compatibilidad.", example = "0") long propuestasPorReaplicar
 ) {
 }

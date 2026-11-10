@@ -128,15 +128,17 @@ public class ClasificacionPropuestaService {
     /**
      * Define los umbrales de clasificación de una convocatoria (Criterio 1).
      * <p>
-     * Los resultados todavía no aplicados y sin ajuste manual se reclasifican con los nuevos umbrales. Las
-     * propuestas ya clasificadas no cambian hasta volver a aplicar la clasificación; la respuesta indica cuántas
-     * cambiarían.
+     * Solo se pueden cambiar mientras ninguna propuesta de la convocatoria tenga la clasificación aplicada: desde la
+     * primera, todas se clasifican con los mismos umbrales y el resultado de una propuesta se corrige con el ajuste
+     * manual (Criterio 2). La clasificación sugerida de los resultados sin ajuste manual se recalcula con los nuevos
+     * umbrales.
      * </p>
      *
      * @param convocatoriaId ID de la convocatoria.
      * @param request        nuevos umbrales.
      * @return umbrales guardados.
-     * @throws SolicitudInvalidaException si el umbral de ajustes es mayor que el de aprobación.
+     * @throws SolicitudInvalidaException    si el umbral de ajustes es mayor que el de aprobación.
+     * @throws OperacionNoPermitidaException si alguna propuesta de la convocatoria ya está clasificada.
      */
     @Transactional
     public UmbralesClasificacionResponse configurarUmbrales(Long convocatoriaId, UmbralesClasificacionRequest request) {
@@ -147,6 +149,14 @@ public class ClasificacionPropuestaService {
         // Bloqueo exclusivo: espera a las clasificaciones en curso y las siguientes esperan a este cambio.
         Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizar(convocatoriaId)
                 .orElseThrow(() -> noEncontrada(convocatoriaId));
+        List<ResultadoEvaluacion> resultados = resultadoRepository.findByPropuesta_Convocatoria_Id(convocatoriaId);
+        long clasificadas = resultados.stream().filter(r -> r.getFechaClasificacion() != null).count();
+        if (clasificadas > 0) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No se pueden cambiar los umbrales: %d propuesta(s) de la convocatoria ya están clasificadas con "
+                            + "los actuales. Para corregir el resultado de una propuesta use el ajuste manual.",
+                    clasificadas));
+        }
         BigDecimal aceptacionAnterior = ReglasClasificacion.umbralAceptacion(convocatoria);
         BigDecimal ajustesAnterior = ReglasClasificacion.umbralAjustes(convocatoria);
 
@@ -154,20 +164,16 @@ public class ClasificacionPropuestaService {
         convocatoria.setUmbralAjustes(request.umbralAjustes());
         convocatoriaRepository.save(convocatoria);
 
-        long porReaplicar = 0;
+        // Ninguna está aplicada: se actualiza la clasificación sugerida de las que no tienen ajuste manual.
         List<ResultadoEvaluacion> pendientesDeAplicar = new ArrayList<>();
-        for (ResultadoEvaluacion resultado : resultadoRepository.findByPropuesta_Convocatoria_Id(convocatoriaId)) {
+        for (ResultadoEvaluacion resultado : resultados) {
             if (Boolean.TRUE.equals(resultado.getAjusteManual()) || resultado.getPuntuacionPonderada() == null) {
                 continue;
             }
             ClasificacionResultado nueva = ReglasClasificacion.clasificar(resultado.getPuntuacionPonderada(), convocatoria);
-            if (resultado.getFechaClasificacion() == null) {
-                if (nueva != resultado.getClasificacion()) {
-                    resultado.setClasificacion(nueva);
-                    pendientesDeAplicar.add(resultado);
-                }
-            } else if (nueva != resultado.getClasificacion()) {
-                porReaplicar++;
+            if (nueva != resultado.getClasificacion()) {
+                resultado.setClasificacion(nueva);
+                pendientesDeAplicar.add(resultado);
             }
         }
         if (!pendientesDeAplicar.isEmpty()) {
@@ -180,12 +186,11 @@ public class ClasificacionPropuestaService {
         datos.put("umbralAjustesAnterior", ajustesAnterior.toPlainString());
         datos.put("umbralAceptacion", request.umbralAceptacion().toPlainString());
         datos.put("umbralAjustes", request.umbralAjustes().toPlainString());
-        datos.put("propuestasPorReaplicar", porReaplicar);
         auditoriaService.registrar(TipoOperacionAuditoria.UMBRALES_CLASIFICACION_ACTUALIZADOS, "convocatorias",
                 convocatoriaId, datos);
 
         return new UmbralesClasificacionResponse(convocatoriaId, request.umbralAceptacion(),
-                request.umbralAjustes(), porReaplicar);
+                request.umbralAjustes(), 0);
     }
 
     // ──────────────────────────────────────────────────────────────────────────────

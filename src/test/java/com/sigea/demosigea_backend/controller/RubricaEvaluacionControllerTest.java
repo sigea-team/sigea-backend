@@ -149,7 +149,7 @@ class RubricaEvaluacionControllerTest {
     @DisplayName("GET devuelve la rúbrica activa y GET /impacto el impacto de modificarla")
     void obtener_eImpacto() throws Exception {
         when(rubricaService.obtenerActiva(10L)).thenReturn(ejemplo(0));
-        when(rubricaService.impacto(10L)).thenReturn(new ImpactoRubricaResponse(4L, 6, 3, 2, true));
+        when(rubricaService.impacto(10L)).thenReturn(new ImpactoRubricaResponse(4L, 6, 3, 2, true, 0, false));
 
         mockMvc.perform(get(URL))
                 .andExpect(status().isOk())

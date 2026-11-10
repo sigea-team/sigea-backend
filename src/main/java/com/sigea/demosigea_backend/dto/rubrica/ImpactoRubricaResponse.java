@@ -21,6 +21,11 @@ public record ImpactoRubricaResponse(
         @Schema(example = "12") long calificacionesRegistradas,
         @Schema(example = "4") long asignacionesAfectadas,
         @Schema(example = "3") long propuestasAfectadas,
-        @Schema(example = "true") boolean requiereConfirmacion
+        @Schema(example = "true") boolean requiereConfirmacion,
+        @Schema(description = "Propuestas de la convocatoria con la clasificación aplicada (HU-18)", example = "0")
+        long propuestasClasificadas,
+        @Schema(description = "true si la rúbrica ya no se puede modificar porque la clasificación empezó",
+                example = "false")
+        boolean bloqueada
 ) {
 }

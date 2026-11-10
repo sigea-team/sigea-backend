@@ -22,7 +22,6 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
-import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,8 +47,9 @@ import java.util.Set;
  *       reemplaza con confirmación explícita. Al reemplazarla, la rúbrica anterior queda inactiva (sus
  *       calificaciones se conservan como histórico) y las asignaciones afectadas vuelven a {@code pendiente}
  *       para calificarse con la nueva rúbrica.</li>
- *   <li><b>HU-19</b>: si alguna propuesta de la convocatoria ya tiene versión definitiva aprobada, la rúbrica en uso
- *       no se puede reemplazar (la evaluación de esas propuestas está cerrada).</li>
+ *   <li><b>HU-18</b>: desde que se aplica la primera clasificación de la convocatoria, la rúbrica no se puede
+ *       modificar, para que todas sus propuestas se clasifiquen con las mismas reglas. El resultado de una propuesta
+ *       se corrige con el ajuste manual de la clasificación (HU-18, Criterio 2).</li>
  * </ul>
  * Una convocatoria tiene como máximo una rúbrica activa: es la que usa HU-17 para calificar.
  *
@@ -68,13 +68,16 @@ public class RubricaEvaluacionService {
 
     static final BigDecimal CIEN = new BigDecimal("100");
 
+    private static final String MENSAJE_CLASIFICACION_INICIADA = "No se puede modificar la rúbrica '%s': %d "
+            + "propuesta(s) de la convocatoria ya están clasificadas con ella. Para corregir el resultado de una "
+            + "propuesta use el ajuste manual de la clasificación.";
+
     private final RubricaEvaluacionRepository rubricaRepository;
     private final CriterioRubricaRepository criterioRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
-    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
 
     /**
@@ -97,22 +100,25 @@ public class RubricaEvaluacionService {
      * HU-15, Criterio 4: impacto que tendría modificar la rúbrica activa (para advertir antes de enviar).
      *
      * @param convocatoriaId ID de la convocatoria.
-     * @return calificaciones, asignaciones y propuestas que dependen de la rúbrica activa.
+     * @return calificaciones, asignaciones y propuestas que dependen de la rúbrica activa, y si está bloqueada
+     *         porque la clasificación de la convocatoria ya empezó.
      */
     @Transactional(readOnly = true)
     public ImpactoRubricaResponse impacto(Long convocatoriaId) {
         buscarConvocatoria(convocatoriaId);
         Optional<RubricaEvaluacion> activa = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
         if (activa.isEmpty()) {
-            return new ImpactoRubricaResponse(null, 0, 0, 0, false);
+            return new ImpactoRubricaResponse(null, 0, 0, 0, false, 0, false);
         }
         Long rubricaId = activa.get().getId();
+        long clasificadas = resultadoRepository.countByPropuesta_Convocatoria_IdAndFechaClasificacionIsNotNull(convocatoriaId);
         long calificaciones = evaluacionRepository.countByCriterio_Rubrica_Id(rubricaId);
         if (calificaciones == 0) {
-            return new ImpactoRubricaResponse(rubricaId, 0, 0, 0, false);
+            return new ImpactoRubricaResponse(rubricaId, 0, 0, 0, false, clasificadas, clasificadas > 0);
         }
         List<AsignacionEvaluacion> afectadas = evaluacionRepository.findAsignacionesConCalificacionesDeRubrica(rubricaId);
-        return new ImpactoRubricaResponse(rubricaId, calificaciones, afectadas.size(), contarPropuestas(afectadas), true);
+        return new ImpactoRubricaResponse(rubricaId, calificaciones, afectadas.size(), contarPropuestas(afectadas), true,
+                clasificadas, clasificadas > 0);
     }
 
     /**
@@ -125,12 +131,15 @@ public class RubricaEvaluacionService {
      * @throws RecursoNoEncontradoException si la convocatoria no existe.
      * @throws RubricaInvalidaException     si los pesos no suman 100, hay criterios repetidos o escalas inválidas.
      * @throws RubricaEnUsoException        si la rúbrica tiene calificaciones y no se confirmó el reemplazo.
-     * @throws OperacionNoPermitidaException si la rúbrica está en uso y alguna propuesta de la convocatoria ya
-     *                                       tiene versión definitiva aprobada (HU-19).
+     * @throws OperacionNoPermitidaException si alguna propuesta de la convocatoria ya está clasificada (HU-18).
      */
     @Transactional
     public ResultadoConfiguracion configurar(Long convocatoriaId, RubricaRequest request, boolean confirmar) {
-        Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        // Bloqueo exclusivo de la convocatoria: espera a las clasificaciones en curso (HU-18 toma el bloqueo
+        // compartido) y las siguientes esperan a este cambio.
+        Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizar(convocatoriaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "No se encontró la convocatoria con ID: " + convocatoriaId));
         validar(request);
 
         Optional<RubricaEvaluacion> activa = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
@@ -143,6 +152,14 @@ public class RubricaEvaluacionService {
         }
 
         RubricaEvaluacion actual = activa.get();
+
+        // HU-18: desde la primera clasificación aplicada, las reglas de evaluación de la convocatoria quedan fijas.
+        long clasificadas = resultadoRepository.countByPropuesta_Convocatoria_IdAndFechaClasificacionIsNotNull(convocatoriaId);
+        if (clasificadas > 0) {
+            throw new OperacionNoPermitidaException(
+                    String.format(MENSAJE_CLASIFICACION_INICIADA, actual.getNombre(), clasificadas));
+        }
+
         long calificaciones = evaluacionRepository.countByCriterio_Rubrica_Id(actual.getId());
 
         if (calificaciones == 0) {
@@ -155,15 +172,6 @@ public class RubricaEvaluacionService {
             auditoriaService.registrar(TipoOperacionAuditoria.RUBRICA_ACTUALIZADA, "rubricas_evaluacion",
                     actual.getId(), datosAuditoria(convocatoriaId, actual, criterios.size()));
             return new ResultadoConfiguracion(RubricaResponse.of(actual, criterios, 0), false);
-        }
-
-        // HU-19: con propuestas en versión definitiva, la evaluación de la convocatoria está cerrada.
-        long definitivas = versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(convocatoriaId);
-        if (definitivas > 0) {
-            throw new OperacionNoPermitidaException(String.format(
-                    "No se puede reemplazar la rúbrica '%s': %d propuesta(s) de la convocatoria ya tienen versión "
-                            + "definitiva aprobada y su evaluación está cerrada.",
-                    actual.getNombre(), definitivas));
         }
 
         // Criterio 4: la rúbrica ya se usó para calificar.

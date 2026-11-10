@@ -3,8 +3,8 @@ package com.sigea.demosigea_backend.service;
 import com.sigea.demosigea_backend.dto.rubrica.CriterioRubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.ImpactoRubricaResponse;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaRequest;
-import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
+import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.RubricaEnUsoException;
 import com.sigea.demosigea_backend.exception.RubricaInvalidaException;
 import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
@@ -21,7 +21,6 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
-import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,7 +57,6 @@ class RubricaEvaluacionServiceTest {
     @Mock private EvaluacionRepository evaluacionRepository;
     @Mock private AsignacionEvaluacionRepository asignacionRepository;
     @Mock private ResultadoEvaluacionRepository resultadoRepository;
-    @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
 
     private RubricaEvaluacionService service;
@@ -67,8 +65,7 @@ class RubricaEvaluacionServiceTest {
     @BeforeEach
     void setUp() {
         service = new RubricaEvaluacionService(rubricaRepository, criterioRepository, convocatoriaRepository,
-                evaluacionRepository, asignacionRepository, resultadoRepository, versionPropuestaRepository,
-                auditoriaService);
+                evaluacionRepository, asignacionRepository, resultadoRepository, auditoriaService);
         convocatoria = Convocatoria.builder().id(10L).titulo("Convocatoria de Ponencias 2026").build();
     }
 
@@ -86,6 +83,11 @@ class RubricaEvaluacionServiceTest {
 
     private void convocatoriaExiste() {
         when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+    }
+
+    /** {@code configurar} lee la convocatoria con bloqueo exclusivo. */
+    private void convocatoriaBloqueada() {
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
     }
 
     /** El repositorio devuelve lo que recibe y asigna ID a las rúbricas nuevas. */
@@ -118,7 +120,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 1: crea la rúbrica cuando los pesos suman 100% y usa la escala 0-10 por defecto")
     void configurar_creaRubrica() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
         persistenciaSimulada(7L);
 
@@ -140,7 +142,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 1: respeta la escala definida por criterio")
     void configurar_conEscalaPropia() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
         persistenciaSimulada(7L);
 
@@ -160,7 +162,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 2: rechaza la rúbrica si los pesos no suman 100% y señala el error")
     void configurar_pesosNoSuman100_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "60"), criterio("Pertinencia", "30")), false));
@@ -174,7 +176,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 2: también rechaza pesos que superan 100%")
     void configurar_pesosSuperan100_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "60"), criterio("Pertinencia", "40.01")), false));
@@ -185,7 +187,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Rechaza criterios con el mismo nombre (sin distinguir mayúsculas)")
     void configurar_criterioRepetido_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "50"), criterio(" originalidad ", "50")), false));
@@ -197,7 +199,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Rechaza una escala cuyo máximo no supera al mínimo")
     void configurar_escalaInvalida_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 new RubricaRequest("R", List.of(new CriterioRubricaRequest("Impacto", new BigDecimal("100"),
@@ -209,7 +211,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Convocatoria inexistente responde 404")
     void configurar_convocatoriaInexistente() {
-        when(convocatoriaRepository.findById(99L)).thenReturn(Optional.empty());
+        when(convocatoriaRepository.findByIdParaActualizar(99L)).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class,
                 () -> service.configurar(99L, rubrica(criterio("A", "100")), false));
@@ -222,7 +224,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Sin calificaciones registradas, modifica la misma rúbrica reemplazando sus criterios")
     void configurar_sinCalificaciones_actualizaEnSitio() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         List<CriterioRubrica> anteriores = List.of(CriterioRubrica.builder().id(1L).rubrica(actual).nombre("Viejo")
                 .pesoPorcentual(new BigDecimal("100")).build());
@@ -250,7 +252,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 4: rúbrica en uso sin confirmar advierte el impacto y no cambia nada")
     void configurar_rubricaEnUso_sinConfirmar_advierte() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
         when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(6L);
@@ -272,7 +274,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 4: con confirmación crea una nueva versión, desactiva la anterior y reabre las evaluaciones")
     void configurar_rubricaEnUso_confirmado_reemplaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         AsignacionEvaluacion a1 = asignacion(1L, 40L);
         AsignacionEvaluacion a2 = asignacion(2L, 41L);
@@ -301,28 +303,9 @@ class RubricaEvaluacionServiceTest {
     }
 
     @Test
-    @DisplayName("HU-19: con propuestas en versión definitiva no se puede reemplazar la rúbrica en uso")
-    void configurar_rubricaEnUso_conVersionDefinitiva_rechaza() {
-        convocatoriaExiste();
-        RubricaEvaluacion actual = rubricaActiva();
-        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
-        when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(4L);
-        when(versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(10L)).thenReturn(2L);
-
-        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () -> service.configurar(10L,
-                rubrica(criterio("Originalidad", "70"), criterio("Pertinencia", "30")), true));
-
-        assertTrue(ex.getMessage().contains("2 propuesta(s)"));
-        assertTrue(actual.getActivo());
-        verify(rubricaRepository, never()).saveAndFlush(any());
-        verify(asignacionRepository, never()).saveAll(any());
-        verify(resultadoRepository, never()).delete(any());
-    }
-
-    @Test
     @DisplayName("Criterio 4: los pesos se validan antes de advertir el impacto")
     void configurar_rubricaEnUso_pesosInvalidos_rechazaPrimero() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "50")), true));
@@ -358,6 +341,7 @@ class RubricaEvaluacionServiceTest {
         assertEquals(1L, impacto.asignacionesAfectadas());
         assertEquals(1L, impacto.propuestasAfectadas());
         assertTrue(impacto.requiereConfirmacion());
+        assertFalse(impacto.bloqueada());
     }
 
     @Test
@@ -367,5 +351,58 @@ class RubricaEvaluacionServiceTest {
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class, () -> service.obtenerActiva(10L));
+    }
+
+    // ------------------------------------------------------------------
+    // HU-18: la rúbrica queda fija desde la primera clasificación
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("HU-18: con propuestas ya clasificadas no se puede modificar la rúbrica, aunque se confirme")
+    void configurar_conPropuestasClasificadas_rechaza() {
+        convocatoriaBloqueada();
+        RubricaEvaluacion actual = rubricaActiva();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
+        when(resultadoRepository.countByPropuesta_Convocatoria_IdAndFechaClasificacionIsNotNull(10L)).thenReturn(2L);
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
+                () -> service.configurar(10L, rubrica(criterio("Originalidad", "100")), true));
+
+        assertTrue(ex.getMessage().contains("2 propuesta(s)"));
+        assertTrue(actual.getActivo());
+        verify(rubricaRepository, never()).save(any());
+        verify(rubricaRepository, never()).saveAndFlush(any());
+        verify(criterioRepository, never()).deleteAll(anyList());
+        verify(asignacionRepository, never()).saveAll(anyList());
+        verify(resultadoRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("HU-18: configurar lee la convocatoria con bloqueo exclusivo")
+    void configurar_bloqueaConvocatoria() {
+        convocatoriaBloqueada();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
+        persistenciaSimulada(5L);
+
+        service.configurar(10L, rubrica(criterio("Originalidad", "100")), false);
+
+        verify(convocatoriaRepository).findByIdParaActualizar(10L);
+        verify(convocatoriaRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("Impacto: con propuestas clasificadas informa que la rúbrica está bloqueada")
+    void impacto_conPropuestasClasificadas_bloqueada() {
+        convocatoriaExiste();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(rubricaActiva()));
+        when(resultadoRepository.countByPropuesta_Convocatoria_IdAndFechaClasificacionIsNotNull(10L)).thenReturn(3L);
+        when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(5L);
+        when(evaluacionRepository.findAsignacionesConCalificacionesDeRubrica(4L))
+                .thenReturn(List.of(asignacion(1L, 40L)));
+
+        ImpactoRubricaResponse impacto = service.impacto(10L);
+
+        assertEquals(3L, impacto.propuestasClasificadas());
+        assertTrue(impacto.bloqueada());
     }
 }
