@@ -54,6 +54,29 @@ public interface NotificacionRepository extends JpaRepository<Notificacion, Long
                                  @Param("entidadId") Long entidadId,
                                  @Param("fechaCreacion") LocalDateTime fechaCreacion);
 
+    /**
+     * HU-22, Criterio 5: crea en una sola sentencia la misma notificación para los usuarios activos inscritos en
+     * una actividad (inscripciones_actividad → inscripciones_evento → usuarios por persona).
+     *
+     * @return Número de notificaciones creadas (una por usuario).
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, entidad, entidad_id, leida, fecha_creacion)
+            SELECT DISTINCT u.usuario_id, :tipo, :titulo, :mensaje, :entidad, :entidadId, false, :fechaCreacion
+            FROM inscripciones_actividad ia
+            JOIN inscripciones_evento ie ON ie.inscripcion_id = ia.inscripcion_id
+            JOIN usuarios u ON u.persona_id = ie.persona_id
+            WHERE ia.actividad_id = :actividadId AND u.estado = 'activo'
+            """, nativeQuery = true)
+    int crearParaInscritosDeActividad(@Param("actividadId") Long actividadId,
+                                      @Param("tipo") String tipo,
+                                      @Param("titulo") String titulo,
+                                      @Param("mensaje") String mensaje,
+                                      @Param("entidad") String entidad,
+                                      @Param("entidadId") Long entidadId,
+                                      @Param("fechaCreacion") LocalDateTime fechaCreacion);
+
     /** Marca como leídas todas las notificaciones pendientes del usuario. */
     @Modifying
     @Query("UPDATE Notificacion n SET n.leida = true, n.fechaLectura = :fecha "

@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.rubrica.CriterioRubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.ImpactoRubricaResponse;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaResponse;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.RubricaEnUsoException;
 import com.sigea.demosigea_backend.exception.RubricaInvalidaException;
@@ -21,12 +22,16 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -46,6 +51,11 @@ import java.util.Set;
  *       reemplaza con confirmación explícita. Al reemplazarla, la rúbrica anterior queda inactiva (sus
  *       calificaciones se conservan como histórico) y las asignaciones afectadas vuelven a {@code pendiente}
  *       para calificarse con la nueva rúbrica.</li>
+ *   <li><b>Regla de bloqueo</b>: la rúbrica solo se crea o modifica <b>antes de la fecha de apertura</b> de la
+ *       convocatoria. Desde la apertura queda fija, para que todas las propuestas se califiquen con los mismos
+ *       criterios. Una convocatoria sin fecha de apertura (borrador incompleto) sigue siendo editable.</li>
+ *   <li><b>HU-19</b>: si alguna propuesta de la convocatoria ya tiene versión definitiva aprobada, la rúbrica en uso
+ *       no se puede reemplazar (la evaluación de esas propuestas está cerrada).</li>
  * </ul>
  * Una convocatoria tiene como máximo una rúbrica activa: es la que usa HU-17 para calificar.
  *
@@ -70,7 +80,11 @@ public class RubricaEvaluacionService {
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
+    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
+    private final Clock clock;
+
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /**
      * Rúbrica activa de la convocatoria con sus criterios.
@@ -120,10 +134,13 @@ public class RubricaEvaluacionService {
      * @throws RecursoNoEncontradoException si la convocatoria no existe.
      * @throws RubricaInvalidaException     si los pesos no suman 100, hay criterios repetidos o escalas inválidas.
      * @throws RubricaEnUsoException        si la rúbrica tiene calificaciones y no se confirmó el reemplazo.
+     * @throws OperacionNoPermitidaException si la rúbrica está en uso y alguna propuesta de la convocatoria ya
+     *                                       tiene versión definitiva aprobada (HU-19).
      */
     @Transactional
     public ResultadoConfiguracion configurar(Long convocatoriaId, RubricaRequest request, boolean confirmar) {
         Convocatoria convocatoria = buscarConvocatoria(convocatoriaId);
+        exigirAntesDeApertura(convocatoria);
         validar(request);
 
         Optional<RubricaEvaluacion> activa = rubricaRepository.findByConvocatoria_IdAndActivoTrue(convocatoriaId);
@@ -148,6 +165,15 @@ public class RubricaEvaluacionService {
             auditoriaService.registrar(TipoOperacionAuditoria.RUBRICA_ACTUALIZADA, "rubricas_evaluacion",
                     actual.getId(), datosAuditoria(convocatoriaId, actual, criterios.size()));
             return new ResultadoConfiguracion(RubricaResponse.of(actual, criterios, 0), false);
+        }
+
+        // HU-19: con propuestas en versión definitiva, la evaluación de la convocatoria está cerrada.
+        long definitivas = versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(convocatoriaId);
+        if (definitivas > 0) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No se puede reemplazar la rúbrica '%s': %d propuesta(s) de la convocatoria ya tienen versión "
+                            + "definitiva aprobada y su evaluación está cerrada.",
+                    actual.getNombre(), definitivas));
         }
 
         // Criterio 4: la rúbrica ya se usó para calificar.
@@ -253,6 +279,22 @@ public class RubricaEvaluacionService {
     // ------------------------------------------------------------------
     // Utilidades
     // ------------------------------------------------------------------
+
+    /**
+     * La rúbrica queda fija desde la fecha de apertura de la convocatoria: todas las propuestas se califican con
+     * los mismos criterios.
+     *
+     * @throws OperacionNoPermitidaException si la convocatoria ya abrió.
+     */
+    private void exigirAntesDeApertura(Convocatoria convocatoria) {
+        LocalDateTime apertura = convocatoria.getFechaApertura();
+        if (apertura != null && !LocalDateTime.now(clock).isBefore(apertura)) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "La rúbrica solo se puede modificar antes de que abra la convocatoria. La convocatoria '%s' abrió "
+                            + "el %s y su rúbrica ya no se puede cambiar.",
+                    convocatoria.getTitulo(), apertura.format(FORMATO_FECHA)));
+        }
+    }
 
     private Convocatoria buscarConvocatoria(Long convocatoriaId) {
         return convocatoriaRepository.findById(convocatoriaId)

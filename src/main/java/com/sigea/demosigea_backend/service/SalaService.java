@@ -187,12 +187,16 @@ public class SalaService {
 
         Sala guardada = guardarControlandoDuplicado(sala, evento);
 
+        // HU-20 Criterio 5: si se cambian las franjas al editar, se avisan las actividades que quedan fuera
+        // (igual que actualizarDisponibilidadSala). No bloquea el guardado.
+        List<ConflictoDisponibilidadResponse> conflictos = Collections.emptyList();
         if (request.disponibilidades() != null) {
             disponibilidadSalaRepository.deleteBySala_Id(salaId);
             disponibilidadSalaRepository.flush();
             if (!request.disponibilidades().isEmpty()) {
                 guardarFranjasSala(guardada, request.disponibilidades());
             }
+            conflictos = detectarConflictosSala(salaId, eventoId, request.disponibilidades());
         }
 
         auditoriaService.registrar(TipoOperacionAuditoria.SALA_ACTUALIZADA, ENTIDAD, salaId,
@@ -200,8 +204,9 @@ public class SalaService {
                         "antes", DetalleAuditoria.de("nombre", nombreAnterior, "aforoMaximo", aforoAnterior),
                         "despues", DetalleAuditoria.de("nombre", guardada.getNombre(), "aforoMaximo", guardada.getAforoMaximo())));
 
-        log.info("Sala actualizada: {} '{}' en evento {}", salaId, guardada.getNombre(), evento.getId());
-        return toResponse(guardada);
+        log.info("Sala actualizada: {} '{}' en evento {}. Conflictos de disponibilidad: {}",
+                salaId, guardada.getNombre(), evento.getId(), conflictos.size());
+        return toResponse(guardada).conConflictos(conflictos);
     }
 
     /**
@@ -366,6 +371,10 @@ public class SalaService {
 
         List<ConflictoDisponibilidadResponse> conflictos = new ArrayList<>();
         for (Actividad actividad : actividades) {
+            // HU-22: las actividades por programar no tienen horario que revisar.
+            if (!actividad.tieneHorarioCompleto()) {
+                continue;
+            }
             if (!estaCubierta(actividad.getFecha(), actividad.getHoraInicio(), actividad.getHoraFin(), franjas)) {
                 conflictos.add(new ConflictoDisponibilidadResponse(
                         actividad.getId(),
@@ -394,6 +403,10 @@ public class SalaService {
 
         List<ConflictoDisponibilidadResponse> conflictos = new ArrayList<>();
         for (Actividad actividad : actividades) {
+            // HU-22: las actividades por programar no tienen horario que revisar.
+            if (!actividad.tieneHorarioCompleto()) {
+                continue;
+            }
             if (!estaCubierta(actividad.getFecha(), actividad.getHoraInicio(), actividad.getHoraFin(), franjas)) {
                 conflictos.add(new ConflictoDisponibilidadResponse(
                         actividad.getId(),
@@ -569,19 +582,24 @@ public class SalaService {
 
         Sala guardada = salaRepository.saveAndFlush(sala);
 
+        // HU-20 Criterio 5: igual que actualizarDisponibilidadGlobal, revisa las actividades de todos los eventos.
+        List<ConflictoDisponibilidadResponse> conflictos = Collections.emptyList();
         if (request.disponibilidades() != null) {
             disponibilidadSalaRepository.deleteBySala_Id(salaId);
             disponibilidadSalaRepository.flush();
             if (!request.disponibilidades().isEmpty()) {
                 guardarFranjasSala(guardada, request.disponibilidades());
             }
+            conflictos = detectarConflictosGenerales(
+                    actividadRepository.findActividadesPorSala(salaId), request.disponibilidades());
         }
 
         auditoriaService.registrar(TipoOperacionAuditoria.SALA_ACTUALIZADA, ENTIDAD, salaId,
                 DetalleAuditoria.de("nombre", guardada.getNombre(), "aforoMaximo", guardada.getAforoMaximo()));
 
-        log.info("Sala institucional actualizada: {} '{}'", salaId, guardada.getNombre());
-        return toResponse(guardada);
+        log.info("Sala institucional actualizada: {} '{}'. Conflictos de disponibilidad: {}",
+                salaId, guardada.getNombre(), conflictos.size());
+        return toResponse(guardada).conConflictos(conflictos);
     }
 
     @Transactional

@@ -45,8 +45,31 @@ public record SalaResponse(
         List<EventoSalaInfo> eventosVinculados,
 
         @Schema(description = "Franjas ocupadas por actividades asignadas en eventos")
-        List<OcupacionSalaResponse> ocupaciones
+        List<OcupacionSalaResponse> ocupaciones,
+
+        @Schema(description = "HU-20 Criterio 5: actividades que quedaron fuera de la nueva disponibilidad al editar "
+                + "la sala. Vacía en las demás operaciones; no bloquea el guardado.")
+        List<ConflictoDisponibilidadResponse> conflictosDisponibilidad
 ) {
+    /**
+     * Constructor de conveniencia retrocompatible con 10 argumentos (sin conflictos de disponibilidad).
+     */
+    public SalaResponse(
+            Long id,
+            Long eventoId,
+            String nombre,
+            String ubicacion,
+            TipoSala tipo,
+            Integer aforoMaximo,
+            List<DisponibilidadSalaResponse> disponibilidades,
+            boolean permiteSimultaneidad,
+            List<EventoSalaInfo> eventosVinculados,
+            List<OcupacionSalaResponse> ocupaciones
+    ) {
+        this(id, eventoId, nombre, ubicacion, tipo, aforoMaximo, disponibilidades, permiteSimultaneidad,
+                eventosVinculados, ocupaciones, Collections.emptyList());
+    }
+
     /**
      * Constructor de conveniencia retrocompatible con 8 argumentos.
      */
@@ -62,6 +85,18 @@ public record SalaResponse(
     ) {
         this(id, eventoId, nombre, ubicacion, tipo, aforoMaximo, disponibilidades, permiteSimultaneidad,
                 Collections.emptyList(), Collections.emptyList());
+    }
+
+    /**
+     * Copia del DTO con los conflictos de disponibilidad detectados al editar la sala (HU-20, Criterio 5).
+     *
+     * @param conflictos actividades que quedaron fuera de la nueva disponibilidad.
+     * @return nuevo DTO con los conflictos.
+     */
+    public SalaResponse conConflictos(List<ConflictoDisponibilidadResponse> conflictos) {
+        return new SalaResponse(id, eventoId, nombre, ubicacion, tipo, aforoMaximo, disponibilidades,
+                permiteSimultaneidad, eventosVinculados, ocupaciones,
+                conflictos != null ? conflictos : Collections.emptyList());
     }
 
     /**

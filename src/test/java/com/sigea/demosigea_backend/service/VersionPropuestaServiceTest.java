@@ -27,6 +27,7 @@ import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.DocumentoPropuestaRepository;
 import com.sigea.demosigea_backend.repository.LineaTematicaRepository;
+import com.sigea.demosigea_backend.repository.ObservacionPropuestaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
@@ -86,6 +87,7 @@ class VersionPropuestaServiceTest {
     @Mock private LineaTematicaRepository lineaTematicaRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private AsignacionEvaluacionRepository asignacionEvaluacionRepository;
+    @Mock private ObservacionPropuestaRepository observacionPropuestaRepository;
     @Mock private ValidadorDocumentosPropuesta validadorDocumentos;
     @Mock private AlmacenamientoArchivos almacenamiento;
     @Mock private AuditoriaService auditoriaService;
@@ -538,5 +540,48 @@ class VersionPropuestaServiceTest {
         assertTrue(mias.get(0).tieneVersionDefinitiva());
         assertFalse(mias.get(0).edicionAutorizada());
         assertEquals("publicada", mias.get(0).convocatoriaEstado());
+    }
+
+    // ------------------------------------------------------------------
+    // HU-19, Criterio 2: la nueva versión se vincula a los ajustes que la originaron
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("HU-19 Criterio 2: con ajustes solicitados, la nueva versión se vincula a los ajustes pendientes")
+    void crearNuevaVersion_ConAjustes_VinculaObservacionesPendientes() {
+        Usuario usuario = autenticar(4L, 10L, CORREO_AUTOR);
+        Propuesta propuesta = propuesta(EstadoPropuesta.ajustes);
+        VersionPropuesta v1 = versionConDocumento(propuesta, 1, 7L, usuario);
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(propuestaAutorRepository.existsByPropuesta_IdAndPersona_Id(50L, 10L)).thenReturn(true);
+        when(validadorDocumentos.validar(any(), eq(false))).thenReturn(List.of());
+        when(versionPropuestaRepository.findTopByPropuesta_IdOrderByNumeroVersionDesc(50L)).thenReturn(Optional.of(v1));
+        guardarDevuelveArgumento();
+        when(observacionPropuestaRepository.vincularPendientesAVersion(eq(50L), eq(2), any(VersionPropuesta.class)))
+                .thenReturn(2);
+
+        ActualizarPropuestaRequest cambios = new ActualizarPropuestaRequest(
+                null, "Resumen con la metodología ampliada", null, null, "Atiende los ajustes", null);
+        EnvioPropuestaResponse respuesta = service.crearNuevaVersion(50L, cambios, null);
+
+        assertEquals(2, respuesta.version().numeroVersion());
+        assertTrue(respuesta.mensaje().contains("2 ajuste(s)"), respuesta.mensaje());
+        ArgumentCaptor<VersionPropuesta> vinculada = ArgumentCaptor.forClass(VersionPropuesta.class);
+        verify(observacionPropuestaRepository).vincularPendientesAVersion(eq(50L), eq(2), vinculada.capture());
+        assertEquals(2, vinculada.getValue().getNumeroVersion());
+        verify(convocatoriaService, never()).validarRecepcionPropuestas(any());
+    }
+
+    @Test
+    @DisplayName("HU-19: una propuesta aprobada (sin modificaciones) sigue sin admitir versiones nuevas")
+    void crearNuevaVersion_Aprobada_Rechazada() {
+        autenticar(4L, 10L, CORREO_AUTOR);
+        Propuesta propuesta = propuesta(EstadoPropuesta.aprobada);
+        when(propuestaRepository.findByIdParaActualizar(50L)).thenReturn(Optional.of(propuesta));
+        when(propuestaAutorRepository.existsByPropuesta_IdAndPersona_Id(50L, 10L)).thenReturn(true);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> service.crearNuevaVersion(50L, null, null));
+        verify(versionPropuestaRepository, never()).save(any());
+        verify(observacionPropuestaRepository, never()).vincularPendientesAVersion(any(), any(), any());
     }
 }

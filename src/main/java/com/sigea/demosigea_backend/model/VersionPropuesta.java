@@ -103,6 +103,15 @@ public class VersionPropuesta {
     @Column(name = "es_definitiva", nullable = false)
     private Boolean esDefinitiva = false;
 
+    /** HU-19: fecha y hora en que se aprobó como versión definitiva ({@code null} si no lo es). */
+    @Column(name = "fecha_definitiva")
+    private LocalDateTime fechaDefinitiva;
+
+    /** HU-19: usuario que aprobó la versión definitiva. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aprobada_por")
+    private Usuario aprobadaPor;
+
     /** Documentos adjuntos a la versión. */
     @OneToMany(mappedBy = "version", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("principal DESC, id ASC")

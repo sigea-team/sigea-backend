@@ -28,9 +28,9 @@ import java.time.LocalTime;
  * <b>la programación y la detección de conflictos pertenecen a HU-21</b>.
  * </p>
  * <p>
- * {@code sala_id} se mapea como columna escalar porque la entidad {@code Sala} aún no existe.
- * Cuando se implemente (HU-20), puede reemplazarse por {@code @ManyToOne Sala sala} con el mismo
- * {@code @JoinColumn}, sin tocar la tabla.
+ * HU-22 (changeset 22): una actividad en estado {@value #ESTADO_POR_PROGRAMAR} está registrada sin fecha, horario
+ * ni sala, solo con su duración, para que la generación automática de la agenda la ubique. En cualquier otro
+ * estado la base de datos exige fecha, horas y sala ({@code actividades_programacion_completa_check}).
  * </p>
  *
  * @author SIGEA Development Team
@@ -45,6 +45,15 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @Builder
 public class Actividad {
+
+    /** HU-21: actividad con fecha, horario y sala. */
+    public static final String ESTADO_PROGRAMADA = "programada";
+
+    /** HU-22: actividad registrada sin fecha, horario ni sala, pendiente de ubicar. */
+    public static final String ESTADO_POR_PROGRAMAR = "por_programar";
+
+    /** Actividad cancelada: no ocupa espacio en la agenda. */
+    public static final String ESTADO_CANCELADA = "cancelada";
 
     /** Identificador único de la actividad. */
     @Id
@@ -76,21 +85,24 @@ public class Actividad {
     @Column(name = "nombre", length = 200, nullable = false)
     private String nombre;
 
-    /** Fecha de realización. */
-    @Column(name = "fecha", nullable = false)
+    /** Fecha de realización (null mientras la actividad está por programar, HU-22). */
+    @Column(name = "fecha")
     private LocalDate fecha;
 
-    /** Hora de inicio (columna {@code TIME}). */
-    @Column(name = "hora_inicio", nullable = false)
+    /** Hora de inicio, columna {@code TIME} (null mientras está por programar). */
+    @Column(name = "hora_inicio")
     private LocalTime horaInicio;
 
-    /** Hora de finalización (debe ser mayor que la de inicio). */
-    @Column(name = "hora_fin", nullable = false)
+    /** Hora de finalización, mayor que la de inicio (null mientras está por programar). */
+    @Column(name = "hora_fin")
     private LocalTime horaFin;
 
+    /** HU-22: duración en minutos; la usa la generación automática para ubicar la actividad. */
+    @Column(name = "duracion_minutos")
+    private Integer duracionMinutos;
+
     /**
-     * Sala asignada a la actividad (FK a {@code salas}).
-     * Se reemplaza el campo escalar {@code salaId} por la relación JPA al implementar HU-Salas.
+     * Sala asignada a la actividad (FK a {@code salas}); null mientras está por programar (HU-22).
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sala_id")
@@ -117,5 +129,25 @@ public class Actividad {
     /** Estado de la actividad. La columna no tiene restricción CHECK, por eso se mapea como texto. */
     @Builder.Default
     @Column(name = "estado", length = 20, nullable = false)
-    private String estado = "programada";
+    private String estado = ESTADO_PROGRAMADA;
+
+    /** HU-22: true si la ubicó la generación automática y nadie la ha ajustado a mano todavía. */
+    @Builder.Default
+    @Column(name = "asignacion_automatica", nullable = false)
+    private boolean asignacionAutomatica = false;
+
+    /** @return true si la actividad está registrada sin fecha, horario ni sala (HU-22). */
+    public boolean estaPorProgramar() {
+        return ESTADO_POR_PROGRAMAR.equalsIgnoreCase(estado);
+    }
+
+    /** @return true si la actividad está cancelada. */
+    public boolean estaCancelada() {
+        return ESTADO_CANCELADA.equalsIgnoreCase(estado);
+    }
+
+    /** @return true si tiene fecha, horas y sala (puede aparecer en la agenda). */
+    public boolean tieneHorarioCompleto() {
+        return fecha != null && horaInicio != null && horaFin != null && sala != null;
+    }
 }

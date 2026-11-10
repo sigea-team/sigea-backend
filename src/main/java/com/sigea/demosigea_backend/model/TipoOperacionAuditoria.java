@@ -95,6 +95,11 @@ public enum TipoOperacionAuditoria {
     PROPUESTA_CLASIFICADA("EVALUACION", "Aplicación automática de la clasificación de una propuesta según los umbrales (HU-18)"),
     CLASIFICACION_AJUSTADA("EVALUACION", "Ajuste manual, con motivo, de la clasificación de una propuesta (HU-18)"),
 
+    // ----- Observaciones y versión definitiva (HU-19) -----
+    OBSERVACIONES_PROPUESTA_REGISTRADAS("EVALUACION", "Registro de observaciones y ajustes requeridos a una propuesta (HU-19)"),
+    OBSERVACION_PROPUESTA_RESUELTA("EVALUACION", "Una observación o ajuste requerido de una propuesta se dio por resuelto (HU-19)"),
+    VERSION_DEFINITIVA_APROBADA("EVALUACION", "Aprobación de la versión definitiva de una propuesta (HU-19)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)"),
 
@@ -108,7 +113,13 @@ public enum TipoOperacionAuditoria {
     // HU-21: programación de actividades de la agenda
     ACTIVIDAD_PROGRAMADA("AGENDA", "Programación de una actividad en la agenda del evento (HU-21)"),
     ACTIVIDAD_REPROGRAMADA("AGENDA", "Cambio de horario, sala, ponente u otros datos de una actividad (HU-21)"),
-    ACTIVIDAD_ELIMINADA("AGENDA", "Eliminación de una actividad de la agenda (HU-21)");
+    ACTIVIDAD_ELIMINADA("AGENDA", "Eliminación de una actividad de la agenda (HU-21)"),
+
+    // HU-22: generación y publicación de la agenda
+    ACTIVIDAD_REGISTRADA_POR_PROGRAMAR("AGENDA", "Registro o modificación de una actividad sin horario para la generación automática (HU-22)"),
+    ACTIVIDAD_DESPROGRAMADA("AGENDA", "Retiro del horario y la sala de una actividad, que vuelve a por programar (HU-22)"),
+    AGENDA_GENERADA("AGENDA", "Aplicación de la propuesta de agenda generada automáticamente (HU-22)"),
+    AGENDA_PUBLICADA("AGENDA", "Publicación de la agenda del evento a los participantes (HU-22)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

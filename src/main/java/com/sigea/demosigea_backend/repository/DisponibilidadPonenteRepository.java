@@ -19,6 +19,9 @@ public interface DisponibilidadPonenteRepository extends JpaRepository<Disponibi
     /** Franjas de disponibilidad de un ponente en un evento, ordenadas cronológicamente. */
     List<DisponibilidadPonente> findByPersona_IdAndEvento_IdOrderByFechaAscHoraInicioAsc(Long personaId, Long eventoId);
 
+    /** HU-22: franjas de todos los ponentes del evento, en orden cronológico (generación de la agenda). */
+    List<DisponibilidadPonente> findByEvento_IdOrderByFechaAscHoraInicioAsc(Long eventoId);
+
     /** Elimina todas las franjas de un ponente en un evento (para reemplazarlas en bloque). */
     void deleteByPersona_IdAndEvento_Id(Long personaId, Long eventoId);
 }
