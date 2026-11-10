@@ -746,6 +746,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `palabras_clave` | `VARCHAR(255)` | `String` | SÍ |  | - | HU-14 Criterio 3: copia de las palabras clave en esta versión |
 | `linea_tematica_id` | `INT` | `Integer` | SÍ | FK | - | HU-14 Criterio 3: línea temática en esta versión. FK -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas) |
 | `es_definitiva` | `BOOLEAN` | `Boolean` | NO |  | `false` | HU-14 Criterio 5 / RF29: versión definitiva aprobada (máximo una por propuesta) |
+| `fecha_definitiva` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-19 (changeset 23). Fecha de aprobación de la versión definitiva; obligatoria si `es_definitiva` |
+| `aprobada_por` | `INT` | `Long` | SÍ | FK | - | HU-19 (changeset 23). Usuario que aprobó la versión definitiva. FK -> [`usuarios.usuario_id`](#usuarios) |
 
 `observaciones` guarda la nota del autor que describe el cambio de la versión. `documento_url` guarda la ruta del documento principal; la lista completa de archivos está en [`documentos_propuesta`](#documentos_propuesta). Columnas HU-14 agregadas por el changeset `16-hu14-versiones-propuesta.sql`.
 
@@ -753,10 +755,14 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - UNIQUE Índice `versiones_propuesta_propuesta_id_numero_version_idx` sobre (`propuesta_id`, `numero_version`)
 - UNIQUE Índice parcial `uq_versiones_propuesta_una_definitiva` sobre (`propuesta_id`) `WHERE es_definitiva = true`
 
+**Restricciones CHECK**:
+- `versiones_propuesta_fecha_definitiva_check`: `es_definitiva = false OR fecha_definitiva IS NOT NULL` (HU-19)
+
 **Relaciones Foráneas Salientes**:
 - Columna `propuesta_id` -> [`propuestas.propuesta_id`](#propuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `creado_por` -> [`usuarios.usuario_id`](#usuarios)
 - Columna `linea_tematica_id` -> [`lineas_tematicas.linea_tematica_id`](#lineas_tematicas)
+- Columna `aprobada_por` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE` (HU-19)
 
 ---
 
@@ -1001,14 +1007,32 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
 | `observacion_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `version_id` | `INT` | `Integer` | NO | FK | - | FK -> [`versiones_propuesta.version_id`](#versiones_propuesta) |
-| `comite_evaluador_id` | `INT` | `Integer` | NO | FK | - | FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) |
-| `descripcion` | `TEXT` | `String` | NO |  | - | - |
+| `comite_evaluador_id` | `INT` | `Integer` | SÍ | FK | - | Evaluador que la registró; NULL si la registró el administrador (HU-19, changeset 23). FK -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) |
+| `descripcion` | `TEXT` | `String` | NO |  | - | No vacía (HU-19) |
 | `fecha` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `resuelto` | `BOOLEAN` | `Boolean` | NO |  | `false` | - |
+| `usuario_id` | `INT` | `Long` | SÍ | FK | - | HU-19. Usuario que registró la observación. FK -> [`usuarios.usuario_id`](#usuarios) |
+| `requiere_ajuste` | `BOOLEAN` | `Boolean` | NO |  | `true` | HU-19. `true` = ajuste requerido (bloquea la aprobación de la versión definitiva mientras no se resuelva); `false` = comentario |
+| `version_atencion_id` | `INT` | `Integer` | SÍ | FK | - | HU-19 Criterio 2. Versión que subió el autor para atenderla. FK -> [`versiones_propuesta.version_id`](#versiones_propuesta) |
+| `fecha_resolucion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-19. Fecha en que se dio por resuelta; obligatoria si `resuelto` |
+| `resuelto_por` | `INT` | `Long` | SÍ | FK | - | HU-19. Usuario que la dio por resuelta. FK -> [`usuarios.usuario_id`](#usuarios) |
+
+`version_id` es la versión observada (la que originó la observación). Al crear una versión nueva (HU-14), los ajustes sin resolver de las versiones anteriores quedan vinculados a ella en `version_atencion_id`; si el autor sube otra versión antes de que se resuelvan, el vínculo pasa a la más reciente.
+
+**Índices Definidos**:
+- `idx_observaciones_propuesta_version` sobre (`version_id`) (HU-19)
+- `idx_observaciones_propuesta_version_atencion` sobre (`version_atencion_id`) (HU-19)
+
+**Restricciones CHECK**:
+- `observaciones_propuesta_resolucion_check`: `(resuelto = false AND fecha_resolucion IS NULL) OR (resuelto = true AND fecha_resolucion IS NOT NULL)` (HU-19)
+- `observaciones_propuesta_descripcion_check`: `length(trim(descripcion)) > 0` (HU-19, `NOT VALID`: no revisa filas anteriores)
 
 **Relaciones Foráneas Salientes**:
 - Columna `version_id` -> [`versiones_propuesta.version_id`](#versiones_propuesta) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `comite_evaluador_id` -> [`comites_evaluadores.comite_evaluador_id`](#comites_evaluadores) `DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `usuario_id` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE` (HU-19)
+- Columna `version_atencion_id` -> [`versiones_propuesta.version_id`](#versiones_propuesta) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE` (HU-19)
+- Columna `resuelto_por` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE` (HU-19)
 
 ---
 

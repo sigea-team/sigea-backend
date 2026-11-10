@@ -95,6 +95,11 @@ public enum TipoOperacionAuditoria {
     PROPUESTA_CLASIFICADA("EVALUACION", "Aplicación automática de la clasificación de una propuesta según los umbrales (HU-18)"),
     CLASIFICACION_AJUSTADA("EVALUACION", "Ajuste manual, con motivo, de la clasificación de una propuesta (HU-18)"),
 
+    // ----- Observaciones y versión definitiva (HU-19) -----
+    OBSERVACIONES_PROPUESTA_REGISTRADAS("EVALUACION", "Registro de observaciones y ajustes requeridos a una propuesta (HU-19)"),
+    OBSERVACION_PROPUESTA_RESUELTA("EVALUACION", "Una observación o ajuste requerido de una propuesta se dio por resuelto (HU-19)"),
+    VERSION_DEFINITIVA_APROBADA("EVALUACION", "Aprobación de la versión definitiva de una propuesta (HU-19)"),
+
     // ----- Reservadas: se registran cuando exista la historia correspondiente -----
     RESULTADOS_PUBLICADOS("EVALUACION", "Publicación de resultados de evaluación de propuestas (HU-18)"),
 

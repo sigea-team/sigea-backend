@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.rubrica.CriterioRubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.ImpactoRubricaResponse;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaResponse;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.RubricaEnUsoException;
 import com.sigea.demosigea_backend.exception.RubricaInvalidaException;
@@ -21,6 +22,7 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,8 @@ import java.util.Set;
  *       reemplaza con confirmación explícita. Al reemplazarla, la rúbrica anterior queda inactiva (sus
  *       calificaciones se conservan como histórico) y las asignaciones afectadas vuelven a {@code pendiente}
  *       para calificarse con la nueva rúbrica.</li>
+ *   <li><b>HU-19</b>: si alguna propuesta de la convocatoria ya tiene versión definitiva aprobada, la rúbrica en uso
+ *       no se puede reemplazar (la evaluación de esas propuestas está cerrada).</li>
  * </ul>
  * Una convocatoria tiene como máximo una rúbrica activa: es la que usa HU-17 para calificar.
  *
@@ -70,6 +74,7 @@ public class RubricaEvaluacionService {
     private final EvaluacionRepository evaluacionRepository;
     private final AsignacionEvaluacionRepository asignacionRepository;
     private final ResultadoEvaluacionRepository resultadoRepository;
+    private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
 
     /**
@@ -120,6 +125,8 @@ public class RubricaEvaluacionService {
      * @throws RecursoNoEncontradoException si la convocatoria no existe.
      * @throws RubricaInvalidaException     si los pesos no suman 100, hay criterios repetidos o escalas inválidas.
      * @throws RubricaEnUsoException        si la rúbrica tiene calificaciones y no se confirmó el reemplazo.
+     * @throws OperacionNoPermitidaException si la rúbrica está en uso y alguna propuesta de la convocatoria ya
+     *                                       tiene versión definitiva aprobada (HU-19).
      */
     @Transactional
     public ResultadoConfiguracion configurar(Long convocatoriaId, RubricaRequest request, boolean confirmar) {
@@ -148,6 +155,15 @@ public class RubricaEvaluacionService {
             auditoriaService.registrar(TipoOperacionAuditoria.RUBRICA_ACTUALIZADA, "rubricas_evaluacion",
                     actual.getId(), datosAuditoria(convocatoriaId, actual, criterios.size()));
             return new ResultadoConfiguracion(RubricaResponse.of(actual, criterios, 0), false);
+        }
+
+        // HU-19: con propuestas en versión definitiva, la evaluación de la convocatoria está cerrada.
+        long definitivas = versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(convocatoriaId);
+        if (definitivas > 0) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "No se puede reemplazar la rúbrica '%s': %d propuesta(s) de la convocatoria ya tienen versión "
+                            + "definitiva aprobada y su evaluación está cerrada.",
+                    actual.getNombre(), definitivas));
         }
 
         // Criterio 4: la rúbrica ya se usó para calificar.

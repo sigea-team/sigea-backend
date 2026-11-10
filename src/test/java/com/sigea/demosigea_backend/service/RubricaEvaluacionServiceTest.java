@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.rubrica.CriterioRubricaRequest;
 import com.sigea.demosigea_backend.dto.rubrica.ImpactoRubricaResponse;
 import com.sigea.demosigea_backend.dto.rubrica.RubricaRequest;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RubricaEnUsoException;
 import com.sigea.demosigea_backend.exception.RubricaInvalidaException;
 import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
@@ -20,6 +21,7 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +58,7 @@ class RubricaEvaluacionServiceTest {
     @Mock private EvaluacionRepository evaluacionRepository;
     @Mock private AsignacionEvaluacionRepository asignacionRepository;
     @Mock private ResultadoEvaluacionRepository resultadoRepository;
+    @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
 
     private RubricaEvaluacionService service;
@@ -64,7 +67,8 @@ class RubricaEvaluacionServiceTest {
     @BeforeEach
     void setUp() {
         service = new RubricaEvaluacionService(rubricaRepository, criterioRepository, convocatoriaRepository,
-                evaluacionRepository, asignacionRepository, resultadoRepository, auditoriaService);
+                evaluacionRepository, asignacionRepository, resultadoRepository, versionPropuestaRepository,
+                auditoriaService);
         convocatoria = Convocatoria.builder().id(10L).titulo("Convocatoria de Ponencias 2026").build();
     }
 
@@ -294,6 +298,25 @@ class RubricaEvaluacionServiceTest {
         verify(resultadoRepository).delete(resultadoViejo);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.RUBRICA_REEMPLAZADA), eq("rubricas_evaluacion"),
                 eq(5L), anyMap());
+    }
+
+    @Test
+    @DisplayName("HU-19: con propuestas en versión definitiva no se puede reemplazar la rúbrica en uso")
+    void configurar_rubricaEnUso_conVersionDefinitiva_rechaza() {
+        convocatoriaExiste();
+        RubricaEvaluacion actual = rubricaActiva();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
+        when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(4L);
+        when(versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(10L)).thenReturn(2L);
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () -> service.configurar(10L,
+                rubrica(criterio("Originalidad", "70"), criterio("Pertinencia", "30")), true));
+
+        assertTrue(ex.getMessage().contains("2 propuesta(s)"));
+        assertTrue(actual.getActivo());
+        verify(rubricaRepository, never()).saveAndFlush(any());
+        verify(asignacionRepository, never()).saveAll(any());
+        verify(resultadoRepository, never()).delete(any());
     }
 
     @Test

@@ -12,11 +12,13 @@ import com.sigea.demosigea_backend.exception.ProgramacionActividadException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.SolicitudInvalidaException;
 import com.sigea.demosigea_backend.model.Actividad;
+import com.sigea.demosigea_backend.model.Convocatoria;
 import com.sigea.demosigea_backend.model.DisponibilidadPonente;
 import com.sigea.demosigea_backend.model.DisponibilidadSala;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.Persona;
+import com.sigea.demosigea_backend.model.Propuesta;
 import com.sigea.demosigea_backend.model.Sala;
 import com.sigea.demosigea_backend.model.TipoActividad;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
@@ -29,6 +31,7 @@ import com.sigea.demosigea_backend.repository.LineaTematicaRepository;
 import com.sigea.demosigea_backend.repository.ParticipacionConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import com.sigea.demosigea_backend.repository.SalaRepository;
 import com.sigea.demosigea_backend.repository.TipoActividadRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,6 +80,7 @@ class ActividadServiceTest {
     @Mock private LineaTematicaRepository lineaTematicaRepository;
     @Mock private PersonaRepository personaRepository;
     @Mock private PropuestaRepository propuestaRepository;
+    @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private ParticipacionConferencistaRepository participacionRepository;
     @Mock private DisponibilidadSalaRepository disponibilidadSalaRepository;
     @Mock private DisponibilidadPonenteRepository disponibilidadPonenteRepository;
@@ -609,6 +613,63 @@ class ActividadServiceTest {
             InOrder orden = inOrder(avisoCambiosAgenda, actividadRepository);
             orden.verify(avisoCambiosAgenda).actividadRetirada(eq(propia), any(AvisoCambiosAgenda.Programacion.class));
             orden.verify(actividadRepository).delete(propia);
+        }
+    }
+
+    // ── HU-19, Criterio 3: solo propuestas con versión definitiva ──
+
+    @Nested
+    @DisplayName("HU-19: propuestas disponibles para programar")
+    class PropuestasDefinitivas {
+
+        private Propuesta propuestaDelEvento(Long id) {
+            Convocatoria convocatoria = Convocatoria.builder().id(3L).evento(evento).titulo("Convocatoria").build();
+            Propuesta propuesta = Propuesta.builder().id(id).convocatoria(convocatoria).titulo("Robótica educativa").build();
+            when(propuestaRepository.findById(id)).thenReturn(Optional.of(propuesta));
+            return propuesta;
+        }
+
+        private ActividadRequest conPropuesta(Long propuestaId) {
+            return new ActividadRequest("Ponencia", 5L, DIA, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                    auditorio.getId(), ana.getId(), propuestaId, null, null, false, false);
+        }
+
+        @Test
+        @DisplayName("programa una actividad con una propuesta aprobada en versión definitiva")
+        void conVersionDefinitiva_programa() {
+            propuestaDelEvento(70L);
+            when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(70L)).thenReturn(true);
+
+            ActividadResponse r = service.crear(EVENTO, conPropuesta(70L));
+
+            assertEquals(99L, r.id());
+        }
+
+        @Test
+        @DisplayName("rechaza vincular una propuesta sin versión definitiva")
+        void sinVersionDefinitiva_rechaza() {
+            propuestaDelEvento(71L);
+            when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(71L)).thenReturn(false);
+
+            SolicitudInvalidaException e = assertThrows(SolicitudInvalidaException.class,
+                    () -> service.crear(EVENTO, conPropuesta(71L)));
+
+            assertTrue(e.getMessage().contains("versión definitiva"));
+            verify(actividadRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("al editar una actividad conserva la propuesta que ya tenía vinculada")
+        void edicion_conservaPropuestaVinculada() {
+            Propuesta propuesta = propuestaDelEvento(72L);
+            Actividad existente = programada(5L, "Ponencia", 14, 15, auditorio, ana, false);
+            existente.setPropuesta(propuesta);
+            when(actividadRepository.findByIdAndEvento_Id(5L, EVENTO)).thenReturn(Optional.of(existente));
+
+            ActividadResponse r = service.actualizar(EVENTO, 5L, conPropuesta(72L));
+
+            assertEquals(5L, r.id());
+            verify(versionPropuestaRepository, never()).existsByPropuesta_IdAndEsDefinitivaTrue(72L);
         }
     }
 }

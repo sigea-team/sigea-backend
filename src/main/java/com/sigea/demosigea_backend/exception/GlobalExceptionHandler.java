@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.agenda.AgendaRechazadaResponse;
+import com.sigea.demosigea_backend.dto.observacion.AprobacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
@@ -780,6 +781,29 @@ public class GlobalExceptionHandler {
                 request != null ? request.getRequestURI() : null,
                 ex.getIncompletas(),
                 ex.getConflictos());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * HU-19, Criterio 4: no se aprueba la versión definitiva porque la propuesta tiene ajustes requeridos sin
+     * resolver (OBSERVACIONES_PENDIENTES) o no tiene registrados los ajustes de su clasificación
+     * (AJUSTES_SIN_REGISTRAR).
+     *
+     * @param ex      excepción con los ajustes pendientes.
+     * @param request petición HTTP.
+     * @return 409 CONFLICT con {@link AprobacionRechazadaResponse}.
+     */
+    @ExceptionHandler(VersionDefinitivaNoAprobableException.class)
+    public ResponseEntity<AprobacionRechazadaResponse> handleVersionDefinitivaNoAprobable(
+            VersionDefinitivaNoAprobableException ex, HttpServletRequest request) {
+        AprobacionRechazadaResponse body = new AprobacionRechazadaResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                request != null ? request.getRequestURI() : null,
+                ex.getPendientes());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 

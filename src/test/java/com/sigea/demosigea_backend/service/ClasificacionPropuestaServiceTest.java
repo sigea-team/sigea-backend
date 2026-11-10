@@ -6,6 +6,7 @@ import com.sigea.demosigea_backend.dto.clasificacion.ClasificacionConvocatoriaRe
 import com.sigea.demosigea_backend.dto.clasificacion.PropuestaClasificacionResponse;
 import com.sigea.demosigea_backend.dto.clasificacion.UmbralesClasificacionRequest;
 import com.sigea.demosigea_backend.dto.clasificacion.UmbralesClasificacionResponse;
+import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.PropuestaNoEvaluadaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.exception.SolicitudInvalidaException;
@@ -27,6 +28,7 @@ import com.sigea.demosigea_backend.repository.HistorialClasificacionRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -76,6 +78,7 @@ class ClasificacionPropuestaServiceTest {
     @Mock private ResultadoEvaluacionRepository resultadoRepository;
     @Mock private HistorialClasificacionRepository historialRepository;
     @Mock private UsuarioRepository usuarioRepository;
+    @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
 
     @InjectMocks
@@ -529,5 +532,59 @@ class ClasificacionPropuestaServiceTest {
         assertFalse(filaIncompleta.evaluacionCompleta());
         assertEquals(1L, filaIncompleta.asignacionesPendientes());
         assertNull(filaIncompleta.clasificacion());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // HU-19: la versión definitiva fija la clasificación
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("HU-19: una propuesta con versión definitiva no se vuelve a clasificar")
+    void hu19_conVersionDefinitiva_noSeReclasifica() {
+        Propuesta propuesta = propuesta(40L, convocatoria());
+        propuesta.setEstado(EstadoPropuesta.aprobada);
+        bloqueosDe(propuesta);
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(40L)).thenReturn(true);
+
+        assertThrows(OperacionNoPermitidaException.class, () -> service.aplicar(40L));
+        assertEquals(EstadoPropuesta.aprobada, propuesta.getEstado());
+        verify(resultadoRepository, never()).save(any());
+        verify(historialRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("HU-19: la aplicación masiva omite las propuestas con versión definitiva")
+    void hu19_aplicarConvocatoria_omiteVersionDefinitiva() {
+        Convocatoria convocatoria = convocatoria();
+        Propuesta propuesta = propuesta(40L, convocatoria);
+        propuesta.setEstado(EstadoPropuesta.aprobada);
+        when(convocatoriaRepository.findByIdParaCompartir(10L)).thenReturn(Optional.of(convocatoria));
+        when(propuestaRepository.findByConvocatoriaIdParaActualizar(10L)).thenReturn(List.of(propuesta));
+        when(versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(40L)).thenReturn(true);
+
+        AplicacionClasificacionResponse respuesta = service.aplicarConvocatoria(10L);
+
+        assertTrue(respuesta.clasificadas().isEmpty());
+        assertEquals(1, respuesta.omitidas().size());
+        assertTrue(respuesta.omitidas().get(0).motivo().contains("versión definitiva"));
+        assertEquals(EstadoPropuesta.aprobada, propuesta.getEstado());
+    }
+
+    @Test
+    @DisplayName("HU-19: aprobada con ajustes y con versión definitiva (estado aprobada) sigue como clasificación aplicada")
+    void hu19_aprobadaConAjustesDefinitiva_sigueAplicada() {
+        Propuesta propuesta = propuesta(40L, convocatoria());
+        propuesta.setEstado(EstadoPropuesta.aprobada);
+        ResultadoEvaluacion resultado = resultado(8L, propuesta, "6.40", ClasificacionResultado.aprobada_con_ajustes);
+        resultado.setFechaClasificacion(LocalDateTime.now());
+        when(propuestaRepository.findById(40L)).thenReturn(Optional.of(propuesta));
+        when(asignacionRepository.findByPropuesta_Id(40L)).thenReturn(List.of(
+                asignacion(1L, propuesta, EstadoAsignacion.completada)));
+        when(resultadoRepository.findByPropuesta_Id(40L)).thenReturn(Optional.of(resultado));
+
+        PropuestaClasificacionResponse respuesta = service.obtenerPorPropuesta(40L);
+
+        assertTrue(respuesta.aplicada());
+        assertEquals("aprobada", respuesta.estadoPropuesta());
     }
 }

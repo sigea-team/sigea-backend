@@ -31,6 +31,7 @@ import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.SalaRepository;
 import com.sigea.demosigea_backend.repository.TipoActividadRepository;
+import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -86,6 +87,7 @@ public class ActividadService {
     private final LineaTematicaRepository lineaTematicaRepository;
     private final PersonaRepository personaRepository;
     private final PropuestaRepository propuestaRepository;
+    private final VersionPropuestaRepository versionPropuestaRepository;
     private final ParticipacionConferencistaRepository participacionRepository;
     private final DisponibilidadSalaRepository disponibilidadSalaRepository;
     private final DisponibilidadPonenteRepository disponibilidadPonenteRepository;
@@ -338,7 +340,8 @@ public class ActividadService {
         a.setTipoActividad(tipo);
         a.setLineaTematica(linea);
         a.setPonente(resolverPonente(eventoId, r.ponenteId()));
-        a.setPropuesta(resolverPropuesta(eventoId, r.propuestaId()));
+        a.setPropuesta(resolverPropuesta(eventoId, r.propuestaId(),
+                a.getPropuesta() != null ? a.getPropuesta().getId() : null));
         a.setModalidad(r.modalidad());
         a.setPermiteSimultaneidad(r.esSimultanea());
         a.setDuracionMinutos(r.duracionMinutos());
@@ -383,7 +386,8 @@ public class ActividadService {
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "La línea temática con ID " + r.lineaTematicaId() + " no existe en este evento."));
         Persona ponente = resolverPonente(eventoId, r.ponenteId());
-        Propuesta propuesta = resolverPropuesta(eventoId, r.propuestaId());
+        Propuesta propuesta = resolverPropuesta(eventoId, r.propuestaId(),
+                r.propuestaId() != null ? propuestaActual(eventoId, actividadId) : null);
 
         List<Actividad> mismoDia = actividadRepository.findAgendaDelEventoEnFecha(eventoId, r.fecha());
         List<ConflictoActividadResponse> conflictos = detectarConflictos(
@@ -579,7 +583,22 @@ public class ActividadService {
         return ponente;
     }
 
-    private Propuesta resolverPropuesta(Long eventoId, Long propuestaId) {
+    /** ID de la propuesta que ya tiene vinculada la actividad (al editarla), o {@code null}. */
+    private Long propuestaActual(Long eventoId, Long actividadId) {
+        if (actividadId == null) {
+            return null;
+        }
+        return actividadRepository.findByIdAndEvento_Id(actividadId, eventoId)
+                .map(Actividad::getPropuesta)
+                .map(Propuesta::getId)
+                .orElse(null);
+    }
+
+    /**
+     * Resuelve la propuesta que presenta la actividad. HU-19, Criterio 3: solo se pueden vincular propuestas con
+     * versión definitiva aprobada; una actividad que ya estaba vinculada a una propuesta la conserva.
+     */
+    private Propuesta resolverPropuesta(Long eventoId, Long propuestaId, Long propuestaActualId) {
         if (propuestaId == null) {
             return null;
         }
@@ -590,6 +609,12 @@ public class ActividadService {
         if (!Objects.equals(eventoDePropuesta, eventoId)) {
             throw new SolicitudInvalidaException("La propuesta con ID " + propuestaId
                     + " no pertenece a una convocatoria de este evento.");
+        }
+        if (!Objects.equals(propuestaId, propuestaActualId)
+                && !versionPropuestaRepository.existsByPropuesta_IdAndEsDefinitivaTrue(propuestaId)) {
+            throw new SolicitudInvalidaException("La propuesta «" + propuesta.getTitulo()
+                    + "» aún no tiene versión definitiva aprobada; solo las propuestas aprobadas en versión definitiva "
+                    + "se pueden programar en la agenda.");
         }
         return propuesta;
     }
