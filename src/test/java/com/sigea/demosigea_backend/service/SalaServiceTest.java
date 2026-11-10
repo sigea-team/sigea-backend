@@ -172,4 +172,54 @@ class SalaServiceTest {
         assertEquals(LocalTime.of(9, 0), ocupaciones.get(0).horaInicio());
         assertEquals(LocalTime.of(11, 0), ocupaciones.get(0).horaFin());
     }
+
+    @Test
+    @DisplayName("HU-20 Criterio 5: editar la sala y recortar sus franjas avisa las actividades que quedan fuera")
+    void actualizarGlobal_recortaFranjas_devuelveConflictos() {
+        Actividad act = Actividad.builder()
+                .id(101L)
+                .nombre("Taller Docker")
+                .evento(evento1)
+                .sala(salaAuditorio)
+                .fecha(LocalDate.of(2026, 11, 15))
+                .horaInicio(LocalTime.of(9, 0))
+                .horaFin(LocalTime.of(10, 0))
+                .build();
+        when(actividadRepository.findActividadesPorSala(10L)).thenReturn(List.of(act));
+        when(salaRepository.saveAndFlush(any(Sala.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // La nueva franja (11:00–12:00) ya no cubre la actividad de 09:00–10:00
+        SalaRequest request = new SalaRequest("Auditorio 5", "Edificio Fundadores", TipoSala.fisica, 150,
+                List.of(new DisponibilidadHorariaRequest(LocalDate.of(2026, 11, 15), LocalTime.of(11, 0), LocalTime.of(12, 0))),
+                false);
+
+        SalaResponse response = service.actualizarGlobal(10L, request);
+
+        assertEquals(1, response.conflictosDisponibilidad().size());
+        assertEquals(101L, response.conflictosDisponibilidad().get(0).actividadId());
+    }
+
+    @Test
+    @DisplayName("HU-20 Criterio 5: si la franja sigue cubriendo la actividad no hay conflictos")
+    void actualizarGlobal_franjaCubreActividad_sinConflictos() {
+        Actividad act = Actividad.builder()
+                .id(101L)
+                .nombre("Taller Docker")
+                .evento(evento1)
+                .sala(salaAuditorio)
+                .fecha(LocalDate.of(2026, 11, 15))
+                .horaInicio(LocalTime.of(9, 0))
+                .horaFin(LocalTime.of(10, 0))
+                .build();
+        when(actividadRepository.findActividadesPorSala(10L)).thenReturn(List.of(act));
+        when(salaRepository.saveAndFlush(any(Sala.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SalaRequest request = new SalaRequest("Auditorio 5", "Edificio Fundadores", TipoSala.fisica, 150,
+                List.of(new DisponibilidadHorariaRequest(LocalDate.of(2026, 11, 15), LocalTime.of(8, 0), LocalTime.of(12, 0))),
+                false);
+
+        SalaResponse response = service.actualizarGlobal(10L, request);
+
+        assertTrue(response.conflictosDisponibilidad().isEmpty());
+    }
 }
