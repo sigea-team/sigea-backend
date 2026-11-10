@@ -53,7 +53,7 @@ public class ObservacionPropuestaController {
 
     /** Registrar y resolver: evaluadores (el servicio exige que estén asignados a la propuesta) y administración. */
     private static final String OBSERVAR = "hasAnyAuthority('PROPUESTAS_EVALUAR', 'PROPUESTAS_APROBAR_DEFINITIVA', "
-            + "'PROPUESTAS_CLASIFICAR', 'CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')";
+            + "'CONVOCATORIAS_GESTIONAR', 'ROLE_ADMIN', 'ADMIN')";
 
     /** Aprobar la versión definitiva: solo administración. */
     private static final String APROBAR = "hasAnyAuthority('PROPUESTAS_APROBAR_DEFINITIVA', 'CONVOCATORIAS_GESTIONAR', "

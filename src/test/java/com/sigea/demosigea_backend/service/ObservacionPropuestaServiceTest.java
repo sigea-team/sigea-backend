@@ -261,6 +261,22 @@ class ObservacionPropuestaServiceTest {
     }
 
     @Test
+    @DisplayName("Seguridad: el permiso de clasificar (HU-18) no basta para registrar ni resolver observaciones")
+    void soloClasificar_sinAsignacion_rechaza() {
+        autenticar(8L, Persona.builder().id(80L).build(), "clasificador@ufps.edu.co", "PROPUESTAS_CLASIFICAR");
+        Propuesta p = propuesta(EstadoPropuesta.ajustes);
+        clasificada(p, ClasificacionResultado.aprobada_con_ajustes);
+        when(asignacionRepository.findDetalleByPropuestaId(50L)).thenReturn(List.of());
+
+        assertThrows(AccessDeniedException.class,
+                () -> service.registrar(50L, solicitud(new ObservacionRequest("x", true))));
+        assertThrows(AccessDeniedException.class, () -> service.resolver(50L, 60L));
+        assertThrows(AccessDeniedException.class, () -> service.aprobarVersionDefinitiva(50L));
+        verify(observacionRepository, never()).saveAll(anyList());
+        verify(observacionRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Criterio 1: una propuesta sin clasificar no admite observaciones")
     void criterio1_sinClasificar_rechaza() {
         comoEvaluador();

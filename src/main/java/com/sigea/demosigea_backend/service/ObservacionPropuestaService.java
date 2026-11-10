@@ -92,12 +92,12 @@ public class ObservacionPropuestaService {
     private static final String ENTIDAD_VERSION = "versiones_propuesta";
     private static final String ENTIDAD_PROPUESTA = "propuestas";
 
-    /** Autoridades de administrador/organizador para observaciones y versión definitiva. */
+    /**
+     * Autoridades del administrador en HU-19: registrar y resolver observaciones de cualquier propuesta y aprobar su
+     * versión definitiva (además del {@code @PreAuthorize} del controlador). {@code PROPUESTAS_CLASIFICAR} (HU-18) no
+     * basta: quien solo clasifica debe estar asignado a la propuesta para gestionar sus observaciones.
+     */
     private static final Set<String> AUTORIDADES_ADMIN = Set.of("ROLE_ADMIN", "ADMIN", "CONVOCATORIAS_GESTIONAR",
-            "PROPUESTAS_CLASIFICAR", "PROPUESTAS_APROBAR_DEFINITIVA");
-
-    /** Autoridades que pueden aprobar la versión definitiva (además del {@code @PreAuthorize} del controlador). */
-    private static final Set<String> AUTORIDADES_APROBAR = Set.of("ROLE_ADMIN", "ADMIN", "CONVOCATORIAS_GESTIONAR",
             "PROPUESTAS_APROBAR_DEFINITIVA");
 
     /** Estados de una propuesta clasificada que admite observaciones y aprobación definitiva. */
@@ -299,7 +299,7 @@ public class ObservacionPropuestaService {
     @Transactional
     public VersionDefinitivaResponse aprobarVersionDefinitiva(Long propuestaId) {
         Usuario usuario = usuarioAutenticado();
-        if (!tieneAutoridad(AUTORIDADES_APROBAR)) {
+        if (!esAdministrador()) {
             throw new AccessDeniedException("Solo el administrador puede aprobar la versión definitiva de una propuesta.");
         }
         Propuesta propuesta = bloquearPropuesta(propuestaId);
