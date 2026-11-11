@@ -18,6 +18,8 @@ import com.sigea.demosigea_backend.model.Convocatoria;
 import com.sigea.demosigea_backend.model.EstadoPropuesta;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.ObservacionPropuesta;
+import com.sigea.demosigea_backend.model.TipoParticipacionConferencista;
+import com.sigea.demosigea_backend.model.ParticipacionConferencista;
 import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Propuesta;
 import com.sigea.demosigea_backend.model.PropuestaAutor;
@@ -31,6 +33,7 @@ import com.sigea.demosigea_backend.repository.ActividadRepository;
 import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.ObservacionPropuestaRepository;
+import com.sigea.demosigea_backend.repository.ParticipacionConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
@@ -99,6 +102,7 @@ class ObservacionPropuestaServiceTest {
     @Mock private ActividadRepository actividadRepository;
     @Mock private NotificacionService notificacionService;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private ParticipacionConferencistaRepository participacionRepository;
 
     @InjectMocks
     private ObservacionPropuestaService service;
@@ -611,5 +615,70 @@ class ObservacionPropuestaServiceTest {
 
         List<PropuestaProgramableResponse> sinProgramar = service.listarProgramables(2L, true);
         assertEquals(List.of(50L), sinProgramar.stream().map(PropuestaProgramableResponse::propuestaId).toList());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // Al aprobar la versión definitiva, el ponente queda registrado en el evento (para programarlo en la agenda)
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    private Propuesta aprobablePorAdmin() {
+        comoAdmin();
+        Propuesta p = propuesta(EstadoPropuesta.aprobada);
+        clasificada(p, ClasificacionResultado.aprobada);
+        VersionPropuesta v1 = version(p, 1);
+        versionActual(p, v1);
+        when(observacionRepository.findDePropuesta(50L)).thenReturn(List.of());
+        when(versionRepository.save(any(VersionPropuesta.class))).thenAnswer(inv -> inv.getArgument(0));
+        return p;
+    }
+
+    @Test
+    @DisplayName("Al aprobar la versión definitiva, el ponente de la propuesta queda registrado en el evento")
+    void aprobar_registraPonenteEnEvento() {
+        Propuesta p = aprobablePorAdmin();
+        Persona ponente = Persona.builder().id(11L).nombres("Lucía").apellidos("Pardo").build();
+        when(propuestaAutorRepository.findByPropuesta_IdOrderByOrdenAsc(50L)).thenReturn(List.of(
+                PropuestaAutor.builder().propuesta(p).persona(personaAutor).rol(RolAutor.autor_principal).orden(1).build(),
+                PropuestaAutor.builder().propuesta(p).persona(ponente).rol(RolAutor.ponente).orden(2).build()));
+        when(participacionRepository.existsByEvento_IdAndPersona_Id(2L, 11L)).thenReturn(false);
+
+        service.aprobarVersionDefinitiva(50L);
+
+        org.mockito.ArgumentCaptor<ParticipacionConferencista> registro =
+                org.mockito.ArgumentCaptor.forClass(ParticipacionConferencista.class);
+        verify(participacionRepository).save(registro.capture());
+        assertSame(ponente, registro.getValue().getPersona(), "Se registra al autor con rol ponente");
+        assertEquals(2L, registro.getValue().getEvento().getId());
+        assertEquals(TipoParticipacionConferencista.ponente, registro.getValue().getTipoParticipacion());
+        assertEquals("IA en la Educación", registro.getValue().getTema());
+    }
+
+    @Test
+    @DisplayName("Sin autor con rol ponente se registra al autor principal")
+    void aprobar_sinPonente_registraAutorPrincipal() {
+        Propuesta p = aprobablePorAdmin();
+        when(propuestaAutorRepository.findByPropuesta_IdOrderByOrdenAsc(50L)).thenReturn(List.of(
+                PropuestaAutor.builder().propuesta(p).persona(personaAutor).rol(RolAutor.autor_principal).orden(1).build()));
+        when(participacionRepository.existsByEvento_IdAndPersona_Id(2L, 10L)).thenReturn(false);
+
+        service.aprobarVersionDefinitiva(50L);
+
+        org.mockito.ArgumentCaptor<ParticipacionConferencista> registro =
+                org.mockito.ArgumentCaptor.forClass(ParticipacionConferencista.class);
+        verify(participacionRepository).save(registro.capture());
+        assertSame(personaAutor, registro.getValue().getPersona());
+    }
+
+    @Test
+    @DisplayName("Si el ponente ya participa en el evento no se duplica")
+    void aprobar_ponenteYaRegistrado_noDuplica() {
+        Propuesta p = aprobablePorAdmin();
+        when(propuestaAutorRepository.findByPropuesta_IdOrderByOrdenAsc(50L)).thenReturn(List.of(
+                PropuestaAutor.builder().propuesta(p).persona(personaAutor).rol(RolAutor.ponente).orden(1).build()));
+        when(participacionRepository.existsByEvento_IdAndPersona_Id(2L, 10L)).thenReturn(true);
+
+        service.aprobarVersionDefinitiva(50L);
+
+        verify(participacionRepository, never()).save(any());
     }
 }
