@@ -16,7 +16,9 @@ import com.sigea.demosigea_backend.model.Actividad;
 import com.sigea.demosigea_backend.model.AsignacionEvaluacion;
 import com.sigea.demosigea_backend.model.ComiteEvaluador;
 import com.sigea.demosigea_backend.model.EstadoPropuesta;
+import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.ObservacionPropuesta;
+import com.sigea.demosigea_backend.model.ParticipacionConferencista;
 import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.Propuesta;
 import com.sigea.demosigea_backend.model.PropuestaAutor;
@@ -24,12 +26,14 @@ import com.sigea.demosigea_backend.model.ResultadoEvaluacion;
 import com.sigea.demosigea_backend.model.RolAutor;
 import com.sigea.demosigea_backend.model.TipoNotificacion;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
+import com.sigea.demosigea_backend.model.TipoParticipacionConferencista;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.model.VersionPropuesta;
 import com.sigea.demosigea_backend.repository.ActividadRepository;
 import com.sigea.demosigea_backend.repository.AsignacionEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.ObservacionPropuestaRepository;
+import com.sigea.demosigea_backend.repository.ParticipacionConferencistaRepository;
 import com.sigea.demosigea_backend.repository.PropuestaAutorRepository;
 import com.sigea.demosigea_backend.repository.PropuestaRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
@@ -115,6 +119,7 @@ public class ObservacionPropuestaService {
     private final ActividadRepository actividadRepository;
     private final NotificacionService notificacionService;
     private final AuditoriaService auditoriaService;
+    private final ParticipacionConferencistaRepository participacionRepository;
 
     /** Motivo por el que una propuesta no se puede aprobar todavía. */
     private record Impedimento(String codigo, String mensaje, List<ObservacionPropuesta> pendientes) {
@@ -291,6 +296,11 @@ public class ObservacionPropuestaService {
      * Si la propuesta ya tenía una versión definitiva y el administrador autorizó modificarla (HU-14, Criterio 5),
      * la marca pasa a la nueva versión.
      * </p>
+     * <p>
+     * Al aprobarla, su ponente (el autor con rol ponente o, si no hay, el autor principal) queda registrado en el
+     * evento como participante de tipo {@code ponente}, para poder asignarlo a la actividad que la presenta
+     * (HU-21 solo acepta ponentes asociados al evento). Si ya estaba registrado, no se duplica.
+     * </p>
      *
      * @param propuestaId ID de la propuesta.
      * @return la versión definitiva aprobada.
@@ -338,6 +348,8 @@ public class ObservacionPropuestaService {
         propuesta.setEdicionAutorizada(false);
         propuestaRepository.save(propuesta);
 
+        Long ponenteRegistrado = registrarPonenteEnEvento(propuesta);
+
         long ajustesResueltos = observaciones.stream()
                 .filter(o -> Boolean.TRUE.equals(o.getRequiereAjuste()) && Boolean.TRUE.equals(o.getResuelto()))
                 .count();
@@ -348,6 +360,9 @@ public class ObservacionPropuestaService {
         datos.put("estado", EstadoPropuesta.aprobada.name());
         datos.put("versionDefinitivaAnterior", definitivaAnterior != null ? definitivaAnterior : "ninguna");
         datos.put("ajustesResueltos", ajustesResueltos);
+        if (ponenteRegistrado != null) {
+            datos.put("ponenteRegistradoEnEvento", ponenteRegistrado);
+        }
         auditoriaService.registrar(TipoOperacionAuditoria.VERSION_DEFINITIVA_APROBADA, ENTIDAD_VERSION,
                 definitiva.getId(), datos, usuario);
 
@@ -574,14 +589,51 @@ public class ObservacionPropuestaService {
     }
 
     private static Long ponenteSugerido(List<PropuestaAutor> autores) {
+        return personaPonente(autores).map(Persona::getId).orElse(null);
+    }
+
+    /** Ponente de la propuesta: el autor con rol ponente; si no hay, el autor principal; si no, el primer autor. */
+    private static Optional<Persona> personaPonente(List<PropuestaAutor> autores) {
         return autores.stream()
                 .filter(a -> a.getRol() == RolAutor.ponente)
                 .findFirst()
                 .or(() -> autores.stream().filter(a -> a.getRol() == RolAutor.autor_principal).findFirst())
                 .or(() -> autores.stream().findFirst())
                 .map(PropuestaAutor::getPersona)
-                .map(Persona::getId)
-                .orElse(null);
+                .filter(p -> p.getId() != null);
+    }
+
+    /**
+     * Registra al ponente de la propuesta aprobada como participante del evento (tipo {@code ponente}), para que se
+     * pueda asignar a su actividad en la agenda. No hace nada si la propuesta no tiene autores o el ponente ya
+     * participa en el evento.
+     *
+     * @return ID de la persona registrada, o {@code null} si no se registró a nadie.
+     */
+    private Long registrarPonenteEnEvento(Propuesta propuesta) {
+        Evento evento = propuesta.getConvocatoria() != null ? propuesta.getConvocatoria().getEvento() : null;
+        if (evento == null) {
+            return null;
+        }
+        Optional<Persona> ponente = personaPonente(
+                propuestaAutorRepository.findByPropuesta_IdOrderByOrdenAsc(propuesta.getId()));
+        if (ponente.isEmpty()
+                || participacionRepository.existsByEvento_IdAndPersona_Id(evento.getId(), ponente.get().getId())) {
+            return null;
+        }
+        String tema = propuesta.getTitulo();
+        if (tema != null && tema.length() > 200) {
+            tema = tema.substring(0, 200);
+        }
+        participacionRepository.save(ParticipacionConferencista.builder()
+                .persona(ponente.get())
+                .evento(evento)
+                .tipoParticipacion(TipoParticipacionConferencista.ponente)
+                .tema(tema)
+                .build());
+        log.info("Propuesta {}: ponente {} registrado en el evento {}.", propuesta.getId(), ponente.get().getId(),
+                evento.getId());
+        return ponente.get().getId();
     }
 
     private static String nombre(Persona persona) {
