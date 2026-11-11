@@ -40,7 +40,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -106,6 +108,9 @@ public class ClasificacionPropuestaService {
     private final UsuarioRepository usuarioRepository;
     private final VersionPropuestaRepository versionPropuestaRepository;
     private final AuditoriaService auditoriaService;
+    private final Clock clock;
+
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     // ──────────────────────────────────────────────────────────────────────────────
     // Umbrales
@@ -128,6 +133,12 @@ public class ClasificacionPropuestaService {
     /**
      * Define los umbrales de clasificación de una convocatoria (Criterio 1).
      * <p>
+     * Solo se pueden cambiar <b>antes de la fecha de apertura</b> de la convocatoria (la misma regla que la rúbrica):
+     * desde la apertura quedan fijos para que todas las propuestas se clasifiquen con los mismos umbrales. El resultado
+     * de una propuesta concreta se corrige con el ajuste manual (Criterio 2). Una convocatoria sin fecha de apertura
+     * sigue siendo editable.
+     * </p>
+     * <p>
      * Los resultados todavía no aplicados y sin ajuste manual se reclasifican con los nuevos umbrales. Las
      * propuestas ya clasificadas no cambian hasta volver a aplicar la clasificación; la respuesta indica cuántas
      * cambiarían.
@@ -136,7 +147,8 @@ public class ClasificacionPropuestaService {
      * @param convocatoriaId ID de la convocatoria.
      * @param request        nuevos umbrales.
      * @return umbrales guardados.
-     * @throws SolicitudInvalidaException si el umbral de ajustes es mayor que el de aprobación.
+     * @throws SolicitudInvalidaException    si el umbral de ajustes es mayor que el de aprobación.
+     * @throws OperacionNoPermitidaException si la convocatoria ya abrió.
      */
     @Transactional
     public UmbralesClasificacionResponse configurarUmbrales(Long convocatoriaId, UmbralesClasificacionRequest request) {
@@ -147,6 +159,7 @@ public class ClasificacionPropuestaService {
         // Bloqueo exclusivo: espera a las clasificaciones en curso y las siguientes esperan a este cambio.
         Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizar(convocatoriaId)
                 .orElseThrow(() -> noEncontrada(convocatoriaId));
+        exigirUmbralesAntesDeApertura(convocatoria);
         BigDecimal aceptacionAnterior = ReglasClasificacion.umbralAceptacion(convocatoria);
         BigDecimal ajustesAnterior = ReglasClasificacion.umbralAjustes(convocatoria);
 
@@ -578,6 +591,22 @@ public class ClasificacionPropuestaService {
 
     private Convocatoria buscarConvocatoria(Long convocatoriaId) {
         return convocatoriaRepository.findById(convocatoriaId).orElseThrow(() -> noEncontrada(convocatoriaId));
+    }
+
+    /**
+     * Los umbrales quedan fijos desde la fecha de apertura de la convocatoria, igual que la rúbrica.
+     *
+     * @throws OperacionNoPermitidaException si la convocatoria ya abrió.
+     */
+    private void exigirUmbralesAntesDeApertura(Convocatoria convocatoria) {
+        LocalDateTime apertura = convocatoria.getFechaApertura();
+        if (apertura != null && !LocalDateTime.now(clock).isBefore(apertura)) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Los umbrales de clasificación solo se pueden modificar antes de que abra la convocatoria. La "
+                            + "convocatoria '%s' abrió el %s. Para corregir el resultado de una propuesta use el "
+                            + "ajuste manual.",
+                    convocatoria.getTitulo(), apertura.format(FORMATO_FECHA)));
+        }
     }
 
     private static RecursoNoEncontradoException noEncontrada(Long convocatoriaId) {

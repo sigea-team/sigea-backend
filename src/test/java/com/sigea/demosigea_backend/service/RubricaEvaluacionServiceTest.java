@@ -21,7 +21,6 @@ import com.sigea.demosigea_backend.repository.CriterioRubricaRepository;
 import com.sigea.demosigea_backend.repository.EvaluacionRepository;
 import com.sigea.demosigea_backend.repository.ResultadoEvaluacionRepository;
 import com.sigea.demosigea_backend.repository.RubricaEvaluacionRepository;
-import com.sigea.demosigea_backend.repository.VersionPropuestaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,8 +57,12 @@ class RubricaEvaluacionServiceTest {
     @Mock private EvaluacionRepository evaluacionRepository;
     @Mock private AsignacionEvaluacionRepository asignacionRepository;
     @Mock private ResultadoEvaluacionRepository resultadoRepository;
-    @Mock private VersionPropuestaRepository versionPropuestaRepository;
     @Mock private AuditoriaService auditoriaService;
+
+    /** Reloj fijo: 1 de noviembre de 2026, 10:00 (Bogotá). */
+    private static final java.time.Clock RELOJ = java.time.Clock.fixed(
+            java.time.LocalDateTime.of(2026, 11, 1, 10, 0).atZone(java.time.ZoneId.of("America/Bogota")).toInstant(),
+            java.time.ZoneId.of("America/Bogota"));
 
     private RubricaEvaluacionService service;
     private Convocatoria convocatoria;
@@ -67,8 +70,7 @@ class RubricaEvaluacionServiceTest {
     @BeforeEach
     void setUp() {
         service = new RubricaEvaluacionService(rubricaRepository, criterioRepository, convocatoriaRepository,
-                evaluacionRepository, asignacionRepository, resultadoRepository, versionPropuestaRepository,
-                auditoriaService);
+                evaluacionRepository, asignacionRepository, resultadoRepository, auditoriaService, RELOJ);
         convocatoria = Convocatoria.builder().id(10L).titulo("Convocatoria de Ponencias 2026").build();
     }
 
@@ -86,6 +88,11 @@ class RubricaEvaluacionServiceTest {
 
     private void convocatoriaExiste() {
         when(convocatoriaRepository.findById(10L)).thenReturn(Optional.of(convocatoria));
+    }
+
+    /** {@code configurar} lee la convocatoria con bloqueo exclusivo (espera a las clasificaciones en curso). */
+    private void convocatoriaBloqueada() {
+        when(convocatoriaRepository.findByIdParaActualizar(10L)).thenReturn(Optional.of(convocatoria));
     }
 
     /** El repositorio devuelve lo que recibe y asigna ID a las rúbricas nuevas. */
@@ -118,7 +125,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 1: crea la rúbrica cuando los pesos suman 100% y usa la escala 0-10 por defecto")
     void configurar_creaRubrica() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
         persistenciaSimulada(7L);
 
@@ -138,9 +145,36 @@ class RubricaEvaluacionServiceTest {
     }
 
     @Test
+    @DisplayName("Bloqueo: la rúbrica no se modifica cuando la convocatoria ya abrió")
+    void configurar_convocatoriaYaAbierta_rechaza() {
+        convocatoria.setFechaApertura(java.time.LocalDateTime.of(2026, 10, 15, 8, 0));
+        convocatoriaBloqueada();
+
+        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () ->
+                service.configurar(10L, rubrica(criterio("Originalidad", "100")), true));
+
+        assertTrue(ex.getMessage().contains("antes de que abra la convocatoria"));
+        verify(rubricaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Bloqueo: antes de la fecha de apertura la rúbrica sí se puede configurar")
+    void configurar_antesDeApertura_permite() {
+        convocatoria.setFechaApertura(java.time.LocalDateTime.of(2026, 11, 20, 8, 0));
+        convocatoriaBloqueada();
+        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
+        persistenciaSimulada(7L);
+
+        RubricaEvaluacionService.ResultadoConfiguracion resultado =
+                service.configurar(10L, rubrica(criterio("Originalidad", "100")), false);
+
+        assertTrue(resultado.creada());
+    }
+
+    @Test
     @DisplayName("Criterio 1: respeta la escala definida por criterio")
     void configurar_conEscalaPropia() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.empty());
         persistenciaSimulada(7L);
 
@@ -160,7 +194,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 2: rechaza la rúbrica si los pesos no suman 100% y señala el error")
     void configurar_pesosNoSuman100_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "60"), criterio("Pertinencia", "30")), false));
@@ -174,7 +208,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 2: también rechaza pesos que superan 100%")
     void configurar_pesosSuperan100_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "60"), criterio("Pertinencia", "40.01")), false));
@@ -185,7 +219,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Rechaza criterios con el mismo nombre (sin distinguir mayúsculas)")
     void configurar_criterioRepetido_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "50"), criterio(" originalidad ", "50")), false));
@@ -197,7 +231,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Rechaza una escala cuyo máximo no supera al mínimo")
     void configurar_escalaInvalida_rechaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         RubricaInvalidaException ex = assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 new RubricaRequest("R", List.of(new CriterioRubricaRequest("Impacto", new BigDecimal("100"),
@@ -209,7 +243,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Convocatoria inexistente responde 404")
     void configurar_convocatoriaInexistente() {
-        when(convocatoriaRepository.findById(99L)).thenReturn(Optional.empty());
+        when(convocatoriaRepository.findByIdParaActualizar(99L)).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class,
                 () -> service.configurar(99L, rubrica(criterio("A", "100")), false));
@@ -222,7 +256,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Sin calificaciones registradas, modifica la misma rúbrica reemplazando sus criterios")
     void configurar_sinCalificaciones_actualizaEnSitio() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         List<CriterioRubrica> anteriores = List.of(CriterioRubrica.builder().id(1L).rubrica(actual).nombre("Viejo")
                 .pesoPorcentual(new BigDecimal("100")).build());
@@ -250,7 +284,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 4: rúbrica en uso sin confirmar advierte el impacto y no cambia nada")
     void configurar_rubricaEnUso_sinConfirmar_advierte() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
         when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(6L);
@@ -272,7 +306,7 @@ class RubricaEvaluacionServiceTest {
     @Test
     @DisplayName("Criterio 4: con confirmación crea una nueva versión, desactiva la anterior y reabre las evaluaciones")
     void configurar_rubricaEnUso_confirmado_reemplaza() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
         RubricaEvaluacion actual = rubricaActiva();
         AsignacionEvaluacion a1 = asignacion(1L, 40L);
         AsignacionEvaluacion a2 = asignacion(2L, 41L);
@@ -301,28 +335,9 @@ class RubricaEvaluacionServiceTest {
     }
 
     @Test
-    @DisplayName("HU-19: con propuestas en versión definitiva no se puede reemplazar la rúbrica en uso")
-    void configurar_rubricaEnUso_conVersionDefinitiva_rechaza() {
-        convocatoriaExiste();
-        RubricaEvaluacion actual = rubricaActiva();
-        when(rubricaRepository.findByConvocatoria_IdAndActivoTrue(10L)).thenReturn(Optional.of(actual));
-        when(evaluacionRepository.countByCriterio_Rubrica_Id(4L)).thenReturn(4L);
-        when(versionPropuestaRepository.countByEsDefinitivaTrueAndPropuesta_Convocatoria_Id(10L)).thenReturn(2L);
-
-        OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class, () -> service.configurar(10L,
-                rubrica(criterio("Originalidad", "70"), criterio("Pertinencia", "30")), true));
-
-        assertTrue(ex.getMessage().contains("2 propuesta(s)"));
-        assertTrue(actual.getActivo());
-        verify(rubricaRepository, never()).saveAndFlush(any());
-        verify(asignacionRepository, never()).saveAll(any());
-        verify(resultadoRepository, never()).delete(any());
-    }
-
-    @Test
     @DisplayName("Criterio 4: los pesos se validan antes de advertir el impacto")
     void configurar_rubricaEnUso_pesosInvalidos_rechazaPrimero() {
-        convocatoriaExiste();
+        convocatoriaBloqueada();
 
         assertThrows(RubricaInvalidaException.class, () -> service.configurar(10L,
                 rubrica(criterio("Originalidad", "50")), true));
