@@ -5,6 +5,7 @@
 **Sprints documentados:**
 - SCRUM Sprint 1 — *Establecer la base de seguridad y planeación de eventos* (15/09/2026 – 05/10/2026)
 - SCRUM Sprint 2 — *Planear los recursos financieros del evento y abrir su participación externa* (05/10/2026 – 19/10/2026)
+- SCRUM Sprint 3 — *Que cada propuesta recorra su ciclo completo: del envío a la agenda publicada* (19/10/2026 – 09/11/2026)
 **Fuentes:** EP2 – Documento de requisitos (SRS), D7 – Descripción de requisitos, EP3 – Casos de uso de alto nivel, HU vs Casos de uso.
 
 ---
@@ -15,6 +16,7 @@
 |---------|------------|--------------|----------------------------------------------------------------|
 | 1.0     | 2026-10-08 | Equipo SIGEA | Versión inicial: casos de uso, RF y RNF abordados en el Sprint 1 |
 | 2.0     | 2026-10-22 | Equipo SIGEA | Se agregan actores, casos de uso, RF y RNF del Sprint 2, con PR y pruebas que los verifican |
+| 3.0     | 2026-11-11 | Equipo SIGEA | Se agregan actores, casos de uso, RF y RNF del Sprint 3, con PR y pruebas que los verifican |
 
 ---
 
@@ -128,6 +130,67 @@
 |---|---|---|---|---|---|
 | RNF09 | Integridad del presupuesto | Integridad | RF08, RF09, RF11, RF12 | Total y % de ejecución recalculados en el 100 % de las altas, ediciones y eliminaciones | Criterios CA-1 y CA-2 de HU-07, CA-1 y CA-4 de HU-09; PresupuestoPreliminarServiceTest, EjecucionPresupuestalServiceTest |
 | RNF06 | Control de acceso por roles | Seguridad | RF02 | 0 accesos a funciones no permitidas por el rol | CA-4 de HU-02: acción no autorizada → acceso denegado (403) |
+
+---
+
+# Sprint 3
+
+## 1. Actores
+
+| Actor | Descripción |
+|---|---|
+| Autor | Envía su propuesta con documentos y sube nuevas versiones con los ajustes solicitados (HU-14, HU-19). |
+| Evaluador | Califica las propuestas asignadas con la rúbrica y registra observaciones (HU-17, HU-19). |
+| Administrador / Organizador | Configura rúbricas y comité, asigna, clasifica, aprueba la versión definitiva, administra salas, programa actividades y publica la agenda. |
+| Conferencista | Completa su registro y trayectoria desde el enlace de invitación (HU-12, continúa del Sprint 2). |
+
+---
+
+## 2. Casos de uso de alto nivel cubiertos en el Sprint
+
+| ID | Caso de uso | Actor principal |
+|---|---|---|
+| CU-02 | Gestionar Roles y Permisos (continúa del Sprint 2) | Administrador |
+| CU-10 | Registrar y Gestionar Conferencistas (continúa del Sprint 2) | Administrador / Organizador, Conferencista |
+| CU-12 | Postular Propuesta Académica | Autor |
+| CU-13 | Configurar Rúbricas y Comité Evaluador | Administrador / Organizador |
+| CU-14 | Asignar Propuestas a Evaluadores | Administrador / Organizador |
+| CU-15 | Registrar Evaluaciones y Calcular Puntuación Ponderada | Evaluador |
+| CU-31 | Clasificar Propuestas según Resultado (incluido en CU-15) | Administrador / Organizador |
+| CU-16 | Gestionar Observaciones y Aprobar Versión Definitiva (extiende CU-15) | Evaluador / Administrador |
+| CU-17 | Administrar Salas, Aforos y Disponibilidad Horaria | Administrador / Organizador |
+| CU-18 | Programar Actividades y Controlar Conflictos | Administrador / Organizador |
+| CU-19 | Generar y Publicar Agenda (extiende CU-18) | Administrador / Organizador |
+
+---
+
+## 3. Requerimientos funcionales
+
+| ID | Requerimiento funcional | Caso de uso | Historia de usuario | Historia Jira | Estado | Pull requests | Prueba que lo verifica |
+|---|---|---|---|---|---|---|---|
+| RF02 | Administración de roles y permisos | CU-02 | HU-02 | [SCRUM-7](https://ufps-team-sigea.atlassian.net/browse/SCRUM-7) | En revisión* | [back #55](https://github.com/sigea-team/sigea-backend/pull/55) · [front #36](https://github.com/sigea-team/sigea-front/pull/36) | UsuarioRolServiceTest |
+| RF16 · RF17 | Conferencistas · Trayectoria del conferencista | CU-10 | HU-12 | [SCRUM-27](https://ufps-team-sigea.atlassian.net/browse/SCRUM-27) | Finalizado | [back #41](https://github.com/sigea-team/sigea-backend/pull/41), [back #52](https://github.com/sigea-team/sigea-backend/pull/52) · [front #31](https://github.com/sigea-team/sigea-front/pull/31), [front #34](https://github.com/sigea-team/sigea-front/pull/34) | ConferencistaServiceTest, InvitacionConferencistaServiceTest |
+| RF19 · RF20 · RF21 | Recepción de propuestas · Documentos adjuntos · Versiones | CU-12 | HU-14 | [SCRUM-30](https://ufps-team-sigea.atlassian.net/browse/SCRUM-30) | Finalizado | [back #53](https://github.com/sigea-team/sigea-backend/pull/53) · [front #38](https://github.com/sigea-team/sigea-front/pull/38) | VersionPropuestaServiceTest, ValidadorDocumentosPropuestaTest |
+| RF22 · RF23 | Rúbricas de evaluación · Comité evaluador | CU-13 | HU-15 | [SCRUM-31](https://ufps-team-sigea.atlassian.net/browse/SCRUM-31) | Finalizado | [back #57](https://github.com/sigea-team/sigea-backend/pull/57) · [front #39](https://github.com/sigea-team/sigea-front/pull/39) | RubricaEvaluacionServiceTest, ComiteEvaluadorServiceTest |
+| RF24 | Asignar propuestas a evaluadores | CU-14 | HU-16 | [SCRUM-32](https://ufps-team-sigea.atlassian.net/browse/SCRUM-32) | Finalizado | [back #46](https://github.com/sigea-team/sigea-backend/pull/46), [back #47](https://github.com/sigea-team/sigea-backend/pull/47) · [front #32](https://github.com/sigea-team/sigea-front/pull/32) | AsignacionEvaluacionServiceTest |
+| RF25 · RF26 | Registrar evaluaciones · Puntuación ponderada | CU-15 | HU-17 | [SCRUM-33](https://ufps-team-sigea.atlassian.net/browse/SCRUM-33) | Finalizado | [back #40](https://github.com/sigea-team/sigea-backend/pull/40) · [front #30](https://github.com/sigea-team/sigea-front/pull/30) | EvaluacionServiceTest, EvaluacionEscalaTest |
+| RF27 | Clasificar propuestas según resultado | CU-31 | HU-18 | [SCRUM-34](https://ufps-team-sigea.atlassian.net/browse/SCRUM-34) | Finalizado | [back #58](https://github.com/sigea-team/sigea-backend/pull/58) · [front #40](https://github.com/sigea-team/sigea-front/pull/40) | ClasificacionPropuestaServiceTest, ReglasClasificacionTest |
+| RF28 · RF29 | Observaciones y ajustes · Aprobar versión definitiva | CU-16 | HU-19 | [SCRUM-35](https://ufps-team-sigea.atlassian.net/browse/SCRUM-35) | Finalizado | [back #61](https://github.com/sigea-team/sigea-backend/pull/61), [back #65](https://github.com/sigea-team/sigea-backend/pull/65) · [front #44](https://github.com/sigea-team/sigea-front/pull/44) | ObservacionPropuestaServiceTest |
+| RF30 · RF31 · RF32 | Salas · Aforo · Disponibilidad horaria | CU-17 | HU-20 | [SCRUM-37](https://ufps-team-sigea.atlassian.net/browse/SCRUM-37) | Finalizado | [back #54](https://github.com/sigea-team/sigea-backend/pull/54), [back #59](https://github.com/sigea-team/sigea-backend/pull/59) · [front #35](https://github.com/sigea-team/sigea-front/pull/35), [front #45](https://github.com/sigea-team/sigea-front/pull/45) | SalaServiceTest |
+| RF33 – RF37 | Programar actividades · Control de conflictos · Actividades simultáneas | CU-18 | HU-21 | [SCRUM-38](https://ufps-team-sigea.atlassian.net/browse/SCRUM-38) | Finalizado | [back #56](https://github.com/sigea-team/sigea-backend/pull/56), [back #63](https://github.com/sigea-team/sigea-backend/pull/63) · [front #37](https://github.com/sigea-team/sigea-front/pull/37), [front #45](https://github.com/sigea-team/sigea-front/pull/45) | ActividadServiceTest |
+| RF38 · RF39 | Generar agenda · Publicar agenda | CU-19 | HU-22 | [SCRUM-39](https://ufps-team-sigea.atlassian.net/browse/SCRUM-39) | Finalizado | [back #60](https://github.com/sigea-team/sigea-backend/pull/60) · [front #42](https://github.com/sigea-team/sigea-front/pull/42) | AgendaServiceTest, GeneradorAgendaTest, AvisoCambiosAgendaTest |
+
+> \* SCRUM-7 (HU-02) no se cerró en el Sprint 3 y pasa al Sprint 4. SCRUM-27 (HU-12), que venía del Sprint 2, quedó Finalizado.
+
+---
+
+## 4. Requerimientos no funcionales asociados al Sprint
+
+| ID | Requerimiento no funcional (SRS) | Categoría | RF asociados | Métrica | Verificación |
+|---|---|---|---|---|---|
+| RNF08 | Confidencialidad entre evaluador y propuesta asignada | Confidencialidad | RF24, RF25, RF26 | El evaluador ve solo sus propuestas asignadas (0 ajenas) | CA-1 de HU-16; AsignacionEvaluacionServiceTest |
+| RNF09 | Integridad de la programación | Integridad | RF33 – RF39 | 0 cruces de horario, sala o ponente no marcados como simultáneos | CA-2 y CA-5 de HU-21, CA-4 de HU-22; ActividadServiceTest, AgendaServiceTest |
+| RNF06 | Control de acceso por roles | Seguridad | RF02, RF22 – RF29 | 0 accesos a funciones no permitidas por el rol | Acción no autorizada → acceso denegado (403) |
 
 ---
 
