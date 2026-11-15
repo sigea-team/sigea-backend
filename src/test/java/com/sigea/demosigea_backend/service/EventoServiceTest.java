@@ -12,6 +12,7 @@ import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.ModalidadEvento;
 import com.sigea.demosigea_backend.model.TipoEvento;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
+import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.TipoEventoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +66,9 @@ class EventoServiceTest {
     @Mock
     private AuditoriaService auditoriaService;
 
+    @Mock
+    private ConvocatoriaRepository convocatoriaRepository;
+
     private EventoService eventoService;
 
     private static final LocalDate INICIO = LocalDate.of(2026, 10, 20);
@@ -87,7 +91,7 @@ class EventoServiceTest {
     /** Servicio cuyo reloj marca la fecha indicada (al mediodía, hora de Bogotá). */
     private EventoService conHoy(LocalDate hoy) {
         Clock reloj = Clock.fixed(hoy.atTime(12, 0).atZone(BOGOTA).toInstant(), BOGOTA);
-        return new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, reloj);
+        return new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, convocatoriaRepository, reloj);
     }
 
     private EventoRequest requestValido() {
@@ -539,7 +543,7 @@ class EventoServiceTest {
     void actualizarEstadosPorFecha_usaZonaDelPrograma() {
         // 21 de octubre a las 2:00 a. m. UTC = 20 de octubre a las 9:00 p. m. en Bogotá.
         Clock utcMadrugada = Clock.fixed(java.time.Instant.parse("2026-10-21T02:00:00Z"), BOGOTA);
-        eventoService = new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, utcMadrugada);
+        eventoService = new EventoService(eventoRepository, tipoEventoRepository, auditoriaService, convocatoriaRepository, utcMadrugada);
         when(eventoRepository.findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(
                 EstadoEvento.habilitado, INICIO, INICIO)).thenReturn(List.of());
 
@@ -585,6 +589,94 @@ class EventoServiceTest {
 
         assertEquals(1, resultado.size());
         assertEquals(EstadoEvento.habilitado, resultado.get(0).estado());
+    }
+
+    // ---------------- Cierre automático ----------------
+
+    @Test
+    @DisplayName("Estado automático: pasa a cerrado los eventos publicados o en ejecución cuya fecha de fin ya pasó")
+    void actualizarEstadosPorFecha_cierraLosTerminados() {
+        LocalDate diaSiguiente = FIN.plusDays(1);
+        Evento terminado = eventoBase(EstadoEvento.en_ejecucion);
+        eventoService = conHoy(diaSiguiente);
+        when(eventoRepository.findByEstadoInAndFechaFinBefore(
+                java.util.EnumSet.of(EstadoEvento.habilitado, EstadoEvento.en_ejecucion), diaSiguiente))
+                .thenReturn(List.of(terminado));
+
+        int cambiados = eventoService.actualizarEstadosPorFecha();
+
+        assertEquals(1, cambiados);
+        assertEquals(EstadoEvento.cerrado, terminado.getEstado());
+        verify(eventoRepository).saveAll(List.of(terminado));
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.EVENTO_CERRADO), eq("eventos"), eq(1L), anyMap(), isNull());
+    }
+
+    // ---------------- Modificar fechas de un evento publicado ----------------
+
+    @Test
+    @DisplayName("Modificar fechas: amplía la fecha de fin de un evento en ejecución")
+    void modificarFechas_enEjecucion_ampliaFin() {
+        eventoService = conHoy(INICIO.plusDays(1));
+        Evento evento = eventoBase(EstadoEvento.en_ejecucion);
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoResponse response = eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(INICIO, FIN.plusDays(3)));
+
+        assertEquals(FIN.plusDays(3), response.fechaFin());
+        assertEquals(EstadoEvento.en_ejecucion, response.estado());
+        assertEquals("2026-2", response.semestre());
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.EVENTO_FECHAS_MODIFICADAS), eq("eventos"), eq(1L), anyMap());
+    }
+
+    @Test
+    @DisplayName("Modificar fechas: en ejecución no se puede cambiar la fecha de inicio")
+    void modificarFechas_enEjecucion_noCambiaInicio() {
+        eventoService = conHoy(INICIO.plusDays(1));
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_ejecucion)));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(INICIO.plusDays(1), FIN.plusDays(3))));
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Modificar fechas: no aplica a eventos en configuración ni cerrados")
+    void modificarFechas_estadoNoPermitido() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.en_configuracion)));
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(INICIO, FIN.plusDays(1))));
+
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.cerrado)));
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(INICIO, FIN.plusDays(1))));
+    }
+
+    @Test
+    @DisplayName("Modificar fechas: no se puede adelantar el inicio si una convocatoria cierra después")
+    void modificarFechas_convocatoriaCierraDespues_rechaza() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.habilitado)));
+        com.sigea.demosigea_backend.model.Convocatoria convocatoria = com.sigea.demosigea_backend.model.Convocatoria.builder()
+                .id(5L).titulo("Convocatoria").fechaCierre(INICIO.minusDays(2).atTime(23, 59)).build();
+        when(convocatoriaRepository.findByEvento_IdOrderByIdDesc(1L)).thenReturn(List.of(convocatoria));
+
+        assertThrows(OperacionNoPermitidaException.class, () -> eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(INICIO.minusDays(5), FIN)));
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("Modificar fechas: si el nuevo inicio de un habilitado es hoy, pasa a en ejecución")
+    void modificarFechas_habilitadoIniciaHoy() {
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(eventoBase(EstadoEvento.habilitado)));
+        when(convocatoriaRepository.findByEvento_IdOrderByIdDesc(1L)).thenReturn(List.of());
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EventoResponse response = eventoService.modificarFechas(1L,
+                new com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest(HOY, FIN));
+
+        assertEquals(EstadoEvento.en_ejecucion, response.estado());
     }
 
     /** Imita la excepción que entrega Spring: DataIntegrityViolationException envolviendo la de Hibernate. */

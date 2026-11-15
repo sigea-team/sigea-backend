@@ -1,6 +1,7 @@
 package com.sigea.demosigea_backend.controller;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
+import com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest;
 import com.sigea.demosigea_backend.dto.evento.EdicionesEventoResponse;
 import com.sigea.demosigea_backend.dto.evento.EventoRequest;
 import com.sigea.demosigea_backend.dto.evento.EventoResponse;
@@ -26,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -157,6 +159,27 @@ public class EventoController {
     @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
     public ResponseEntity<EventoResponse> actualizar(@PathVariable Long id, @Valid @RequestBody EventoRequest request) {
         return ResponseEntity.ok(eventoService.actualizar(id, request));
+    }
+
+    @Operation(summary = "Modificar fechas de un evento publicado o en ejecución",
+            description = "Permite ampliar (o ajustar) las fechas de un evento habilitado o en ejecución sin tocar el resto "
+                    + "de su configuración. En ejecución solo cambia la fecha de fin. Si se adelanta el inicio, ninguna "
+                    + "convocatoria del evento puede cerrar después del nuevo inicio.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fechas actualizadas",
+                    content = @Content(schema = @Schema(implementation = EventoResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Estado o fechas no permitidas",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PatchMapping("/{id}/fechas")
+    @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<EventoResponse> modificarFechas(@PathVariable Long id,
+                                                          @Valid @RequestBody AmpliacionFechasRequest request) {
+        return ResponseEntity.ok(eventoService.modificarFechas(id, request));
     }
 
     @Operation(summary = "Publicar evento",

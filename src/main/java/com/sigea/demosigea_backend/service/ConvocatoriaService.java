@@ -130,6 +130,7 @@ public class ConvocatoriaService {
 
         Evento evento = eventoRepository.findById(request.eventoId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró el evento con ID: " + request.eventoId()));
+        validarCierreAntesDelEvento(evento, request.fechaCierre());
 
         Convocatoria convocatoria = Convocatoria.builder()
                 .evento(evento)
@@ -180,6 +181,7 @@ public class ConvocatoriaService {
 
         Evento evento = eventoRepository.findById(request.eventoId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró el evento con ID: " + request.eventoId()));
+        validarCierreAntesDelEvento(evento, request.fechaCierre());
 
         convocatoria.setEvento(evento);
         convocatoria.setTitulo(request.titulo().trim());
@@ -240,6 +242,8 @@ public class ConvocatoriaService {
                     evento != null ? evento.getNombre() : "-",
                     evento != null ? evento.getEstado() : "-"));
         }
+
+        validarCierreAntesDelEvento(evento, convocatoria.getFechaCierre());
 
         convocatoria.setEstado(EstadoConvocatoria.publicada);
         Convocatoria publicada = convocatoriaRepository.save(convocatoria);
@@ -302,6 +306,7 @@ public class ConvocatoriaService {
             throw new SolicitudInvalidaException("La nueva fecha límite debe ser posterior a la fecha y hora actual.");
         }
         validarFechas(convocatoria.getFechaApertura(), nuevaFecha);
+        validarCierreAntesDelEvento(convocatoria.getEvento(), nuevaFecha);
 
         convocatoria.setFechaCierre(nuevaFecha);
         Convocatoria actualizada = convocatoriaRepository.save(convocatoria);
@@ -401,6 +406,25 @@ public class ConvocatoriaService {
             throw new OperacionNoPermitidaException(String.format(
                     "La convocatoria '%s' aún no abre el periodo de recepción de propuestas (%s).",
                     convocatoria.getTitulo(), convocatoria.getFechaApertura()));
+        }
+    }
+
+    /**
+     * La recepción de propuestas debe terminar antes de que empiece el evento: la fecha de cierre no puede
+     * ser posterior al inicio del día en que arranca el evento (fechaInicio a las 00:00).
+     *
+     * @throws SolicitudInvalidaException si la convocatoria cerraría después del inicio del evento.
+     */
+    private static void validarCierreAntesDelEvento(Evento evento, LocalDateTime cierre) {
+        if (evento == null || evento.getFechaInicio() == null || cierre == null) {
+            return;
+        }
+        LocalDateTime inicioEvento = evento.getFechaInicio().atStartOfDay();
+        if (cierre.isAfter(inicioEvento)) {
+            throw new SolicitudInvalidaException(String.format(
+                    "La fecha de cierre de la convocatoria (%s) no puede ser posterior al inicio del evento '%s' (%s). "
+                            + "La recepción de propuestas debe terminar antes de que empiece el evento.",
+                    cierre.toString().replace('T', ' '), evento.getNombre(), evento.getFechaInicio()));
         }
     }
 

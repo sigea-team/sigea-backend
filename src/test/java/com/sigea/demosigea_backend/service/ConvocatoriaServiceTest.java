@@ -79,8 +79,8 @@ class ConvocatoriaServiceTest {
         return Evento.builder()
                 .id(1L)
                 .nombre("Congreso de Prueba")
-                .fechaInicio(LocalDate.of(2026, 10, 1))
-                .fechaFin(LocalDate.of(2026, 10, 5))
+                .fechaInicio(LocalDate.of(2030, 1, 10))
+                .fechaFin(LocalDate.of(2030, 1, 12))
                 .estado(EstadoEvento.en_configuracion)
                 .build();
     }
@@ -513,5 +513,18 @@ class ConvocatoriaServiceTest {
         convocatoriaService.eliminar(10L);
 
         verify(convocatoriaRepository).delete(c);
+    }
+
+    @Test
+    @DisplayName("Fechas vs evento: la convocatoria no puede cerrar después del inicio del evento")
+    void crear_cierreDespuesDelInicioDelEvento_rechaza() {
+        Evento evento = eventoBase();
+        evento.setFechaInicio(LocalDate.of(2026, 11, 1));
+        evento.setFechaFin(LocalDate.of(2026, 11, 3));
+        when(eventoRepository.findById(1L)).thenReturn(java.util.Optional.of(evento));
+
+        assertThrows(com.sigea.demosigea_backend.exception.SolicitudInvalidaException.class,
+                () -> convocatoriaService.crear(requestValida()));
+        verify(convocatoriaRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
     }
 }

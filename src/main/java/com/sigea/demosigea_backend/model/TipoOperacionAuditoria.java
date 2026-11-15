@@ -49,6 +49,8 @@ public enum TipoOperacionAuditoria {
     TIPO_EVENTO_ELIMINADO("EVENTOS", "Eliminación de un tipo de evento del catálogo"),
     EVENTO_PUBLICADO("EVENTOS", "Publicación de un evento (pasa a habilitado)"),
     EVENTO_INICIADO("EVENTOS", "Paso automático de un evento a en ejecución al llegar su fecha de inicio"),
+    EVENTO_CERRADO("EVENTOS", "Paso automático de un evento a cerrado al pasar su fecha de fin"),
+    EVENTO_FECHAS_MODIFICADAS("EVENTOS", "Modificación de las fechas de un evento publicado o en ejecución"),
 
     // ----- Conferencistas y ponentes (HU-12) -----
     CONFERENCISTA_INVITADO("CONFERENCISTAS", "Envío o reenvío de la invitación por correo a un conferencista nuevo (HU-12)"),
