@@ -252,7 +252,7 @@ class InscripcionServiceTest {
         void inscribirActividadConCupo() {
             when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
                     .thenReturn(Optional.of(inscripcionEventoExistente));
-            when(actividadRepository.findByIdAndEvento_Id(201L, 1L)).thenReturn(Optional.of(actividad1));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(201L, 1L)).thenReturn(Optional.of(actividad1));
             when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 201L)).thenReturn(false);
             when(inscripcionActividadRepository.countByActividad_Id(201L)).thenReturn(1L); // Aforo es 2, hay 1 libre
             when(inscripcionActividadRepository.findActivasPorPersonaYFecha(10L, actividad1.getFecha()))
@@ -288,7 +288,7 @@ class InscripcionServiceTest {
         void cierraInscripcionPorAforoAlcanzado() {
             when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
                     .thenReturn(Optional.of(inscripcionEventoExistente));
-            when(actividadRepository.findByIdAndEvento_Id(201L, 1L)).thenReturn(Optional.of(actividad1));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(201L, 1L)).thenReturn(Optional.of(actividad1));
             when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 201L)).thenReturn(false);
             when(inscripcionActividadRepository.countByActividad_Id(201L)).thenReturn(2L); // Aforo es 2 -> lleno
 
@@ -311,7 +311,7 @@ class InscripcionServiceTest {
         void bloqueaInscripcionPorHorarioTraslapado() {
             when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
                     .thenReturn(Optional.of(inscripcionEventoExistente));
-            when(actividadRepository.findByIdAndEvento_Id(202L, 1L)).thenReturn(Optional.of(actividad2Traslapada));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(202L, 1L)).thenReturn(Optional.of(actividad2Traslapada));
             when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 202L)).thenReturn(false);
             when(inscripcionActividadRepository.countByActividad_Id(202L)).thenReturn(0L);
 
@@ -335,11 +335,65 @@ class InscripcionServiceTest {
         }
 
         @Test
+        @DisplayName("Permite inscripción si la nueva actividad tiene marcado permiteSimultaneidad=true aunque haya traslape")
+        void permiteInscripcionCuandoNuevaActividadPermiteSimultaneidad() {
+            actividad2Traslapada.setPermiteSimultaneidad(true);
+
+            when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
+                    .thenReturn(Optional.of(inscripcionEventoExistente));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(202L, 1L)).thenReturn(Optional.of(actividad2Traslapada));
+            when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 202L)).thenReturn(false);
+            when(inscripcionActividadRepository.countByActividad_Id(202L)).thenReturn(0L);
+
+            InscripcionActividad inscripcionActividad1 = InscripcionActividad.builder()
+                    .id(701L)
+                    .actividad(actividad1)
+                    .inscripcion(inscripcionEventoExistente)
+                    .build();
+
+            when(inscripcionActividadRepository.findActivasPorPersonaYFecha(10L, actividad2Traslapada.getFecha()))
+                    .thenReturn(List.of(inscripcionActividad1));
+            when(inscripcionActividadRepository.save(any(InscripcionActividad.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            InscripcionActividadResponse resp = inscripcionService.inscribirAActividad(1L, 202L);
+            assertNotNull(resp);
+            assertEquals(202L, resp.actividadId());
+        }
+
+        @Test
+        @DisplayName("Permite inscripción si la actividad ya inscrita tiene marcado permiteSimultaneidad=true")
+        void permiteInscripcionCuandoActividadExistentePermiteSimultaneidad() {
+            actividad1.setPermiteSimultaneidad(true);
+
+            when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
+                    .thenReturn(Optional.of(inscripcionEventoExistente));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(202L, 1L)).thenReturn(Optional.of(actividad2Traslapada));
+            when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 202L)).thenReturn(false);
+            when(inscripcionActividadRepository.countByActividad_Id(202L)).thenReturn(0L);
+
+            InscripcionActividad inscripcionActividad1 = InscripcionActividad.builder()
+                    .id(701L)
+                    .actividad(actividad1)
+                    .inscripcion(inscripcionEventoExistente)
+                    .build();
+
+            when(inscripcionActividadRepository.findActivasPorPersonaYFecha(10L, actividad2Traslapada.getFecha()))
+                    .thenReturn(List.of(inscripcionActividad1));
+            when(inscripcionActividadRepository.save(any(InscripcionActividad.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            InscripcionActividadResponse resp = inscripcionService.inscribirAActividad(1L, 202L);
+            assertNotNull(resp);
+            assertEquals(202L, resp.actividadId());
+        }
+
+        @Test
         @DisplayName("Permite inscripción a actividades consecutivas o sin traslape de horario")
         void permiteInscripcionSinTraslape() {
             when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
                     .thenReturn(Optional.of(inscripcionEventoExistente));
-            when(actividadRepository.findByIdAndEvento_Id(203L, 1L)).thenReturn(Optional.of(actividad3NoTraslapada));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(203L, 1L)).thenReturn(Optional.of(actividad3NoTraslapada));
             when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 203L)).thenReturn(false);
             when(inscripcionActividadRepository.countByActividad_Id(203L)).thenReturn(0L);
 
@@ -385,7 +439,7 @@ class InscripcionServiceTest {
         void rechazaInscripcionDuplicadaActividad() {
             when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
                     .thenReturn(Optional.of(inscripcionEventoExistente));
-            when(actividadRepository.findByIdAndEvento_Id(201L, 1L)).thenReturn(Optional.of(actividad1));
+            when(actividadRepository.findByIdAndEvento_IdParaInscripcion(201L, 1L)).thenReturn(Optional.of(actividad1));
             when(inscripcionActividadRepository.existsByInscripcion_IdAndActividad_Id(501L, 201L)).thenReturn(true);
 
             InscripcionDuplicadaException ex = assertThrows(InscripcionDuplicadaException.class,

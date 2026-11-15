@@ -175,7 +175,10 @@ public class InscripcionService {
                 .orElseThrow(() -> new OperacionNoPermitidaException(
                         "Debe estar inscrito al evento antes de poder inscribirse a sus actividades."));
 
-        Actividad actividad = buscarActividad(eventoId, actividadId);
+        // Lock transaccional con SELECT FOR UPDATE sobre la actividad para evitar condiciones de carrera en el aforo
+        Actividad actividad = actividadRepository.findByIdAndEvento_IdParaInscripcion(actividadId, eventoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "No se encontró la actividad con ID " + actividadId + " en este evento."));
 
         if (actividad.estaPorProgramar() || actividad.estaCancelada() || actividad.getSala() == null) {
             throw new OperacionNoPermitidaException(
@@ -327,8 +330,13 @@ public class InscripcionService {
 
     /**
      * Criterio 3: Valida si la nueva actividad se traslapa en fecha y horario con alguna actividad ya inscrita.
+     * Respeta el flag permiteSimultaneidad: si la nueva actividad o la actividad existente permite
+     * simultaneidad, no se genera conflicto de horario.
      */
     private void validarConflictoHorario(Long personaId, Actividad nueva) {
+        if (nueva.isPermiteSimultaneidad()) {
+            return;
+        }
         if (nueva.getFecha() == null || nueva.getHoraInicio() == null || nueva.getHoraFin() == null) {
             return;
         }
@@ -339,6 +347,10 @@ public class InscripcionService {
         for (InscripcionActividad ia : inscritasEnFecha) {
             Actividad existente = ia.getActividad();
             if (existente == null || Objects.equals(existente.getId(), nueva.getId())) {
+                continue;
+            }
+
+            if (existente.isPermiteSimultaneidad()) {
                 continue;
             }
 
@@ -354,8 +366,12 @@ public class InscripcionService {
 
     /**
      * Determina si dos actividades coinciden en horario en el mismo día.
+     * Si alguna de las actividades permite simultaneidad, no se considera traslape conflictivo.
      */
     private boolean hayTraslape(Actividad a1, Actividad a2) {
+        if (a1.isPermiteSimultaneidad() || a2.isPermiteSimultaneidad()) {
+            return false;
+        }
         if (!Objects.equals(a1.getFecha(), a2.getFecha())) {
             return false;
         }
