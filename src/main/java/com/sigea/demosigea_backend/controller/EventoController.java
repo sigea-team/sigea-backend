@@ -1,11 +1,13 @@
 package com.sigea.demosigea_backend.controller;
 
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
+import com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest;
 import com.sigea.demosigea_backend.dto.evento.EdicionesEventoResponse;
 import com.sigea.demosigea_backend.dto.evento.EventoRequest;
 import com.sigea.demosigea_backend.dto.evento.EventoResponse;
 import com.sigea.demosigea_backend.dto.evento.NuevaEdicionRequest;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
+import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.service.EventoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,8 +23,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -33,8 +38,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Controlador REST para la gestión de eventos y sus ediciones (HU-04: RF03 + RF04).
@@ -53,6 +60,27 @@ public class EventoController {
 
     private final EventoService eventoService;
 
+    /** Estados visibles para usuarios sin permiso de gestión de eventos (asistentes). */
+    private static final Set<EstadoEvento> ESTADOS_PUBLICOS = EnumSet.of(EstadoEvento.habilitado, EstadoEvento.en_ejecucion);
+
+    /** Autoridades que permiten ver eventos en cualquier estado (incluidos los que están en configuración). */
+    private static final Set<String> AUTORIDADES_GESTION = Set.of("EVENTOS_VER", "ROLE_ADMIN", "ADMIN");
+
+    /**
+     * @param authentication usuario autenticado (puede ser null en pruebas standalone).
+     * @return true si el usuario puede ver eventos en cualquier estado; sin autenticación en el contexto
+     *         (pruebas unitarias del controlador) se asume acceso completo, ya que el filtro de seguridad
+     *         impide llegar aquí sin token en ejecución real.
+     */
+    private static boolean puedeVerTodos(Authentication authentication) {
+        if (authentication == null) {
+            return true;
+        }
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(AUTORIDADES_GESTION::contains);
+    }
+
     @Operation(summary = "Listar eventos",
             description = "Lista eventos base y ediciones juntos, del más reciente al más antiguo, filtrando opcionalmente "
                     + "por estado y semestre. Cada registro indica su tipo con eventoBaseId (null = evento base; "
@@ -65,14 +93,21 @@ public class EventoController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('EVENTOS_VER', 'ROLE_ADMIN', 'ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EventoResponse>> listar(
             @Parameter(description = "Estado del evento", example = "en_configuracion")
             @RequestParam(required = false) EstadoEvento estado,
             @Parameter(description = "Semestre académico", example = "2026-2")
-            @RequestParam(required = false) String semestre
+            @RequestParam(required = false) String semestre,
+            Authentication authentication
     ) {
-        return ResponseEntity.ok(eventoService.listar(estado, semestre));
+        if (puedeVerTodos(authentication)) {
+            return ResponseEntity.ok(eventoService.listar(estado, semestre));
+        }
+        // Asistentes y demás usuarios sin EVENTOS_VER: solo eventos publicados (habilitado) o en ejecución.
+        return ResponseEntity.ok(eventoService.listar(estado, semestre).stream()
+                .filter(e -> ESTADOS_PUBLICOS.contains(e.estado()))
+                .toList());
     }
 
     @Operation(summary = "Consultar evento por ID")
@@ -83,9 +118,13 @@ public class EventoController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('EVENTOS_VER', 'ROLE_ADMIN', 'ADMIN')")
-    public ResponseEntity<EventoResponse> obtenerPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(eventoService.obtenerPorId(id));
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<EventoResponse> obtenerPorId(@PathVariable Long id, Authentication authentication) {
+        EventoResponse evento = eventoService.obtenerPorId(id);
+        if (!puedeVerTodos(authentication) && !ESTADOS_PUBLICOS.contains(evento.estado())) {
+            throw new RecursoNoEncontradoException("No se encontró el evento con ID: " + id);
+        }
+        return ResponseEntity.ok(evento);
     }
 
     @Operation(summary = "Crear evento",
@@ -120,6 +159,27 @@ public class EventoController {
     @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
     public ResponseEntity<EventoResponse> actualizar(@PathVariable Long id, @Valid @RequestBody EventoRequest request) {
         return ResponseEntity.ok(eventoService.actualizar(id, request));
+    }
+
+    @Operation(summary = "Modificar fechas de un evento publicado o en ejecución",
+            description = "Permite ampliar (o ajustar) las fechas de un evento habilitado o en ejecución sin tocar el resto "
+                    + "de su configuración. En ejecución solo cambia la fecha de fin. Si se adelanta el inicio, ninguna "
+                    + "convocatoria del evento puede cerrar después del nuevo inicio.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fechas actualizadas",
+                    content = @Content(schema = @Schema(implementation = EventoResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Estado o fechas no permitidas",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PatchMapping("/{id}/fechas")
+    @PreAuthorize("hasAnyAuthority('EVENTOS_EDITAR', 'ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<EventoResponse> modificarFechas(@PathVariable Long id,
+                                                          @Valid @RequestBody AmpliacionFechasRequest request) {
+        return ResponseEntity.ok(eventoService.modificarFechas(id, request));
     }
 
     @Operation(summary = "Publicar evento",

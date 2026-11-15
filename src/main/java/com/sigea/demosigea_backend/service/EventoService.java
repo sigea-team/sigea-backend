@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.evento.AmpliacionFechasRequest;
 import com.sigea.demosigea_backend.dto.evento.EdicionesEventoResponse;
 import com.sigea.demosigea_backend.dto.evento.EventoRequest;
 import com.sigea.demosigea_backend.dto.evento.EventoResponse;
@@ -7,10 +8,12 @@ import com.sigea.demosigea_backend.dto.evento.NuevaEdicionRequest;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
+import com.sigea.demosigea_backend.model.Convocatoria;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.TipoEvento;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
+import com.sigea.demosigea_backend.repository.ConvocatoriaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.TipoEventoRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -25,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -58,9 +63,13 @@ public class EventoService {
     /** SQLState estándar de violación de unicidad (unique_violation) en PostgreSQL. */
     static final String SQLSTATE_VIOLACION_UNICIDAD = "23505";
 
+    /** Estados de un evento ya publicado que aún no ha cerrado. */
+    private static final EnumSet<EstadoEvento> ESTADOS_PUBLICADOS = EnumSet.of(EstadoEvento.habilitado, EstadoEvento.en_ejecucion);
+
     private final EventoRepository eventoRepository;
     private final TipoEventoRepository tipoEventoRepository;
     private final AuditoriaService auditoriaService;
+    private final ConvocatoriaRepository convocatoriaRepository;
 
     /** Reloj del sistema en la zona horaria del programa (ver SchedulingConfig); en pruebas, uno fijo. */
     private final Clock clock;
@@ -186,6 +195,7 @@ public class EventoService {
         }
 
         validarRangoFechas(request.fechaInicio(), request.fechaFin());
+        validarConvocatoriasAntesDelInicio(evento, request.fechaInicio());
 
         // El semestre debe ser único dentro de la familia (evento base + ediciones), igual que en
         // crearEdicion. Se valida siempre, contra toda la familia, excluyendo el propio registro.
@@ -309,30 +319,45 @@ public class EventoService {
     // ------------------------------------------------------------------
 
     /**
-     * Pasa a {@code en_ejecucion} los eventos {@code habilitado} cuyo periodo incluye la fecha de hoy
-     * ({@code fechaInicio <= hoy <= fechaFin}), según la zona horaria del programa.
-     * <p>
-     * Los eventos en configuración no cambian: no han sido publicados. El cierre del evento
-     * ({@code cerrado}) no se hace aquí: corresponde al cierre formal del evento (CU-32). La invoca
-     * {@code EventoEstadoScheduler}; es idempotente, así que ejecutarla varias veces el mismo día no
-     * repite cambios. Cada cambio queda en la auditoría como hecho por el sistema (sin usuario).
-     * </p>
+     * Actualiza el estado de los eventos según la fecha de hoy, en la zona horaria del programa:
+     * <ul>
+     *   <li>{@code habilitado} o {@code en_ejecucion} cuya fecha de fin ya pasó ({@code fechaFin < hoy}) → {@code cerrado};</li>
+     *   <li>{@code habilitado} cuyo periodo incluye hoy ({@code fechaInicio <= hoy <= fechaFin}) → {@code en_ejecucion}.</li>
+     * </ul>
+     * Los eventos en configuración no cambian: no han sido publicados. La invoca {@code EventoEstadoScheduler};
+     * es idempotente, así que ejecutarla varias veces el mismo día no repite cambios. Cada cambio queda en la
+     * auditoría como hecho por el sistema (sin usuario).
      *
-     * @return Cantidad de eventos que pasaron a {@code en_ejecucion}.
+     * @return Cantidad de eventos que cambiaron de estado.
      */
     @Transactional
     public int actualizarEstadosPorFecha() {
         LocalDate hoy = LocalDate.now(clock);
+
+        List<Evento> porCerrar = eventoRepository.findByEstadoInAndFechaFinBefore(ESTADOS_PUBLICADOS, hoy);
+        porCerrar.forEach(evento -> cerrar(evento, hoy));
+        eventoRepository.saveAll(porCerrar);
 
         List<Evento> porIniciar = eventoRepository
                 .findByEstadoAndFechaInicioLessThanEqualAndFechaFinGreaterThanEqual(EstadoEvento.habilitado, hoy, hoy);
         porIniciar.forEach(evento -> iniciar(evento, hoy));
         eventoRepository.saveAll(porIniciar);
 
+        if (!porCerrar.isEmpty()) {
+            log.info("Eventos que pasaron a cerrado el {}: {}.", hoy, porCerrar.size());
+        }
         if (!porIniciar.isEmpty()) {
             log.info("Eventos que pasaron a en ejecución el {}: {}.", hoy, porIniciar.size());
         }
-        return porIniciar.size();
+        return porCerrar.size() + porIniciar.size();
+    }
+
+    private void cerrar(Evento evento, LocalDate hoy) {
+        evento.setEstado(EstadoEvento.cerrado);
+        auditoriaService.registrar(TipoOperacionAuditoria.EVENTO_CERRADO, ENTIDAD, evento.getId(),
+                DetalleAuditoria.de("nombre", evento.getNombre(), "fecha", hoy.toString(),
+                        "fechaFin", evento.getFechaFin().toString()),
+                null);
     }
 
     private void iniciar(Evento evento, LocalDate hoy) {
@@ -341,6 +366,96 @@ public class EventoService {
                 DetalleAuditoria.de("nombre", evento.getNombre(), "fecha", hoy.toString(),
                         "fechaInicio", evento.getFechaInicio().toString()),
                 null);
+    }
+
+    // ------------------------------------------------------------------
+    // Modificación de fechas de un evento publicado o en ejecución
+    // ------------------------------------------------------------------
+
+    /**
+     * Cambia las fechas de un evento ya publicado ({@code habilitado}) o {@code en_ejecucion}, por ejemplo para
+     * ampliar su duración. El resto de la configuración no cambia (para eso está {@link #actualizar}, solo en
+     * configuración) y el semestre se conserva.
+     * <ul>
+     *   <li>En ejecución: solo puede cambiar la fecha de fin; la de inicio debe ser la misma.</li>
+     *   <li>Habilitado: la fecha de inicio no puede quedar en el pasado. Si queda en hoy, el evento pasa
+     *       a {@code en_ejecucion} de inmediato.</li>
+     *   <li>La fecha de fin no puede ser anterior a hoy ni a la de inicio.</li>
+     *   <li>Si se adelanta el inicio, ninguna convocatoria del evento puede cerrar después del nuevo inicio.</li>
+     * </ul>
+     *
+     * @param id      ID del evento.
+     * @param request Nuevas fechas.
+     * @return Evento actualizado.
+     */
+    @Transactional
+    public EventoResponse modificarFechas(Long id, AmpliacionFechasRequest request) {
+        Evento evento = buscarEvento(id);
+
+        if (!ESTADOS_PUBLICADOS.contains(evento.getEstado())) {
+            throw new OperacionNoPermitidaException(String.format(
+                    "Solo se pueden modificar las fechas de eventos publicados o en ejecución. El estado actual de '%s' es %s.%s",
+                    evento.getNombre(), evento.getEstado(),
+                    evento.getEstado() == EstadoEvento.en_configuracion ? " Use la edición del evento." : ""));
+        }
+
+        LocalDate inicio = request.fechaInicio();
+        LocalDate fin = request.fechaFin();
+        validarRangoFechas(inicio, fin);
+
+        LocalDate hoy = LocalDate.now(clock);
+        if (fin.isBefore(hoy)) {
+            throw new OperacionNoPermitidaException("La fecha de fin no puede ser anterior a hoy (" + hoy + ").");
+        }
+        if (evento.getEstado() == EstadoEvento.en_ejecucion) {
+            if (!inicio.equals(evento.getFechaInicio())) {
+                throw new OperacionNoPermitidaException(
+                        "El evento ya está en ejecución: solo se puede modificar su fecha de fin.");
+            }
+        } else if (inicio.isBefore(hoy)) {
+            throw new OperacionNoPermitidaException("La fecha de inicio no puede ser anterior a hoy (" + hoy + ").");
+        }
+        validarConvocatoriasAntesDelInicio(evento, inicio);
+
+        LocalDate inicioAnterior = evento.getFechaInicio();
+        LocalDate finAnterior = evento.getFechaFin();
+        evento.setFechaInicio(inicio);
+        evento.setFechaFin(fin);
+
+        auditoriaService.registrar(TipoOperacionAuditoria.EVENTO_FECHAS_MODIFICADAS, ENTIDAD, evento.getId(),
+                DetalleAuditoria.de("nombre", evento.getNombre(),
+                        "fechaInicioAnterior", inicioAnterior.toString(), "fechaInicio", inicio.toString(),
+                        "fechaFinAnterior", finAnterior.toString(), "fechaFin", fin.toString()));
+
+        if (evento.getEstado() == EstadoEvento.habilitado && !inicio.isAfter(hoy)) {
+            iniciar(evento, hoy);
+        }
+
+        Evento guardado = eventoRepository.save(evento);
+        log.info("Fechas del evento {} modificadas: {} - {} -> {} - {}",
+                guardado.getId(), inicioAnterior, finAnterior, inicio, fin);
+        return EventoResponse.fromEntity(guardado);
+    }
+
+    /**
+     * Si la fecha de inicio se adelanta, verifica que ninguna convocatoria del evento cierre después del nuevo
+     * inicio (la recepción de propuestas debe terminar antes de que empiece el evento). Si el inicio no se
+     * adelanta no se revisa, para que las convocatorias que ya existían no bloqueen otros cambios.
+     */
+    private void validarConvocatoriasAntesDelInicio(Evento evento, LocalDate nuevoInicio) {
+        if (evento.getId() == null || evento.getFechaInicio() == null || nuevoInicio == null
+                || !nuevoInicio.isBefore(evento.getFechaInicio())) {
+            return;
+        }
+        LocalDateTime limite = nuevoInicio.atStartOfDay();
+        for (Convocatoria convocatoria : convocatoriaRepository.findByEvento_IdOrderByIdDesc(evento.getId())) {
+            if (convocatoria.getFechaCierre() != null && convocatoria.getFechaCierre().isAfter(limite)) {
+                throw new OperacionNoPermitidaException(String.format(
+                        "No se puede adelantar el inicio al %s: la convocatoria '%s' cierra el %s, después del inicio del evento. "
+                                + "Ajuste primero la fecha de cierre de la convocatoria.",
+                        nuevoInicio, convocatoria.getTitulo(), convocatoria.getFechaCierre()));
+            }
+        }
     }
 
     // ------------------------------------------------------------------
