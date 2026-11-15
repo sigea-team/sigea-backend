@@ -121,7 +121,13 @@ public enum TipoOperacionAuditoria {
     ACTIVIDAD_REGISTRADA_POR_PROGRAMAR("AGENDA", "Registro o modificación de una actividad sin horario para la generación automática (HU-22)"),
     ACTIVIDAD_DESPROGRAMADA("AGENDA", "Retiro del horario y la sala de una actividad, que vuelve a por programar (HU-22)"),
     AGENDA_GENERADA("AGENDA", "Aplicación de la propuesta de agenda generada automáticamente (HU-22)"),
-    AGENDA_PUBLICADA("AGENDA", "Publicación de la agenda del evento a los participantes (HU-22)");
+    AGENDA_PUBLICADA("AGENDA", "Publicación de la agenda del evento a los participantes (HU-22)"),
+
+    // HU-23: inscripciones a eventos y actividades
+    INSCRIPCION_EVENTO_REGISTRADA("INSCRIPCIONES", "Inscripción de un participante al evento (HU-23)"),
+    INSCRIPCION_EVENTO_CANCELADA("INSCRIPCIONES", "Cancelación de la inscripción de un participante al evento (HU-23)"),
+    INSCRIPCION_ACTIVIDAD_REGISTRADA("INSCRIPCIONES", "Inscripción de un participante a una actividad (HU-23)"),
+    INSCRIPCION_ACTIVIDAD_CANCELADA("INSCRIPCIONES", "Cancelación de la inscripción de un participante a una actividad (HU-23)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

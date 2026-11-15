@@ -403,6 +403,33 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-23, Criterio 4: el participante ya se encuentra inscrito en el evento o actividad.
+     */
+    @ExceptionHandler(InscripcionDuplicadaException.class)
+    public ResponseEntity<ErrorResponse> handleInscripcionDuplicada(InscripcionDuplicadaException ex,
+                                                                    HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "INSCRIPCION_DUPLICADA", request);
+    }
+
+    /**
+     * HU-23, Criterio 2 y 4: la actividad ha alcanzado su límite o aforo máximo.
+     */
+    @ExceptionHandler(CupoAgotadoException.class)
+    public ResponseEntity<ErrorResponse> handleCupoAgotado(CupoAgotadoException ex,
+                                                            HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "CUPO_AGOTADO", request);
+    }
+
+    /**
+     * HU-23, Criterio 3: el participante ya tiene una actividad en horario traslapado.
+     */
+    @ExceptionHandler(ConflictoHorarioInscripcionException.class)
+    public ResponseEntity<ErrorResponse> handleConflictoHorarioInscripcion(ConflictoHorarioInscripcionException ex,
+                                                                            HttpServletRequest request) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), "CONFLICTO_HORARIO_INSCRIPCION", request);
+    }
+
+    /**
      * HU-Salas, Criterio 4: el nuevo aforo máximo es menor que el número de inscripciones
      * activas en alguna actividad de la sala.
      * Al ser subclase de {@link OperacionNoPermitidaException}, Spring elige este manejador por ser
