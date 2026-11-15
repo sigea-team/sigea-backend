@@ -1,7 +1,9 @@
 package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.Actividad;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -124,6 +126,19 @@ public interface ActividadRepository extends JpaRepository<Actividad, Long> {
      * @return la actividad si pertenece al evento.
      */
     Optional<Actividad> findByIdAndEvento_Id(Long id, Long eventoId);
+
+    /**
+     * HU-23: obtiene la actividad bloqueando su fila (SELECT FOR UPDATE) mientras dura la transacción.
+     * Garantiza que peticiones concurrentes de inscripción a la misma actividad no pasen la validación
+     * de aforo y cupos al mismo tiempo (evita condición de carrera).
+     *
+     * @param id       ID de la actividad.
+     * @param eventoId ID del evento al que pertenece.
+     * @return la actividad bloqueada para escritura con bloqueo pesimista.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Actividad a WHERE a.id = :id AND a.evento.id = :eventoId")
+    Optional<Actividad> findByIdAndEvento_IdParaInscripcion(@Param("id") Long id, @Param("eventoId") Long eventoId);
 
     /** HU-19: actividades del evento vinculadas a una propuesta (para saber cuáles ya están programadas). */
     List<Actividad> findByEvento_IdAndPropuestaIsNotNull(Long eventoId);

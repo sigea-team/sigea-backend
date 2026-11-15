@@ -15,6 +15,7 @@ import com.sigea.demosigea_backend.model.TipoSala;
 import com.sigea.demosigea_backend.repository.ActividadRepository;
 import com.sigea.demosigea_backend.repository.DisponibilidadSalaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
+import com.sigea.demosigea_backend.repository.InscripcionActividadRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.SalaRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,7 @@ class SalaServiceTest {
     @Mock private EventoRepository eventoRepository;
     @Mock private PersonaRepository personaRepository;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private InscripcionActividadRepository inscripcionActividadRepository;
 
     @InjectMocks
     private SalaService service;

@@ -25,6 +25,7 @@ import com.sigea.demosigea_backend.repository.ActividadRepository;
 import com.sigea.demosigea_backend.repository.DisponibilidadPonenteRepository;
 import com.sigea.demosigea_backend.repository.DisponibilidadSalaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
+import com.sigea.demosigea_backend.repository.InscripcionActividadRepository;
 import com.sigea.demosigea_backend.repository.PersonaRepository;
 import com.sigea.demosigea_backend.repository.SalaRepository;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +76,7 @@ public class SalaService {
     private final EventoRepository eventoRepository;
     private final PersonaRepository personaRepository;
     private final AuditoriaService auditoriaService;
+    private final InscripcionActividadRepository inscripcionActividadRepository;
 
     // ------------------------------------------------------------------
     // CRUD de Salas
@@ -442,16 +444,21 @@ public class SalaService {
 
     /**
      * Verifica que el nuevo aforo no sea menor que el máximo de inscripciones activas
-     * en alguna actividad de la sala.
-     * <p>
-     * En esta versión se basa en el conteo de actividades (las inscripciones se implementan en HU futura).
-     * La lógica real de inscripciones se activará cuando exista InscripcionActividad.
-     * </p>
+     * en alguna actividad de la sala (HU-Salas Criterio 4 y HU-23).
      */
     private void validarAforoContraInscripciones(Sala sala, int nuevoAforo) {
-        // Placeholder: cuando exista InscripcionActividadRepository se agregará la
-        // consulta de inscripciones activas. Por ahora se registra la intención.
-        // El bean validation ya garantiza aforoMaximo >= 1 en el DTO.
+        if (sala.getId() == null) {
+            return;
+        }
+        List<Long> conteos = inscripcionActividadRepository.findConteosInscripcionesPorActividadEnSala(sala.getId());
+        if (conteos != null && !conteos.isEmpty()) {
+            long maxInscripciones = conteos.get(0);
+            if (nuevoAforo < maxInscripciones) {
+                throw new AforoInvalidoException(String.format(
+                        "El nuevo aforo (%d) no puede ser menor que las inscripciones activas registradas (%d) en una de las actividades asignadas a la sala «%s».",
+                        nuevoAforo, maxInscripciones, sala.getNombre()));
+            }
+        }
         log.debug("Validación de aforo para sala {}: nuevoAforo={}", sala.getId(), nuevoAforo);
     }
 
