@@ -73,4 +73,8 @@ public interface EventoRepository extends JpaRepository<Evento, Long>, JpaSpecif
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Evento e WHERE e.id = :id")
     Optional<Evento> findByIdParaProgramar(@Param("id") Long id);
+
+    /** HU-27: semestres académicos que tienen al menos un evento registrado, del más reciente al más antiguo. */
+    @Query("SELECT DISTINCT e.semestre FROM Evento e WHERE e.semestre IS NOT NULL ORDER BY e.semestre DESC")
+    List<String> findSemestresRegistrados();
 }

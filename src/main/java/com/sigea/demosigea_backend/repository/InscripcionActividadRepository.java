@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -67,4 +68,14 @@ public interface InscripcionActividadRepository extends JpaRepository<Inscripcio
      */
     @Query("SELECT COUNT(ia) FROM InscripcionActividad ia WHERE ia.actividad.sala.id = :salaId GROUP BY ia.actividad.id ORDER BY COUNT(ia) DESC")
     List<Long> findConteosInscripcionesPorActividadEnSala(@Param("salaId") Long salaId);
+
+    /** HU-27: actividades a las que se inscribió la persona, con la actividad y su tipo cargados. */
+    @Query("SELECT ia FROM InscripcionActividad ia JOIN FETCH ia.actividad a JOIN FETCH a.tipoActividad "
+            + "WHERE ia.inscripcion.persona.id = :personaId")
+    List<InscripcionActividad> findHistorialDePersona(@Param("personaId") Long personaId);
+
+    /** HU-27: inscritos por actividad ({@code [actividadId, cantidad]}). */
+    @Query("SELECT ia.actividad.id, COUNT(ia) FROM InscripcionActividad ia WHERE ia.actividad.id IN :actividadIds "
+            + "GROUP BY ia.actividad.id")
+    List<Object[]> contarPorActividad(@Param("actividadIds") Collection<Long> actividadIds);
 }
