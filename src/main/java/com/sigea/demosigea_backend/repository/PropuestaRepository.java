@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,5 +83,8 @@ public interface PropuestaRepository extends JpaRepository<Propuesta, Long> {
             + "WHERE v.propuesta = p AND v.numeroVersion = 1 AND v.creadoPor.id = :usuarioId) "
             + "ORDER BY p.fechaEnvio DESC")
     List<Propuesta> findMisPropuestas(@Param("personaId") Long personaId, @Param("usuarioId") Long usuarioId);
-}
 
+    /** HU-27: propuestas por estado en las convocatorias de los eventos ({@code [estado, cantidad]}). */
+    @Query("SELECT p.estado, COUNT(p) FROM Propuesta p WHERE p.convocatoria.evento.id IN :eventoIds GROUP BY p.estado")
+    List<Object[]> contarPorEstado(@Param("eventoIds") Collection<Long> eventoIds);
+}

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,6 +49,18 @@ public interface InscripcionEventoRepository extends JpaRepository<InscripcionEv
      */
     long countByEvento_Id(Long eventoId);
 
+    /** HU-27: número de inscritos por evento ({@code [eventoId, cantidad]}). */
+    @Query("SELECT ie.evento.id, COUNT(ie) FROM InscripcionEvento ie WHERE ie.evento.id IN :eventoIds GROUP BY ie.evento.id")
+    List<Object[]> contarPorEvento(@Param("eventoIds") Collection<Long> eventoIds);
+
+    /** HU-27: inscripciones por categoría de participante ({@code [categoria, cantidad]}). */
+    @Query("SELECT ie.categoriaParticipante, COUNT(ie) FROM InscripcionEvento ie WHERE ie.evento.id IN :eventoIds "
+            + "GROUP BY ie.categoriaParticipante")
+    List<Object[]> contarPorCategoria(@Param("eventoIds") Collection<Long> eventoIds);
+
+    /** HU-27: personas distintas inscritas en alguno de los eventos. */
+    @Query("SELECT COUNT(DISTINCT ie.persona.id) FROM InscripcionEvento ie WHERE ie.evento.id IN :eventoIds")
+    long contarPersonasDistintas(@Param("eventoIds") Collection<Long> eventoIds);
     /**
      * Inscripción del evento bloqueada (SELECT ... FOR UPDATE) para que dos lecturas
      * simultáneas del mismo QR no registren la asistencia dos veces (HU-24, Criterio 3).

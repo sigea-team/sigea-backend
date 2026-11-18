@@ -142,4 +142,13 @@ public interface ActividadRepository extends JpaRepository<Actividad, Long> {
 
     /** HU-19: actividades del evento vinculadas a una propuesta (para saber cuáles ya están programadas). */
     List<Actividad> findByEvento_IdAndPropuestaIsNotNull(Long eventoId);
+
+    /** HU-27: actividades en las que la persona figura como ponente, con evento y tipo cargados. */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.evento JOIN FETCH a.tipoActividad WHERE a.ponente.id = :personaId")
+    List<Actividad> findComoPonente(@Param("personaId") Long personaId);
+
+    /** HU-27: actividades de un conjunto de eventos, con tipo, sala y ponente cargados. */
+    @Query("SELECT a FROM Actividad a JOIN FETCH a.tipoActividad LEFT JOIN FETCH a.sala LEFT JOIN FETCH a.ponente "
+            + "WHERE a.evento.id IN :eventoIds ORDER BY a.fecha, a.horaInicio, a.id")
+    List<Actividad> findDeEventos(@Param("eventoIds") Collection<Long> eventoIds);
 }
