@@ -127,7 +127,11 @@ public enum TipoOperacionAuditoria {
     INSCRIPCION_EVENTO_REGISTRADA("INSCRIPCIONES", "Inscripción de un participante al evento (HU-23)"),
     INSCRIPCION_EVENTO_CANCELADA("INSCRIPCIONES", "Cancelación de la inscripción de un participante al evento (HU-23)"),
     INSCRIPCION_ACTIVIDAD_REGISTRADA("INSCRIPCIONES", "Inscripción de un participante a una actividad (HU-23)"),
-    INSCRIPCION_ACTIVIDAD_CANCELADA("INSCRIPCIONES", "Cancelación de la inscripción de un participante a una actividad (HU-23)");
+    INSCRIPCION_ACTIVIDAD_CANCELADA("INSCRIPCIONES", "Cancelación de la inscripción de un participante a una actividad (HU-23)"),
+
+    // HU-24: código QR y registro de asistencia
+    CODIGO_QR_REENVIADO("ASISTENCIA", "Reenvío del código QR de una inscripción, sin generar uno distinto (HU-24)"),
+    ASISTENCIA_REGISTRADA("ASISTENCIA", "Registro de la asistencia de un participante a una actividad por QR o manual (HU-24)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

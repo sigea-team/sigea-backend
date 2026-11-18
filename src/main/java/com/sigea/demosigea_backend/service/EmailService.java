@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.service;
 
+import com.sigea.demosigea_backend.dto.brevo.BrevoAttachment;
 import com.sigea.demosigea_backend.dto.brevo.BrevoEmailAddress;
 import com.sigea.demosigea_backend.dto.brevo.BrevoSendEmailRequest;
 import com.sigea.demosigea_backend.dto.brevo.BrevoSendEmailResponse;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -285,12 +287,73 @@ public class EmailService {
     }
 
     /**
+     * Envía al participante su código QR de inscripción como imagen adjunta (HU-24, Criterios 1 y 4).
+     * El reenvío usa el mismo código: solo cambia el asunto y el texto.
+     *
+     * @param destinatario Correo del participante.
+     * @param nombre       Nombre del participante.
+     * @param eventoNombre Evento al que se inscribió.
+     * @param codigo       Valor del código QR (también va en texto por si el correo no muestra el adjunto).
+     * @param imagenPng    Imagen PNG del QR; si es {@code null} el correo va sin adjunto.
+     * @param reenvio      {@code true} si es un reenvío solicitado.
+     * @return {@code true} si Brevo aceptó el correo.
+     */
+    public boolean enviarCodigoQrInscripcion(String destinatario, String nombre, String eventoNombre, String codigo,
+                                             byte[] imagenPng, boolean reenvio) {
+        log.info("================================================================================");
+        log.info("🎫 [CÓDIGO QR DE INSCRIPCIÓN{}]", reenvio ? " - REENVÍO" : "");
+        log.info("Destinatario: {} ({}) - Evento: {}", nombre, destinatario, eventoNombre);
+        log.info("Código: {}", codigo);
+        log.info("================================================================================");
+
+        String introduccion = reenvio
+                ? "Como lo solicitaste, te reenviamos tu código QR de inscripción al evento <strong>%s</strong>. Es el mismo código que recibiste antes; sigue siendo válido."
+                : "Tu inscripción al evento <strong>%s</strong> quedó confirmada. Adjuntamos tu código QR personal.";
+
+        String contenidoHtml = """
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff;">
+                    <h2 style="color: #a6192e; text-align: center; margin-bottom: 20px;">Tu código QR de asistencia</h2>
+                    <p style="font-size: 16px; color: #334155;">Hola <strong>%s</strong>,</p>
+                    <p style="font-size: 15px; color: #475569; line-height: 1.6;">%s</p>
+                    <p style="font-size: 15px; color: #475569; line-height: 1.6;">
+                        Presenta el QR adjunto (en tu celular o impreso) al ingresar a cada actividad en la que estés inscrito.
+                        El organizador lo escaneará para registrar tu asistencia.
+                    </p>
+                    <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+                        Si no puedes abrir la imagen, muestra este código al organizador:<br/>
+                        <span style="font-family: Consolas, monospace; font-size: 14px; color: #0f172a; word-break: break-all;">%s</span>
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+                    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                        El código es personal. No lo compartas: con él se registra tu asistencia y se emiten tus certificados.
+                    </p>
+                </div>
+                """.formatted(nombre, introduccion.formatted(eventoNombre), codigo);
+
+        List<BrevoAttachment> adjuntos = imagenPng == null ? null
+                : List.of(new BrevoAttachment(Base64.getEncoder().encodeToString(imagenPng), "codigo-qr-sigea.png"));
+
+        String asunto = (reenvio ? "SIGEA - Reenvío de tu código QR: " : "SIGEA - Tu código QR de inscripción: ") + eventoNombre;
+        return despacharCorreoBrevo(destinatario, nombre, asunto, contenidoHtml, adjuntos);
+    }
+
+    /**
      * Ejecuta la petición HTTP POST a la API REST de Brevo para realizar el envío del correo electrónico.
      */
     private void despacharCorreoBrevo(String destinatario, String nombreDestinatario, String asunto, String contenidoHtml) {
+        despacharCorreoBrevo(destinatario, nombreDestinatario, asunto, contenidoHtml, null);
+    }
+
+    /**
+     * Envía el correo por Brevo con adjuntos opcionales.
+     *
+     * @return {@code true} si Brevo aceptó el correo; {@code false} si la API Key no está configurada o falló el envío.
+     */
+    private boolean despacharCorreoBrevo(String destinatario, String nombreDestinatario, String asunto, String contenidoHtml,
+                                         List<BrevoAttachment> adjuntos) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("⚠️ API Key de Brevo no configurada. El correo para {} se registró únicamente en los logs.", destinatario);
-            return;
+            return false;
         }
 
         try {
@@ -298,7 +361,8 @@ public class EmailService {
                     new BrevoEmailAddress(remitente, senderName),
                     List.of(new BrevoEmailAddress(destinatario, nombreDestinatario)),
                     asunto,
-                    contenidoHtml
+                    contenidoHtml,
+                    adjuntos == null || adjuntos.isEmpty() ? null : adjuntos
             );
 
             BrevoSendEmailResponse response = restClient.post()
@@ -315,8 +379,10 @@ public class EmailService {
             } else {
                 log.warn("⚠️ Brevo API respondió sin messageId para el correo a {}", destinatario);
             }
+            return true;
         } catch (Exception ex) {
             log.error("❌ Error al intentar enviar el correo vía Brevo API a {}: {}. El enlace/notificación sigue registrado en los logs.", destinatario, ex.getMessage());
+            return false;
         }
     }
 }

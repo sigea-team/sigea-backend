@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.dto.inscripcion;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sigea.demosigea_backend.model.CategoriaParticipante;
 import com.sigea.demosigea_backend.model.InscripcionEvento;
 import com.sigea.demosigea_backend.model.Persona;
@@ -41,8 +42,29 @@ public record InscripcionEventoResponse(
         LocalDateTime fechaInscripcion,
 
         @Schema(description = "Cantidad de actividades inscritas por el participante", example = "2")
-        int totalActividadesInscritas
+        int totalActividadesInscritas,
+
+        @Schema(description = "HU-24: código QR generado al confirmar la inscripción. Solo viene en la respuesta de inscripción; "
+                + "después se consulta en /inscripciones/mi-inscripcion/qr", example = "SIGEA-9f1c2a7be04d4c6b8a3e51d7c2f09b44")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String codigoQr
 ) {
+    /** Constructor previo a HU-24, sin código QR. */
+    public InscripcionEventoResponse(Long inscripcionId, Long eventoId, String eventoNombre, Long personaId,
+                                     String personaNombre, String personaCorreo, CategoriaParticipante categoria,
+                                     LocalDateTime fechaInscripcion, int totalActividadesInscritas) {
+        this(inscripcionId, eventoId, eventoNombre, personaId, personaNombre, personaCorreo, categoria,
+                fechaInscripcion, totalActividadesInscritas, null);
+    }
+
+    /** HU-24: respuesta de la inscripción con el código QR generado. */
+    public static InscripcionEventoResponse fromEntity(InscripcionEvento ie, String codigoQr) {
+        InscripcionEventoResponse base = fromEntity(ie);
+        return new InscripcionEventoResponse(base.inscripcionId(), base.eventoId(), base.eventoNombre(), base.personaId(),
+                base.personaNombre(), base.personaCorreo(), base.categoria(), base.fechaInscripcion(),
+                base.totalActividadesInscritas(), codigoQr);
+    }
+
     public static InscripcionEventoResponse fromEntity(InscripcionEvento ie) {
         Persona p = ie.getPersona();
         String nombre = p != null ? ((p.getNombres() != null ? p.getNombres() : "") + " "
