@@ -100,7 +100,8 @@ class PeriodoAcademicoServiceTest {
                 new Object[]{TipoParticipacionConferencista.conferencista, 1L},
                 new Object[]{TipoParticipacionConferencista.ponente, 2L}));
         when(propuestaRepository.contarPorEstado(anyCollection())).thenReturn(filas(
-                new Object[]{EstadoPropuesta.aprobada, 3L}, new Object[]{EstadoPropuesta.rechazada, 1L}));
+                new Object[]{EstadoPropuesta.aprobada, 2L}, new Object[]{EstadoPropuesta.ajustes, 1L},
+                new Object[]{EstadoPropuesta.rechazada, 1L}));
     }
 
     @Test
@@ -125,7 +126,9 @@ class PeriodoAcademicoServiceTest {
         assertEquals(1, r.totalConferencistas());
         assertEquals(2, r.totalPonentes());
         assertEquals(4, r.propuestasRecibidas());
-        assertEquals(3, r.propuestasAprobadas());
+        assertEquals(2, r.propuestasAprobadas());
+        assertEquals(1, r.propuestasConAjustes());
+        // Tasa = (aprobada + ajustes) / recibidas: "aprobada con ajustes" también es un resultado positivo.
         assertEquals(new BigDecimal("75.00"), r.tasaAprobacionPropuestas());
     }
 
@@ -195,7 +198,7 @@ class PeriodoAcademicoServiceTest {
         VariacionIndicadorResponse eventos = r.comparativo().stream()
                 .filter(v -> v.codigo().equals("totalEventos")).findFirst().orElseThrow();
         assertEquals("SIN_CAMBIO", eventos.tendencia());
-        assertEquals(11, r.comparativo().size());
+        assertEquals(12, r.comparativo().size());
     }
 
     @Test
@@ -240,6 +243,19 @@ class PeriodoAcademicoServiceTest {
         assertEquals("DISMINUCION", PeriodoAcademicoService.variacion("x", "X",
                 BigDecimal.TEN, BigDecimal.ONE).tendencia());
         assertEquals("NO_COMPARABLE", PeriodoAcademicoService.variacion("x", "X", null, BigDecimal.ONE).tendencia());
+    }
+
+    @Test
+    @DisplayName("Rango de fechas: un evento sin la fecha necesaria queda fuera, igual que en la consulta JPA")
+    void eventoCumple_fechasNulasCoherenteConSql() {
+        Evento sinFechas = Evento.builder().id(9L).semestre("2026-1").build();
+        LocalDate desde = LocalDate.of(2026, 1, 1);
+        LocalDate hasta = LocalDate.of(2026, 6, 30);
+
+        assertTrue(ReglasFiltroPeriodo.eventoCumple(sinFechas, FiltroPeriodo.vacio()));
+        assertFalse(ReglasFiltroPeriodo.eventoCumple(sinFechas, new FiltroPeriodo(null, desde, null, null, null)));
+        assertFalse(ReglasFiltroPeriodo.eventoCumple(sinFechas, new FiltroPeriodo(null, null, hasta, null, null)));
+        assertTrue(ReglasFiltroPeriodo.eventoCumple(evento(1L), new FiltroPeriodo(null, desde, hasta, null, null)));
     }
 
     @Test

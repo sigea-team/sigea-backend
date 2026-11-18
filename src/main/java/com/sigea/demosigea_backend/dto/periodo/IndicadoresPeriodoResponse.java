@@ -28,8 +28,12 @@ import java.util.Map;
  * @param totalConferencistas        Participaciones como conferencista.
  * @param totalPonentes              Participaciones como ponente.
  * @param propuestasRecibidas        Propuestas postuladas a las convocatorias de los eventos.
- * @param propuestasAprobadas        Propuestas en estado aprobada.
- * @param tasaAprobacionPropuestas   Porcentaje de propuestas aprobadas (null si no hay propuestas).
+ * @param propuestasAprobadas        Propuestas en estado {@code aprobada} (incluye las aprobadas con ajustes cuya
+ *                                   versión definitiva ya se aprobó, HU-19).
+ * @param propuestasConAjustes       Propuestas en estado {@code ajustes}: clasificadas como aprobadas con ajustes
+ *                                   (HU-18) y pendientes de la versión definitiva.
+ * @param tasaAprobacionPropuestas   Porcentaje de propuestas con resultado positivo
+ *                                   ({@code aprobada} + {@code ajustes}) sobre las recibidas (null si no hay propuestas).
  */
 @Schema(description = "Indicadores del periodo consultado")
 public record IndicadoresPeriodoResponse(
@@ -50,6 +54,7 @@ public record IndicadoresPeriodoResponse(
         long totalPonentes,
         long propuestasRecibidas,
         long propuestasAprobadas,
+        long propuestasConAjustes,
         BigDecimal tasaAprobacionPropuestas
 ) {
 }

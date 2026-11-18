@@ -170,7 +170,7 @@ public class PeriodoAcademicoService {
         if (datos.eventos().isEmpty()) {
             return new IndicadoresPeriodoResponse(f, false, ReglasFiltroPeriodo.mensajeSinInformacion(f),
                     0, Map.of(), Map.of(), 0, Map.of(), 0, 0, Map.of(), 0,
-                    BigDecimal.ZERO.setScale(2), 0, 0, 0, 0, null);
+                    BigDecimal.ZERO.setScale(2), 0, 0, 0, 0, 0, null);
         }
         List<Long> eventoIds = datos.eventoIds();
 
@@ -193,6 +193,8 @@ public class PeriodoAcademicoService {
         Map<String, Long> propuestasPorEstado = aMapaTexto(propuestaRepository.contarPorEstado(eventoIds));
         long propuestasRecibidas = sumar(propuestasPorEstado.values());
         long propuestasAprobadas = propuestasPorEstado.getOrDefault(EstadoPropuesta.aprobada.name(), 0L);
+        // HU-18: "aprobada con ajustes" deja la propuesta en estado ajustes; también es un resultado positivo.
+        long propuestasConAjustes = propuestasPorEstado.getOrDefault(EstadoPropuesta.ajustes.name(), 0L);
 
         long totalEventos = datos.eventos().size();
         return new IndicadoresPeriodoResponse(
@@ -203,8 +205,9 @@ public class PeriodoAcademicoService {
                 dividir(totalInscripciones, totalEventos, BigDecimal.ONE),
                 participaciones.getOrDefault(TipoParticipacionConferencista.conferencista.name(), 0L),
                 participaciones.getOrDefault(TipoParticipacionConferencista.ponente.name(), 0L),
-                propuestasRecibidas, propuestasAprobadas,
-                propuestasRecibidas == 0 ? null : dividir(propuestasAprobadas, propuestasRecibidas, CIEN));
+                propuestasRecibidas, propuestasAprobadas, propuestasConAjustes,
+                propuestasRecibidas == 0 ? null
+                        : dividir(propuestasAprobadas + propuestasConAjustes, propuestasRecibidas, CIEN));
     }
 
     /** Eventos que cumplen los filtros y sus actividades (filtradas por tipo y rango de fechas). */
@@ -265,6 +268,8 @@ public class PeriodoAcademicoService {
         lista.add(variacion("totalPonentes", "Ponentes", a.totalPonentes(), b.totalPonentes()));
         lista.add(variacion("propuestasRecibidas", "Propuestas recibidas", a.propuestasRecibidas(), b.propuestasRecibidas()));
         lista.add(variacion("propuestasAprobadas", "Propuestas aprobadas", a.propuestasAprobadas(), b.propuestasAprobadas()));
+        lista.add(variacion("propuestasConAjustes", "Propuestas aprobadas con ajustes",
+                a.propuestasConAjustes(), b.propuestasConAjustes()));
         lista.add(variacion("tasaAprobacionPropuestas", "Tasa de aprobación de propuestas (%)",
                 a.tasaAprobacionPropuestas(), b.tasaAprobacionPropuestas()));
         return lista;

@@ -53,6 +53,11 @@ final class ReglasFiltroPeriodo {
     /**
      * Indica si el evento cumple los filtros de semestre, tipo de evento y rango de fechas.
      * Un evento está en el rango si se cruza con él (empieza antes del fin y termina después del inicio).
+     * <p>
+     * Se comporta igual que {@link PeriodoAcademicoService#especificacion}: en SQL una comparación con NULL no se
+     * cumple, así que un evento sin la fecha necesaria queda fuera cuando hay rango (las columnas son NOT NULL,
+     * pero se mantiene la coherencia).
+     * </p>
      */
     static boolean eventoCumple(Evento evento, FiltroPeriodo f) {
         if (f.semestre() != null && !f.semestre().equals(evento.getSemestre())) {
@@ -62,10 +67,12 @@ final class ReglasFiltroPeriodo {
                 && (evento.getTipoEvento() == null || !f.tipoEventoId().equals(evento.getTipoEvento().getId()))) {
             return false;
         }
-        if (f.fechaHasta() != null && evento.getFechaInicio() != null && evento.getFechaInicio().isAfter(f.fechaHasta())) {
+        if (f.fechaHasta() != null
+                && (evento.getFechaInicio() == null || evento.getFechaInicio().isAfter(f.fechaHasta()))) {
             return false;
         }
-        return f.fechaDesde() == null || evento.getFechaFin() == null || !evento.getFechaFin().isBefore(f.fechaDesde());
+        return f.fechaDesde() == null
+                || (evento.getFechaFin() != null && !evento.getFechaFin().isBefore(f.fechaDesde()));
     }
 
     /**

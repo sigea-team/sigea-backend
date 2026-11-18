@@ -53,7 +53,7 @@ class PeriodoAcademicoControllerTest {
     private static IndicadoresPeriodoResponse indicadores(String semestre, long eventos) {
         return new IndicadoresPeriodoResponse(new FiltroPeriodo(semestre, null, null, null, null), eventos > 0,
                 eventos > 0 ? null : "No hay información disponible para el semestre " + semestre + ".",
-                eventos, Map.of(), Map.of(), 0, Map.of(), 0, 0, Map.of(), 0, BigDecimal.ZERO, 0, 0, 0, 0, null);
+                eventos, Map.of(), Map.of(), 0, Map.of(), 0, 0, Map.of(), 0, BigDecimal.ZERO, 0, 0, 0, 0, 0, null);
     }
 
     @Test

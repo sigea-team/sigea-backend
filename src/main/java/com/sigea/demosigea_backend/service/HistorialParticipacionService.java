@@ -251,7 +251,8 @@ public class HistorialParticipacionService {
                     evento.getFechaInicio(),
                     evento.getFechaFin(),
                     evento.getEstado(),
-                    EnumSet.copyOf(roles),
+                    roles.clone(), // EnumSet.clone() es seguro aunque el conjunto esté vacío
+
                     tema,
                     lista,
                     List.copyOf(propuestas));
