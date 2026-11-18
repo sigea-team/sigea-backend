@@ -12,6 +12,7 @@ import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.Actividad;
 import com.sigea.demosigea_backend.model.CategoriaParticipante;
+import com.sigea.demosigea_backend.model.CodigoQr;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.InscripcionActividad;
@@ -22,6 +23,7 @@ import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.TipoSala;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.ActividadRepository;
+import com.sigea.demosigea_backend.repository.AsistenciaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.InscripcionActividadRepository;
 import com.sigea.demosigea_backend.repository.InscripcionEventoRepository;
@@ -74,6 +76,8 @@ class InscripcionServiceTest {
     @Mock private PersonaRepository personaRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private AuditoriaService auditoriaService;
+    @Mock private CodigoQrService codigoQrService;
+    @Mock private AsistenciaRepository asistenciaRepository;
 
     @InjectMocks
     private InscripcionService inscripcionService;
@@ -518,6 +522,86 @@ class InscripcionServiceTest {
             assertEquals(501L, resp.inscripcionId());
             assertEquals(1, resp.actividades().size());
             assertEquals("Taller de Spring Boot", resp.actividades().get(0).actividadNombre());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    // HU-24: código QR al inscribirse y protección de la asistencia registrada
+    // ──────────────────────────────────────────────────────────────────────────────
+    @Nested
+    @DisplayName("HU-24: código QR y asistencias")
+    class Hu24CodigoQr {
+
+        @Test
+        @DisplayName("Criterio 1: al confirmar la inscripción se genera el código QR y se devuelve en la respuesta")
+        void inscribirGeneraCodigoQr() {
+            InscripcionEventoRequest request = new InscripcionEventoRequest(CategoriaParticipante.estudiante, null);
+            when(inscripcionEventoRepository.existsByEvento_IdAndPersona_Id(1L, 10L)).thenReturn(false);
+            when(inscripcionEventoRepository.save(any(InscripcionEvento.class)))
+                    .thenAnswer(inv -> {
+                        InscripcionEvento e = inv.getArgument(0);
+                        e.setId(501L);
+                        return e;
+                    });
+            when(codigoQrService.generarAlConfirmarInscripcion(any(InscripcionEvento.class)))
+                    .thenReturn("SIGEA-0123456789abcdef0123456789abcdef");
+
+            InscripcionEventoResponse resp = inscripcionService.inscribirAEvento(1L, request);
+
+            assertEquals("SIGEA-0123456789abcdef0123456789abcdef", resp.codigoQr());
+            verify(codigoQrService).generarAlConfirmarInscripcion(any(InscripcionEvento.class));
+        }
+
+        @Test
+        @DisplayName("Criterio 1: si la inscripción está duplicada no se genera código QR")
+        void inscripcionDuplicadaNoGeneraQr() {
+            InscripcionEventoRequest request = new InscripcionEventoRequest(CategoriaParticipante.estudiante, null);
+            when(inscripcionEventoRepository.existsByEvento_IdAndPersona_Id(1L, 10L)).thenReturn(true);
+
+            assertThrows(InscripcionDuplicadaException.class, () -> inscripcionService.inscribirAEvento(1L, request));
+            verify(codigoQrService, never()).generarAlConfirmarInscripcion(any());
+        }
+
+        @Test
+        @DisplayName("Mi inscripción incluye el código QR de la inscripción")
+        void miInscripcionIncluyeCodigoQr() {
+            when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
+                    .thenReturn(Optional.of(inscripcionEventoExistente));
+            when(inscripcionActividadRepository.findByInscripcion_Id(501L)).thenReturn(List.of());
+            when(codigoQrService.obtenerOCrear(inscripcionEventoExistente)).thenReturn(CodigoQr.builder()
+                    .id(9L).inscripcion(inscripcionEventoExistente).codigo("SIGEA-abc").build());
+
+            MiInscripcionResponse resp = inscripcionService.obtenerMiInscripcion(1L);
+
+            assertEquals("SIGEA-abc", resp.codigoQr());
+        }
+
+        @Test
+        @DisplayName("No se cancela la inscripción a una actividad con asistencia registrada")
+        void noCancelaActividadConAsistencia() {
+            when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
+                    .thenReturn(Optional.of(inscripcionEventoExistente));
+            InscripcionActividad ia = InscripcionActividad.builder()
+                    .id(701L).inscripcion(inscripcionEventoExistente).actividad(actividad1).build();
+            when(inscripcionActividadRepository.findByInscripcion_IdAndActividad_Id(501L, 201L))
+                    .thenReturn(Optional.of(ia));
+            when(asistenciaRepository.existsByInscripcion_IdAndActividad_Id(501L, 201L)).thenReturn(true);
+
+            OperacionNoPermitidaException ex = assertThrows(OperacionNoPermitidaException.class,
+                    () -> inscripcionService.cancelarInscripcionActividad(1L, 201L));
+            assertTrue(ex.getMessage().contains("asistencia"));
+            verify(inscripcionActividadRepository, never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("No se cancela la inscripción al evento si tiene asistencias registradas")
+        void noCancelaEventoConAsistencia() {
+            when(inscripcionEventoRepository.findByEvento_IdAndPersona_Id(1L, 10L))
+                    .thenReturn(Optional.of(inscripcionEventoExistente));
+            when(asistenciaRepository.existsByInscripcion_Id(501L)).thenReturn(true);
+
+            assertThrows(OperacionNoPermitidaException.class, () -> inscripcionService.cancelarMiInscripcionEvento(1L));
+            verify(inscripcionEventoRepository, never()).delete(any());
         }
     }
 }

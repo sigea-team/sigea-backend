@@ -1,7 +1,9 @@
 package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.InscripcionEvento;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -45,4 +47,16 @@ public interface InscripcionEventoRepository extends JpaRepository<InscripcionEv
      * Cantidad total de inscritos en un evento.
      */
     long countByEvento_Id(Long eventoId);
+
+    /**
+     * Inscripción del evento bloqueada (SELECT ... FOR UPDATE) para que dos lecturas
+     * simultáneas del mismo QR no registren la asistencia dos veces (HU-24, Criterio 3).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ie FROM InscripcionEvento ie WHERE ie.id = :id AND ie.evento.id = :eventoId")
+    Optional<InscripcionEvento> findByIdAndEvento_IdParaAsistencia(@Param("id") Long id, @Param("eventoId") Long eventoId);
+
+    /** Inscripción del evento con su persona y su evento (reenvío del QR por el organizador). */
+    @Query("SELECT ie FROM InscripcionEvento ie JOIN FETCH ie.persona JOIN FETCH ie.evento WHERE ie.id = :id AND ie.evento.id = :eventoId")
+    Optional<InscripcionEvento> findByIdAndEvento_IdConPersona(@Param("id") Long id, @Param("eventoId") Long eventoId);
 }
