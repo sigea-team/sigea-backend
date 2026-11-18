@@ -53,3 +53,5 @@ databaseChangeLog:
       file: db/changelog/changes/22-hu22-generar-publicar-agenda.sql
   - include:
       file: db/changelog/changes/23-hu19-observaciones-version-definitiva.sql
+  - include:
+      file: db/changelog/changes/24-hu24-qr-asistencia.sql

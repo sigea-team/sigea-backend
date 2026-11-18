@@ -42,8 +42,29 @@ public record MiInscripcionResponse(
         LocalDateTime fechaInscripcion,
 
         @Schema(description = "Lista de actividades en las que se encuentra inscrito")
-        List<InscripcionActividadResponse> actividades
+        List<InscripcionActividadResponse> actividades,
+
+        @Schema(description = "HU-24: código QR único de la inscripción (el mismo para todas sus actividades)",
+                example = "SIGEA-9f1c2a7be04d4c6b8a3e51d7c2f09b44")
+        String codigoQr
 ) {
+    /** Constructor previo a HU-24, sin código QR. */
+    public MiInscripcionResponse(Long inscripcionId, Long eventoId, String eventoNombre, Long personaId,
+                                 String personaNombre, String personaCorreo, CategoriaParticipante categoria,
+                                 LocalDateTime fechaInscripcion, List<InscripcionActividadResponse> actividades) {
+        this(inscripcionId, eventoId, eventoNombre, personaId, personaNombre, personaCorreo, categoria,
+                fechaInscripcion, actividades, null);
+    }
+
+    /** HU-24: detalle de la inscripción con su código QR. */
+    public static MiInscripcionResponse fromEntity(InscripcionEvento ie, List<InscripcionActividadResponse> actividades,
+                                                   String codigoQr) {
+        MiInscripcionResponse base = fromEntity(ie, actividades);
+        return new MiInscripcionResponse(base.inscripcionId(), base.eventoId(), base.eventoNombre(), base.personaId(),
+                base.personaNombre(), base.personaCorreo(), base.categoria(), base.fechaInscripcion(),
+                base.actividades(), codigoQr);
+    }
+
     public static MiInscripcionResponse fromEntity(InscripcionEvento ie, List<InscripcionActividadResponse> actividades) {
         Persona p = ie.getPersona();
         String nombre = p != null ? ((p.getNombres() != null ? p.getNombres() : "") + " "

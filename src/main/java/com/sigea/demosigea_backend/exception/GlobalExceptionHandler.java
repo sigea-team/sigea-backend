@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.sigea.demosigea_backend.dto.actividad.ProgramacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.agenda.AgendaRechazadaResponse;
 import com.sigea.demosigea_backend.dto.observacion.AprobacionRechazadaResponse;
+import com.sigea.demosigea_backend.dto.asistencia.AsistenciaRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
 
@@ -832,6 +833,29 @@ public class GlobalExceptionHandler {
                 request != null ? request.getRequestURI() : null,
                 ex.getPendientes());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * HU-24, Criterio 3: no se registra la asistencia (QR inválido, de otro evento, sin inscripción a la
+     * actividad, actividad o evento no disponible, o asistencia ya registrada).
+     *
+     * @param ex      excepción con el código de negocio y, si aplica, la asistencia existente.
+     * @param request petición HTTP.
+     * @return 404 (QR_INVALIDO) o 409 con {@link AsistenciaRechazadaResponse}.
+     */
+    @ExceptionHandler(AsistenciaRechazadaException.class)
+    public ResponseEntity<AsistenciaRechazadaResponse> handleAsistenciaRechazada(AsistenciaRechazadaException ex,
+                                                                                HttpServletRequest request) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.CONFLICT;
+        AsistenciaRechazadaResponse body = new AsistenciaRechazadaResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                request != null ? request.getRequestURI() : null,
+                ex.getAsistenciaExistente());
+        return ResponseEntity.status(status).body(body);
     }
 
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,

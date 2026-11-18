@@ -70,8 +70,8 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 ### 8. Inscripciones, Acreditación y Asistencia
 - `inscripciones_evento` ➡️ Inscripción a evento por categoría (`'estudiante'`, `'egresado'`, `'docente'`, `'particular'`).
 - `inscripciones_actividad` ➡️ Inscripción a actividades con cupo limitado.
-- `codigos_qr` ➡️ Código QR único para acreditación.
-- `asistencias` ➡️ Registro de asistencia (`'qr'`, `'manual'`).
+- `codigos_qr` ➡️ Código QR único por inscripción al evento (HU-24). Entidad `CodigoQr`; el reenvío nunca genera uno distinto.
+- `asistencias` ➡️ Registro de asistencia a actividades (`'qr'`, `'manual'`). Entidad `Asistencia` (HU-24); índice único (`inscripcion_id`, `actividad_id`).
 
 ### 9. Encuestas, Certificados, Métricas y Memorias
 - `encuestas` ➡️ Instrumentos de satisfacción para eventos o actividades.
