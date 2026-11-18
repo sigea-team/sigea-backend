@@ -11,6 +11,7 @@ import com.sigea.demosigea_backend.exception.InscripcionDuplicadaException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.Actividad;
+import com.sigea.demosigea_backend.model.CodigoQr;
 import com.sigea.demosigea_backend.model.EstadoEvento;
 import com.sigea.demosigea_backend.model.Evento;
 import com.sigea.demosigea_backend.model.InscripcionActividad;
@@ -19,6 +20,7 @@ import com.sigea.demosigea_backend.model.Persona;
 import com.sigea.demosigea_backend.model.TipoOperacionAuditoria;
 import com.sigea.demosigea_backend.model.Usuario;
 import com.sigea.demosigea_backend.repository.ActividadRepository;
+import com.sigea.demosigea_backend.repository.AsistenciaRepository;
 import com.sigea.demosigea_backend.repository.EventoRepository;
 import com.sigea.demosigea_backend.repository.InscripcionActividadRepository;
 import com.sigea.demosigea_backend.repository.InscripcionEventoRepository;
@@ -44,6 +46,7 @@ import java.util.Set;
 
 /**
  * Servicio de negocio para la gestión de inscripciones a eventos y actividades (HU-23).
+ * HU-24: al confirmar la inscripción al evento se genera su código QR ({@link CodigoQrService}).
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -68,6 +71,8 @@ public class InscripcionService {
     private final PersonaRepository personaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AuditoriaService auditoriaService;
+    private final CodigoQrService codigoQrService;
+    private final AsistenciaRepository asistenciaRepository;
 
     // ──────────────────────────────────────────────────────────────────────────────
     // Criterio 1 y Criterio 4: Inscripción al Evento
@@ -116,13 +121,16 @@ public class InscripcionService {
                         "categoria", request.categoria().name()
                 ));
 
-        return InscripcionEventoResponse.fromEntity(guardada);
+        // HU-24, Criterio 1: código QR único de la inscripción, enviado por correo después del commit
+        String codigoQr = codigoQrService.generarAlConfirmarInscripcion(guardada);
+
+        return InscripcionEventoResponse.fromEntity(guardada, codigoQr);
     }
 
     /**
-     * Consulta la inscripción del usuario autenticado en el evento junto con sus actividades inscritas.
+     * Consulta la inscripción del usuario autenticado en el evento junto con sus actividades inscritas y su código QR.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public MiInscripcionResponse obtenerMiInscripcion(Long eventoId) {
         Persona persona = personaAutenticada();
         InscripcionEvento inscripcion = inscripcionEventoRepository.findByEvento_IdAndPersona_Id(eventoId, persona.getId())
@@ -134,7 +142,11 @@ public class InscripcionService {
                 .map(InscripcionActividadResponse::fromEntity)
                 .toList();
 
-        return MiInscripcionResponse.fromEntity(inscripcion, actividadesResponse);
+        // HU-24: el código se crea aquí si la inscripción es anterior a HU-24 (por eso la transacción no es de solo lectura)
+        CodigoQr codigoQr = codigoQrService.obtenerOCrear(inscripcion);
+
+        return MiInscripcionResponse.fromEntity(inscripcion, actividadesResponse,
+                codigoQr != null ? codigoQr.getCodigo() : null);
     }
 
     /**
@@ -146,6 +158,12 @@ public class InscripcionService {
         InscripcionEvento inscripcion = inscripcionEventoRepository.findByEvento_IdAndPersona_Id(eventoId, persona.getId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encontró una inscripción activa en este evento para el participante."));
+
+        // HU-24: la asistencia registrada respalda certificados e indicadores; no se borra al cancelar
+        if (asistenciaRepository.existsByInscripcion_Id(inscripcion.getId())) {
+            throw new OperacionNoPermitidaException(
+                    "No se puede cancelar la inscripción al evento porque ya tiene asistencia registrada en alguna actividad.");
+        }
 
         Long inscripcionId = inscripcion.getId();
         inscripcionEventoRepository.delete(inscripcion);
@@ -244,6 +262,12 @@ public class InscripcionService {
         InscripcionActividad ia = inscripcionActividadRepository.findByInscripcion_IdAndActividad_Id(inscripcion.getId(), actividadId)
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encuentra inscrito en la actividad seleccionada."));
+
+        // HU-24: no se cancela una actividad a la que el participante ya asistió
+        if (asistenciaRepository.existsByInscripcion_IdAndActividad_Id(inscripcion.getId(), actividadId)) {
+            throw new OperacionNoPermitidaException(
+                    "No se puede cancelar la inscripción a la actividad porque ya tiene la asistencia registrada.");
+        }
 
         Long iaId = ia.getId();
         inscripcionActividadRepository.delete(ia);
