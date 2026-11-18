@@ -76,7 +76,9 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 ### 9. Encuestas, Certificados, Métricas y Memorias
 - [`encuestas`](#encuestas) (`Encuesta`): Instrumentos de retroalimentación y encuestas de satisfacción para eventos o actividades.
 - [`preguntas_encuesta`](#preguntas_encuesta) (`PreguntaEncuesta`): Preguntas individuales configuradas dentro de una encuesta.
+- [`opciones_pregunta_encuesta`](#opciones_pregunta_encuesta) (`OpcionPreguntaEncuesta`): Opciones de las preguntas de selección única (HU-25).
 - [`respuestas_encuesta`](#respuestas_encuesta) (`RespuestaEncuesta`): Respuestas recopiladas de los participantes a las preguntas de una encuesta.
+- [`participaciones_encuesta`](#participaciones_encuesta) (`ParticipacionEncuesta`): Constancia de quién respondió cada encuesta (HU-25).
 - [`certificados`](#certificados) (`Certificado`): Certificados digitales generados para participantes, ponentes, evaluadores y organizadores.
 - [`indicadores`](#indicadores) (`Indicador`): Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento.
 - [`memorias_historicas`](#memorias_historicas) (`MemoriaHistorica`): Consolidación final de memorias, relatorías y documentos históricos del evento cerrado.
@@ -1281,7 +1283,13 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `actividad_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`actividades.actividad_id`](#actividades) |
 | `titulo` | `VARCHAR(150)` | `String` | NO |  | - | - |
-| `estado` | `VARCHAR(20)` | `String` | NO |  | `'activa'` | - |
+| `estado` | `VARCHAR(20)` | `EstadoEncuesta` | NO |  | `'borrador'` | CHECK `estado IN ('borrador','publicada','cerrada')` (HU-25); `publicada`/`cerrada` exigen `fecha_publicacion` |
+| `descripcion` | `TEXT` | `String` | SÍ |  | - | HU-25 |
+| `anonima` | `BOOLEAN` | `boolean` | NO |  | `false` | HU-25, Criterio 2: respuestas sin persona |
+| `fecha_creacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | HU-25 |
+| `fecha_publicacion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-25 |
+| `fecha_cierre` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-25: fecha límite o fecha en que se cerró |
+| `creada_por` | `INT` | `Usuario` | SÍ | FK | - | FK -> `usuarios.usuario_id` `ON DELETE SET NULL` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1302,6 +1310,9 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `texto` | `TEXT` | `String` | NO |  | - | - |
 | `tipo_respuesta` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo_respuesta IN ('escala','texto','opcion'` |
 | `orden` | `INT` | `Integer` | NO |  | `1` | - |
+| `obligatoria` | `BOOLEAN` | `boolean` | NO |  | `true` | HU-25 |
+| `escala_minima` | `INT` | `Integer` | SÍ |  | - | HU-25: solo `escala` (CHECK `preguntas_encuesta_escala_check`: 0 ≤ mínimo < máximo ≤ 10; NULL en los demás tipos) |
+| `escala_maxima` | `INT` | `Integer` | SÍ |  | - | HU-25: solo `escala` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `encuesta_id` -> [`encuestas.encuesta_id`](#encuestas) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1318,9 +1329,11 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
 | `respuesta_id` | `SERIAL` | `Long (o Integer)` | NO | PK | - | - |
 | `pregunta_id` | `INT` | `Integer` | NO | FK | - | FK -> [`preguntas_encuesta.pregunta_id`](#preguntas_encuesta) |
-| `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
-| `respuesta` | `TEXT` | `String` | SÍ |  | - | - |
-| `fecha_respuesta` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `persona_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`personas.persona_id`](#personas). NULL en encuestas anónimas (HU-25) |
+| `respuesta` | `TEXT` | `String` | SÍ |  | - | Texto legible (valor, opción elegida o texto libre) |
+| `fecha_respuesta` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | En anónimas se guarda sin hora (HU-25) |
+| `valor_escala` | `INT` | `Integer` | SÍ |  | - | HU-25: CHECK 0 a 10 |
+| `opcion_id` | `INT` | `OpcionPreguntaEncuesta` | SÍ | FK | - | FK -> `opciones_pregunta_encuesta.opcion_id` `ON DELETE CASCADE` (HU-25) |
 
 **Índices Definidos**:
 - UNIQUE Índice `respuestas_encuesta_pregunta_id_persona_id_idx` sobre (`pregunta_id`, `persona_id`)
@@ -1328,6 +1341,39 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Relaciones Foráneas Salientes**:
 - Columna `pregunta_id` -> [`preguntas_encuesta.pregunta_id`](#preguntas_encuesta) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `persona_id` -> [`personas.persona_id`](#personas) `DEFERRABLE INITIALLY IMMEDIATE`
+
+---
+
+### `opciones_pregunta_encuesta`
+
+**Descripción**: Opciones de las preguntas de tipo `opcion` (selección única) (HU-25, changeset 25).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.OpcionPreguntaEncuesta`  
+**Clave Primaria**: `opcion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `opcion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `pregunta_id` | `INT` | `PreguntaEncuesta` | NO | FK | - | FK -> `preguntas_encuesta.pregunta_id` `ON DELETE CASCADE` |
+| `texto` | `VARCHAR(200)` | `String` | NO |  | - | - |
+| `orden` | `INT` | `Integer` | NO |  | `1` | - |
+
+---
+
+### `participaciones_encuesta`
+
+**Descripción**: Constancia de que una persona respondió una encuesta (HU-25, changeset 25). Evita respuestas duplicadas; no apunta a las respuestas, de modo que en una encuesta anónima no se sabe qué respondió cada persona.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.ParticipacionEncuesta`  
+**Clave Primaria**: `participacion_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `participacion_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `encuesta_id` | `INT` | `Encuesta` | NO | FK | - | FK -> `encuestas.encuesta_id` `ON DELETE CASCADE` |
+| `persona_id` | `INT` | `Persona` | NO | FK | - | FK -> `personas.persona_id` |
+| `fecha_respuesta` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+
+**Índices Definidos**:
+- UNIQUE `participaciones_encuesta_encuesta_persona_key` sobre (`encuesta_id`, `persona_id`)
 
 ---
 

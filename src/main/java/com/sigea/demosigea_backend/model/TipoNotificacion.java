@@ -25,5 +25,7 @@ public enum TipoNotificacion {
     /** HU-19, Criterio 1: se registraron observaciones o ajustes requeridos sobre la propuesta del autor. */
     OBSERVACIONES_PROPUESTA_REGISTRADAS,
     /** HU-19, Criterio 3: se aprobó la versión definitiva de la propuesta del autor. */
-    VERSION_DEFINITIVA_APROBADA
+    VERSION_DEFINITIVA_APROBADA,
+    /** HU-25, Criterio 1: se publicó una encuesta de satisfacción de un evento o actividad a la que el usuario asistió. */
+    ENCUESTA_PUBLICADA
 }

@@ -108,6 +108,27 @@ public class NotificacionService {
     }
 
     /**
+     * HU-25, Criterio 1: avisa en la campana a los usuarios activos que asistieron al evento (si {@code actividadId}
+     * es {@code null}) o a la actividad que ya pueden responder la encuesta. Debe llamarse dentro de la transacción
+     * que publica la encuesta.
+     *
+     * @return Número de usuarios notificados.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int notificarAAsistentes(Long eventoId, Long actividadId, TipoNotificacion tipo, String titulo,
+                                    String mensaje, String entidad, Long entidadId) {
+        String tituloAjustado = titulo.length() > LARGO_TITULO ? titulo.substring(0, LARGO_TITULO - 1) + "…" : titulo;
+        LocalDateTime ahora = LocalDateTime.now(clock);
+        int creadas = actividadId == null
+                ? notificacionRepository.crearParaAsistentesDeEvento(eventoId, tipo.name(), tituloAjustado, mensaje,
+                        entidad, entidadId, ahora)
+                : notificacionRepository.crearParaAsistentesDeActividad(actividadId, tipo.name(), tituloAjustado,
+                        mensaje, entidad, entidadId, ahora);
+        log.info("Notificación {} creada para {} asistente(s) ({} #{})", tipo, creadas, entidad, entidadId);
+        return creadas;
+    }
+
+    /**
      * Notificaciones del usuario autenticado, de la más reciente a la más antigua.
      *
      * @param soloNoLeidas Si es {@code true}, devuelve solo las pendientes.

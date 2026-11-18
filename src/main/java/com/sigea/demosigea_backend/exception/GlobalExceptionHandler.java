@@ -858,6 +858,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    /**
+     * HU-25: operación rechazada sobre una encuesta de satisfacción (configuración inválida, encuesta no editable,
+     * participante que no asistió, encuesta cerrada o ya respondida, respuestas inválidas).
+     *
+     * @param ex      excepción con el código de negocio, el estado y, si aplica, el detalle por campo o pregunta.
+     * @param request petición HTTP.
+     * @return {@link ErrorResponse} con {@code codigo} y {@code erroresValidacion}.
+     */
+    @ExceptionHandler(EncuestaException.class)
+    public ResponseEntity<ErrorResponse> handleEncuesta(EncuestaException ex, HttpServletRequest request) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.CONFLICT;
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                null,
+                ex.getErrores(),
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,
                                                     HttpServletRequest request) {
         ErrorResponse response = new ErrorResponse(
