@@ -60,21 +60,19 @@ public class EventoController {
 
     private final EventoService eventoService;
 
-    /** Estados visibles para usuarios sin permiso de gestión de eventos (asistentes). */
-    private static final Set<EstadoEvento> ESTADOS_PUBLICOS = EnumSet.of(EstadoEvento.habilitado, EstadoEvento.en_ejecucion);
+    /** Estados visibles para usuarios sin permiso de gestión de eventos (asistentes y público general). */
+    private static final Set<EstadoEvento> ESTADOS_PUBLICOS = EnumSet.of(EstadoEvento.habilitado, EstadoEvento.en_ejecucion, EstadoEvento.cerrado);
 
     /** Autoridades que permiten ver eventos en cualquier estado (incluidos los que están en configuración). */
     private static final Set<String> AUTORIDADES_GESTION = Set.of("EVENTOS_VER", "ROLE_ADMIN", "ADMIN");
 
     /**
-     * @param authentication usuario autenticado (puede ser null en pruebas standalone).
-     * @return true si el usuario puede ver eventos en cualquier estado; sin autenticación en el contexto
-     *         (pruebas unitarias del controlador) se asume acceso completo, ya que el filtro de seguridad
-     *         impide llegar aquí sin token en ejecución real.
+     * @param authentication usuario autenticado en la petición (null para anónimos o en tests).
+     * @return true si el usuario tiene permisos de gestión para ver todos los estados.
      */
     private static boolean puedeVerTodos(Authentication authentication) {
-        if (authentication == null) {
-            return true;
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return false;
         }
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -93,7 +91,6 @@ public class EventoController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EventoResponse>> listar(
             @Parameter(description = "Estado del evento", example = "en_configuracion")
             @RequestParam(required = false) EstadoEvento estado,
@@ -104,7 +101,7 @@ public class EventoController {
         if (puedeVerTodos(authentication)) {
             return ResponseEntity.ok(eventoService.listar(estado, semestre));
         }
-        // Asistentes y demás usuarios sin EVENTOS_VER: solo eventos publicados (habilitado) o en ejecución.
+        // Asistentes y público general: solo eventos publicados (habilitado, en_ejecucion, cerrado).
         return ResponseEntity.ok(eventoService.listar(estado, semestre).stream()
                 .filter(e -> ESTADOS_PUBLICOS.contains(e.estado()))
                 .toList());
@@ -118,7 +115,6 @@ public class EventoController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<EventoResponse> obtenerPorId(@PathVariable Long id, Authentication authentication) {
         EventoResponse evento = eventoService.obtenerPorId(id);
         if (!puedeVerTodos(authentication) && !ESTADOS_PUBLICOS.contains(evento.estado())) {

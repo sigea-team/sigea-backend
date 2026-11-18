@@ -49,6 +49,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // HU-11 (Criterio 1): consulta pública de convocatorias publicadas, sin iniciar sesión.
                         .requestMatchers(HttpMethod.GET, "/api/v1/publico/**").permitAll()
+                        // Consulta de eventos publicados / habilitados (sin requerir sesión)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/eventos", "/api/v1/eventos/*").permitAll()
                         // HU-23: consulta de cupos disponibles de actividades
                         .requestMatchers(HttpMethod.GET, "/api/v1/eventos/*/actividades/*/cupos").permitAll()
                         // HU-12: el conferencista invitado completa su registro desde el enlace del correo, sin sesión.

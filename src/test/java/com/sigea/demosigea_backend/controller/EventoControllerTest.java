@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -195,6 +196,44 @@ class EventoControllerTest {
         when(eventoService.publicar(1L)).thenReturn(respuesta(1L, null, EstadoEvento.habilitado));
 
         mockMvc.perform(post("/api/v1/eventos/1/publicar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.estado").value("habilitado"));
+    }
+
+    @Test
+    @DisplayName("Listar sin autenticación filtra eventos en configuración y solo devuelve publicados")
+    void listar_sinAutenticacion_filtraConfiguracion() throws Exception {
+        when(eventoService.listar(isNull(), isNull())).thenReturn(List.of(
+                respuesta(1L, null, EstadoEvento.habilitado),
+                respuesta(2L, null, EstadoEvento.en_configuracion),
+                respuesta(3L, null, EstadoEvento.en_ejecucion),
+                respuesta(4L, null, EstadoEvento.cerrado)
+        ));
+
+        mockMvc.perform(get("/api/v1/eventos"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[1].id").value(3))
+                .andExpect(jsonPath("$[2].id").value(4));
+    }
+
+    @Test
+    @DisplayName("Consultar por ID sin autenticación sobre evento en configuración retorna 404")
+    void obtenerPorId_sinAutenticacion_enConfiguracion_retorna404() throws Exception {
+        when(eventoService.obtenerPorId(2L)).thenReturn(respuesta(2L, null, EstadoEvento.en_configuracion));
+
+        mockMvc.perform(get("/api/v1/eventos/2"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Consultar por ID sin autenticación sobre evento habilitado retorna 200")
+    void obtenerPorId_sinAutenticacion_habilitado_retorna200() throws Exception {
+        when(eventoService.obtenerPorId(1L)).thenReturn(respuesta(1L, null, EstadoEvento.habilitado));
+
+        mockMvc.perform(get("/api/v1/eventos/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.estado").value("habilitado"));
