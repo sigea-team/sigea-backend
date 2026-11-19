@@ -76,8 +76,8 @@ public class RespuestaEncuestaService {
     private final Clock clock;
 
     /**
-     * Criterio 1: encuestas habilitadas para el participante autenticado. Incluye las publicadas de eventos y
-     * actividades a las que asistió, y las cerradas que ya respondió.
+     * Criterio 1: encuestas habilitadas para el participante autenticado, de eventos y actividades a las que asistió:
+     * las que todavía puede responder y las que ya respondió. Las cerradas o vencidas sin responder no se muestran.
      */
     @Transactional(readOnly = true)
     public List<EncuestaParticipanteResponse> misEncuestas() {
@@ -89,7 +89,9 @@ public class RespuestaEncuestaService {
         LocalDateTime ahora = ahora();
         return encuestaRepository.findHabilitadasParaPersona(persona.getId(),
                         EnumSet.of(EstadoEncuesta.publicada, EstadoEncuesta.cerrada)).stream()
-                .filter(e -> e.getEstado() == EstadoEncuesta.publicada || respondidas.containsKey(e.getId()))
+                // Las que todavía se pueden responder y las ya respondidas. Una que dejó de recibir respuestas sin
+                // que la persona respondiera (cerrada a mano o con la fecha de cierre vencida) no se muestra.
+                .filter(e -> e.recibeRespuestas(ahora) || respondidas.containsKey(e.getId()))
                 .map(e -> aResponse(e, respondidas.get(e.getId()), ahora, false))
                 .toList();
     }

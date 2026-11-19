@@ -44,8 +44,9 @@ public class EncuestaParticipanteController {
     private final RespuestaEncuestaService respuestaEncuestaService;
 
     @Operation(summary = "Mis encuestas",
-            description = "Criterio 1: encuestas publicadas de los eventos y actividades a los que asistió el usuario, "
-                    + "y las cerradas que ya respondió, con la marca de respondida.")
+            description = "Criterio 1: encuestas de los eventos y actividades a los que asistió el usuario que todavía "
+                    + "puede responder, y las que ya respondió (con la marca de respondida). Las que se cerraron o "
+                    + "vencieron sin que respondiera no se muestran.")
     @GetMapping("/mias")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EncuestaParticipanteResponse>> misEncuestas() {

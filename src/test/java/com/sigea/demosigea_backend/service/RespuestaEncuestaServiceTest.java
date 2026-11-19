@@ -316,15 +316,17 @@ class RespuestaEncuestaServiceTest {
     // ──────────────────────────── Criterio 1: mis encuestas ────────────────────────────
 
     @Test
-    @DisplayName("Criterio 1: mis encuestas lista las publicadas habilitadas y marca las respondidas")
+    @DisplayName("Criterio 1: mis encuestas lista las que puede responder y las respondidas; oculta cerradas o vencidas sin responder")
     void misEncuestas() {
         Encuesta abierta = encuesta(true, EstadoEncuesta.publicada);
+        Encuesta vencidaSinResponder = Encuesta.builder().id(6L).evento(evento).titulo("Vencida")
+                .estado(EstadoEncuesta.publicada).fechaCierre(AHORA.minusMinutes(5)).build();
         Encuesta cerradaSinResponder = Encuesta.builder().id(8L).evento(evento).titulo("Cerrada")
                 .estado(EstadoEncuesta.cerrada).fechaCierre(AHORA.minusDays(1)).build();
         Encuesta cerradaRespondida = Encuesta.builder().id(9L).evento(evento).titulo("Cerrada respondida")
                 .estado(EstadoEncuesta.cerrada).fechaCierre(AHORA.minusDays(1)).build();
         when(encuestaRepository.findHabilitadasParaPersona(10L, EnumSet.of(EstadoEncuesta.publicada, EstadoEncuesta.cerrada)))
-                .thenReturn(List.of(abierta, cerradaSinResponder, cerradaRespondida));
+                .thenReturn(List.of(abierta, vencidaSinResponder, cerradaSinResponder, cerradaRespondida));
         when(participacionRepository.findByPersona_Id(10L)).thenReturn(List.of(
                 ParticipacionEncuesta.builder().encuesta(cerradaRespondida).persona(ana).fechaRespuesta(AHORA.minusDays(2)).build()));
 

@@ -8,6 +8,11 @@
 --   * respuestas anónimas o identificadas según la configuración (Criterio 2),
 --   * un registro de quién respondió, que evita respuestas duplicadas sin ligar la persona a sus respuestas
 --     cuando la encuesta es anónima.
+--
+-- ATENCIÓN (rollback): deshacer hu25-004 BORRA las respuestas de las encuestas anónimas (persona_id NULL),
+-- porque persona_id vuelve a ser NOT NULL y esas filas no tienen persona. Haga un respaldo de
+-- respuestas_encuesta antes de ejecutar un rollback en una base con datos reales.
+-- (La nota va en la cabecera y no dentro del changeset para no cambiar su checksum.)
 -- =====================================================================
 
 --changeset SIGEA:hu25-001-encuestas-configuracion
