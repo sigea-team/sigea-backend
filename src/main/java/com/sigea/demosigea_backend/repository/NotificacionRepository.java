@@ -77,6 +77,51 @@ public interface NotificacionRepository extends JpaRepository<Notificacion, Long
                                       @Param("entidadId") Long entidadId,
                                       @Param("fechaCreacion") LocalDateTime fechaCreacion);
 
+    /**
+     * HU-25, Criterio 1: crea la misma notificación para los usuarios activos que asistieron a alguna actividad del
+     * evento (asistencias → inscripciones_evento → usuarios por persona).
+     *
+     * @return Número de notificaciones creadas (una por usuario).
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, entidad, entidad_id, leida, fecha_creacion)
+            SELECT DISTINCT u.usuario_id, :tipo, :titulo, :mensaje, :entidad, :entidadId, false, :fechaCreacion
+            FROM asistencias a
+            JOIN inscripciones_evento ie ON ie.inscripcion_id = a.inscripcion_id
+            JOIN usuarios u ON u.persona_id = ie.persona_id
+            WHERE ie.evento_id = :eventoId AND u.estado = 'activo'
+            """, nativeQuery = true)
+    int crearParaAsistentesDeEvento(@Param("eventoId") Long eventoId,
+                                    @Param("tipo") String tipo,
+                                    @Param("titulo") String titulo,
+                                    @Param("mensaje") String mensaje,
+                                    @Param("entidad") String entidad,
+                                    @Param("entidadId") Long entidadId,
+                                    @Param("fechaCreacion") LocalDateTime fechaCreacion);
+
+    /**
+     * HU-25, Criterio 1: crea la misma notificación para los usuarios activos que asistieron a la actividad.
+     *
+     * @return Número de notificaciones creadas (una por usuario).
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, entidad, entidad_id, leida, fecha_creacion)
+            SELECT DISTINCT u.usuario_id, :tipo, :titulo, :mensaje, :entidad, :entidadId, false, :fechaCreacion
+            FROM asistencias a
+            JOIN inscripciones_evento ie ON ie.inscripcion_id = a.inscripcion_id
+            JOIN usuarios u ON u.persona_id = ie.persona_id
+            WHERE a.actividad_id = :actividadId AND u.estado = 'activo'
+            """, nativeQuery = true)
+    int crearParaAsistentesDeActividad(@Param("actividadId") Long actividadId,
+                                       @Param("tipo") String tipo,
+                                       @Param("titulo") String titulo,
+                                       @Param("mensaje") String mensaje,
+                                       @Param("entidad") String entidad,
+                                       @Param("entidadId") Long entidadId,
+                                       @Param("fechaCreacion") LocalDateTime fechaCreacion);
+
     /** Marca como leídas todas las notificaciones pendientes del usuario. */
     @Modifying
     @Query("UPDATE Notificacion n SET n.leida = true, n.fechaLectura = :fecha "

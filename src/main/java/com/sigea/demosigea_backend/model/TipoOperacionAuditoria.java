@@ -131,7 +131,15 @@ public enum TipoOperacionAuditoria {
 
     // HU-24: código QR y registro de asistencia
     CODIGO_QR_REENVIADO("ASISTENCIA", "Reenvío del código QR de una inscripción, sin generar uno distinto (HU-24)"),
-    ASISTENCIA_REGISTRADA("ASISTENCIA", "Registro de la asistencia de un participante a una actividad por QR o manual (HU-24)");
+    ASISTENCIA_REGISTRADA("ASISTENCIA", "Registro de la asistencia de un participante a una actividad por QR o manual (HU-24)"),
+
+    // HU-25: encuestas de satisfacción
+    ENCUESTA_CREADA("ENCUESTAS", "Creación de una encuesta de satisfacción del evento o de una actividad (HU-25)"),
+    ENCUESTA_ACTUALIZADA("ENCUESTAS", "Modificación de una encuesta de satisfacción en borrador (HU-25)"),
+    ENCUESTA_ELIMINADA("ENCUESTAS", "Eliminación de una encuesta de satisfacción sin respuestas (HU-25)"),
+    ENCUESTA_PUBLICADA("ENCUESTAS", "Publicación de una encuesta de satisfacción para los participantes que asistieron (HU-25)"),
+    ENCUESTA_CERRADA("ENCUESTAS", "Cierre de una encuesta de satisfacción; no recibe más respuestas (HU-25)"),
+    ENCUESTA_RESPONDIDA("ENCUESTAS", "Un participante respondió una encuesta de satisfacción; no incluye sus respuestas (HU-25)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

@@ -35,4 +35,18 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
     @Query("SELECT a FROM Asistencia a JOIN FETCH a.inscripcion i JOIN FETCH i.persona "
             + "WHERE a.actividad.id = :actividadId ORDER BY a.fechaHoraRegistro ASC, a.id ASC")
     List<Asistencia> findByActividadConParticipante(@Param("actividadId") Long actividadId);
+
+    /** HU-25, Criterio 3: la persona registró asistencia a la actividad. */
+    boolean existsByInscripcion_Persona_IdAndActividad_Id(Long personaId, Long actividadId);
+
+    /** HU-25, Criterio 3: la persona registró asistencia a alguna actividad del evento. */
+    boolean existsByInscripcion_Persona_IdAndInscripcion_Evento_Id(Long personaId, Long eventoId);
+
+    /** HU-25: personas distintas con asistencia a alguna actividad del evento (habilitadas para su encuesta general). */
+    @Query("SELECT COUNT(DISTINCT a.inscripcion.persona.id) FROM Asistencia a WHERE a.inscripcion.evento.id = :eventoId")
+    long contarPersonasConAsistenciaEnEvento(@Param("eventoId") Long eventoId);
+
+    /** HU-25: personas distintas con asistencia a la actividad (habilitadas para su encuesta). */
+    @Query("SELECT COUNT(DISTINCT a.inscripcion.persona.id) FROM Asistencia a WHERE a.actividad.id = :actividadId")
+    long contarPersonasConAsistenciaEnActividad(@Param("actividadId") Long actividadId);
 }

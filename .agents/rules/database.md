@@ -17,7 +17,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 
 ---
 
-## 🗺️ Mapa de Módulos y Tablas del Sistema (43 Tablas)
+## 🗺️ Mapa de Módulos y Tablas del Sistema (45 Tablas)
 
 ### 1. Seguridad, Usuarios y Control de Acceso
 - `personas` ➡️ Datos personales y de contacto.
@@ -74,9 +74,11 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `asistencias` ➡️ Registro de asistencia a actividades (`'qr'`, `'manual'`). Entidad `Asistencia` (HU-24); índice único (`inscripcion_id`, `actividad_id`).
 
 ### 9. Encuestas, Certificados, Métricas y Memorias
-- `encuestas` ➡️ Instrumentos de satisfacción para eventos o actividades.
-- `preguntas_encuesta` ➡️ Preguntas (`'escala'`, `'texto'`, `'opcion'`).
-- `respuestas_encuesta` ➡️ Respuestas individuales por participante.
+- `encuestas` ➡️ Encuestas de satisfacción del evento (sin actividad) o de una actividad. Estados: `'borrador'`, `'publicada'`, `'cerrada'`; `anonima` define si las respuestas se guardan sin persona. Entidad `Encuesta` (HU-25, changeset 25).
+- `preguntas_encuesta` ➡️ Preguntas (`'escala'`, `'texto'`, `'opcion'`), obligatorias u opcionales; las de escala con `escala_minima`/`escala_maxima` (0 a 10). Entidad `PreguntaEncuesta`.
+- `opciones_pregunta_encuesta` ➡️ Opciones de las preguntas de tipo `'opcion'` (selección única). Entidad `OpcionPreguntaEncuesta` (HU-25).
+- `respuestas_encuesta` ➡️ Respuestas por pregunta, con `valor_escala` u `opcion_id` para consolidar. En encuestas anónimas `persona_id` es NULL y la fecha se guarda sin hora. Entidad `RespuestaEncuesta`.
+- `participaciones_encuesta` ➡️ Quién respondió cada encuesta (único por encuesta y persona); evita duplicados sin ligar la persona a sus respuestas. Entidad `ParticipacionEncuesta` (HU-25).
 - `certificados` ➡️ Certificados emitidos (`'asistente'`, `'ponente'`, `'evaluador'`, `'organizador'`).
 - `indicadores` ➡️ Indicadores de gestión y métricas.
 - `memorias_historicas` ➡️ Memorias finales y actas de consolidación del evento.

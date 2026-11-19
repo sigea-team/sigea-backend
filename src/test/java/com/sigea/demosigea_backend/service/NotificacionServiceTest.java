@@ -215,4 +215,32 @@ class NotificacionServiceTest {
         assertEquals(12L, creada.getEntidadId());
         assertEquals(Boolean.FALSE, creada.getLeida());
     }
+
+    @Test
+    @DisplayName("HU-25, Criterio 1: la encuesta de una actividad se avisa a quienes asistieron a esa actividad")
+    void notificaAsistentesDeActividad() {
+        when(notificacionRepository.crearParaAsistentesDeActividad(eq(201L), eq("ENCUESTA_PUBLICADA"), anyString(),
+                anyString(), eq("encuestas"), eq(7L), eq(AHORA))).thenReturn(2);
+
+        int creadas = notificacionService.notificarAAsistentes(1L, 201L, TipoNotificacion.ENCUESTA_PUBLICADA,
+                "Encuesta de satisfacción", "Ya puedes responderla.", "encuestas", 7L);
+
+        assertEquals(2, creadas);
+        verify(notificacionRepository, never()).crearParaAsistentesDeEvento(any(), anyString(), anyString(),
+                anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("HU-25, Criterio 1: la encuesta general se avisa a quienes asistieron a alguna actividad del evento")
+    void notificaAsistentesDelEvento() {
+        when(notificacionRepository.crearParaAsistentesDeEvento(eq(1L), eq("ENCUESTA_PUBLICADA"), anyString(),
+                anyString(), eq("encuestas"), eq(7L), eq(AHORA))).thenReturn(3);
+
+        int creadas = notificacionService.notificarAAsistentes(1L, null, TipoNotificacion.ENCUESTA_PUBLICADA,
+                "Encuesta de satisfacción", "Ya puedes responderla.", "encuestas", 7L);
+
+        assertEquals(3, creadas);
+        verify(notificacionRepository, never()).crearParaAsistentesDeActividad(any(), anyString(), anyString(),
+                anyString(), anyString(), any(), any());
+    }
 }
