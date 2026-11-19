@@ -129,3 +129,43 @@ JOIN "permisos" p ON p."codigo" = 'ENCUESTAS_GESTIONAR'
 ON CONFLICT DO NOTHING;
 --rollback DELETE FROM "roles_permisos" WHERE "permiso_id" IN (SELECT "permiso_id" FROM "permisos" WHERE "codigo" = 'ENCUESTAS_GESTIONAR');
 --rollback DELETE FROM "permisos" WHERE "codigo" = 'ENCUESTAS_GESTIONAR';
+
+--changeset SIGEA:hu25-007-respuestas-coherentes-con-participacion splitStatements:false
+--comment: Integridad entre respuestas y participaciones (revisión del PR). Una respuesta identificada (persona_id no
+--comment: nulo) exige que esa persona tenga participación en la encuesta de la pregunta y que la encuesta no sea
+--comment: anónima; una respuesta anónima (persona_id NULL) solo se admite en una encuesta anónima. En las anónimas no
+--comment: se liga la respuesta con la participación a propósito: hacerlo rompería el anonimato (Criterio 2).
+CREATE OR REPLACE FUNCTION "fn_respuestas_encuesta_coherentes"() RETURNS trigger AS $$
+DECLARE
+    v_encuesta_id INT;
+    v_anonima BOOLEAN;
+BEGIN
+    SELECT e."encuesta_id", e."anonima" INTO v_encuesta_id, v_anonima
+    FROM "preguntas_encuesta" p JOIN "encuestas" e ON e."encuesta_id" = p."encuesta_id"
+    WHERE p."pregunta_id" = NEW."pregunta_id";
+
+    IF NEW."persona_id" IS NULL THEN
+        IF NOT v_anonima THEN
+            RAISE EXCEPTION 'La encuesta % es identificada: la respuesta debe indicar la persona', v_encuesta_id
+                USING ERRCODE = '23502';
+        END IF;
+    ELSE
+        IF v_anonima THEN
+            RAISE EXCEPTION 'La encuesta % es anónima: la respuesta no puede indicar la persona', v_encuesta_id
+                USING ERRCODE = '23514';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM "participaciones_encuesta" pe
+                       WHERE pe."encuesta_id" = v_encuesta_id AND pe."persona_id" = NEW."persona_id") THEN
+            RAISE EXCEPTION 'La persona % no tiene participación registrada en la encuesta %', NEW."persona_id", v_encuesta_id
+                USING ERRCODE = '23503';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "trg_respuestas_encuesta_coherentes"
+BEFORE INSERT OR UPDATE OF "pregunta_id", "persona_id" ON "respuestas_encuesta"
+FOR EACH ROW EXECUTE FUNCTION "fn_respuestas_encuesta_coherentes"();
+--rollback DROP TRIGGER IF EXISTS "trg_respuestas_encuesta_coherentes" ON "respuestas_encuesta";
+--rollback DROP FUNCTION IF EXISTS "fn_respuestas_encuesta_coherentes"();

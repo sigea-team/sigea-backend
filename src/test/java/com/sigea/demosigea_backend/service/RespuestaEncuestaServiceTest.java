@@ -34,7 +34,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -50,7 +49,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -102,6 +100,7 @@ class RespuestaEncuestaServiceTest {
         when(asistenciaRepository.existsByInscripcion_Persona_IdAndActividad_Id(10L, 201L)).thenReturn(true);
         when(asistenciaRepository.existsByInscripcion_Persona_IdAndInscripcion_Evento_Id(10L, 1L)).thenReturn(true);
         when(participacionRepository.findByEncuesta_IdAndPersona_Id(any(), any())).thenReturn(Optional.empty());
+        when(participacionRepository.registrarSiNoExiste(any(), any(), any())).thenReturn(1);
     }
 
     @AfterEach
@@ -172,11 +171,8 @@ class RespuestaEncuestaServiceTest {
         assertEquals("Sí", guardadas.get(1).getRespuesta());
         assertEquals("Muy buen taller", guardadas.get(2).getRespuesta());
 
-        ArgumentCaptor<ParticipacionEncuesta> participacion = ArgumentCaptor.forClass(ParticipacionEncuesta.class);
-        verify(participacionRepository).save(participacion.capture());
-        assertSame(ana, participacion.getValue().getPersona());
-        assertSame(e, participacion.getValue().getEncuesta());
-        assertEquals(AHORA, participacion.getValue().getFechaRespuesta());
+        // La constancia de quién respondió guarda la persona y la fecha y hora completas.
+        verify(participacionRepository).registrarSiNoExiste(e.getId(), ana.getId(), AHORA);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.ENCUESTA_RESPONDIDA), eq("encuestas"), eq(7L), any());
     }
 
@@ -207,7 +203,7 @@ class RespuestaEncuestaServiceTest {
         assertTrue(ex.getErrores().containsKey("pregunta_41"));
         assertTrue(ex.getErrores().containsKey("pregunta_77"));
         assertFalse(ex.getErrores().containsKey("pregunta_42"));
-        verify(participacionRepository, never()).save(any());
+        verify(participacionRepository, never()).registrarSiNoExiste(any(), any(), any());
         verify(respuestaRepository, never()).saveAll(anyIterable());
     }
 
@@ -245,11 +241,10 @@ class RespuestaEncuestaServiceTest {
     }
 
     @Test
-    @DisplayName("Dos envíos simultáneos: el índice único deja pasar uno; el otro → 409 ENCUESTA_YA_RESPONDIDA")
+    @DisplayName("Dos envíos simultáneos: ON CONFLICT DO NOTHING no inserta el segundo → 409 ENCUESTA_YA_RESPONDIDA")
     void envioSimultaneo() {
         encuesta(true, EstadoEncuesta.publicada);
-        when(participacionRepository.save(any(ParticipacionEncuesta.class)))
-                .thenThrow(new DataIntegrityViolationException("participaciones_encuesta_encuesta_persona_key"));
+        when(participacionRepository.registrarSiNoExiste(7L, 10L, AHORA)).thenReturn(0);
 
         EncuestaException ex = assertThrows(EncuestaException.class,
                 () -> servicio.responder(7L, respuestas(escala(40L, 4), opcion(41L, 410L))));
@@ -298,7 +293,7 @@ class RespuestaEncuestaServiceTest {
         EncuestaException responder = assertThrows(EncuestaException.class,
                 () -> servicio.responder(7L, respuestas(escala(40L, 4), opcion(41L, 410L))));
         assertEquals(EncuestaException.NO_HABILITADA, responder.getCodigo());
-        verify(participacionRepository, never()).save(any());
+        verify(participacionRepository, never()).registrarSiNoExiste(any(), any(), any());
     }
 
     @Test

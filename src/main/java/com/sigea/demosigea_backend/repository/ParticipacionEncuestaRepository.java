@@ -2,10 +2,12 @@ package com.sigea.demosigea_backend.repository;
 
 import com.sigea.demosigea_backend.model.ParticipacionEncuesta;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,24 @@ public interface ParticipacionEncuestaRepository extends JpaRepository<Participa
 
     /** Constancia de que la persona ya respondió la encuesta. */
     Optional<ParticipacionEncuesta> findByEncuesta_IdAndPersona_Id(Long encuestaId, Long personaId);
+
+    /**
+     * Registra que la persona respondió la encuesta si todavía no lo había hecho (CU-22, flujo alterno 1.1).
+     * Con {@code ON CONFLICT DO NOTHING} un envío duplicado, también uno simultáneo, no lanza una excepción de la base
+     * de datos ni deja la transacción marcada para rollback: simplemente no inserta. Si otra transacción está
+     * registrando la misma participación, esta espera a que termine y luego inserta (si la otra se revirtió) o no.
+     *
+     * @return 1 si se registró; 0 si la persona ya había respondido.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO participaciones_encuesta (encuesta_id, persona_id, fecha_respuesta)
+            VALUES (:encuestaId, :personaId, :fechaRespuesta)
+            ON CONFLICT (encuesta_id, persona_id) DO NOTHING
+            """, nativeQuery = true)
+    int registrarSiNoExiste(@Param("encuestaId") Long encuestaId,
+                            @Param("personaId") Long personaId,
+                            @Param("fechaRespuesta") LocalDateTime fechaRespuesta);
 
     /** Cantidad de personas que respondieron la encuesta. */
     long countByEncuesta_Id(Long encuestaId);

@@ -1338,6 +1338,9 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 **Índices Definidos**:
 - UNIQUE Índice `respuestas_encuesta_pregunta_id_persona_id_idx` sobre (`pregunta_id`, `persona_id`)
 
+**Triggers** (HU-25, changeset hu25-007):
+- `trg_respuestas_encuesta_coherentes` (BEFORE INSERT OR UPDATE OF `pregunta_id`, `persona_id`): una respuesta con `persona_id` exige encuesta identificada y participación de esa persona en `participaciones_encuesta`; una respuesta sin `persona_id` solo se admite en encuestas anónimas. Las anónimas no se ligan a la participación para no romper el anonimato.
+
 **Relaciones Foráneas Salientes**:
 - Columna `pregunta_id` -> [`preguntas_encuesta.pregunta_id`](#preguntas_encuesta) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `persona_id` -> [`personas.persona_id`](#personas) `DEFERRABLE INITIALLY IMMEDIATE`

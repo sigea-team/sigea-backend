@@ -26,7 +26,6 @@ import com.sigea.demosigea_backend.repository.RespuestaEncuestaRepository;
 import com.sigea.demosigea_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -56,7 +55,10 @@ import java.util.Optional;
  *   <li>Criterio 3: si no registró asistencia (HU-24), la encuesta no se le muestra ni se le permite responder.</li>
  * </ul>
  * Mientras se guardan las respuestas, la encuesta se bloquea en modo compartido: varias personas responden a la vez,
- * pero el cierre espera y las respuestas posteriores la ven cerrada.
+ * pero el cierre espera y las respuestas posteriores la ven cerrada. La participación se registra con
+ * {@code INSERT ... ON CONFLICT DO NOTHING}, de modo que un envío duplicado simultáneo se detecta sin excepciones de
+ * la base de datos. El trigger {@code trg_respuestas_encuesta_coherentes} (changeset hu25-007) garantiza en la base
+ * que una respuesta identificada tenga su participación y que anónima/identificada coincida con la encuesta.
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -142,15 +144,9 @@ public class RespuestaEncuestaService {
 
         List<RespuestaEncuesta> respuestas = validarRespuestas(encuesta, request);
 
-        try {
-            participacionRepository.save(ParticipacionEncuesta.builder()
-                    .encuesta(encuesta)
-                    .persona(persona)
-                    .fechaRespuesta(ahora)
-                    .build());
-            participacionRepository.flush();
-        } catch (DataIntegrityViolationException ex) {
-            // Dos envíos simultáneos de la misma persona: el índice único deja pasar solo el primero.
+        // Dos envíos simultáneos de la misma persona: ON CONFLICT DO NOTHING deja pasar solo el primero, sin
+        // excepción de la base de datos. El segundo no inserta nada y se responde 409 antes de guardar respuestas.
+        if (participacionRepository.registrarSiNoExiste(encuestaId, persona.getId(), ahora) == 0) {
             throw yaRespondida(encuesta, null);
         }
 
