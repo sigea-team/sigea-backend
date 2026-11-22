@@ -865,6 +865,7 @@ public class ConferencistaService {
     }
 
     public void validarAsociacionModificable(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (!ESTADOS_ASOCIACION_MODIFICABLE.contains(evento.getEstado())) {
             throw new OperacionNoPermitidaException(String.format(
                     "Los conferencistas del evento '%s' ya no se pueden asociar ni retirar (estado actual: %s). "

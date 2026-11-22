@@ -28,8 +28,19 @@ public record EventoResponse(
         @Schema(example = "2026-2") String semestre,
         @Schema(example = "en_configuracion") EstadoEvento estado,
         @Schema(description = "ID del evento base (null si este registro es el evento base)", example = "1") Long eventoBaseId,
-        @Schema(description = "Indica si el registro es una edición derivada", example = "true") boolean esEdicion
+        @Schema(description = "Indica si el registro es una edición derivada", example = "true") boolean esEdicion,
+        @Schema(description = "HU-28: el evento fue cerrado formalmente; su información está en la memoria histórica "
+                + "y es solo consulta", example = "false") boolean archivado
 ) {
+
+    /** Constructor sin el indicador de memoria histórica (evento no archivado). */
+    public EventoResponse(Long id, String nombre, String objetivo, String descripcion, String tipo, Long tipoEventoId,
+                          ModalidadEvento modalidad, LocalDate fechaInicio, LocalDate fechaFin, String semestre,
+                          EstadoEvento estado, Long eventoBaseId, boolean esEdicion) {
+        this(id, nombre, objetivo, descripcion, tipo, tipoEventoId, modalidad, fechaInicio, fechaFin, semestre, estado,
+                eventoBaseId, esEdicion, false);
+    }
+
     /**
      * Construye el DTO a partir de la entidad.
      *
@@ -51,7 +62,8 @@ public record EventoResponse(
                 evento.getSemestre(),
                 evento.getEstado(),
                 baseId,
-                baseId != null
+                baseId != null,
+                evento.isArchivado()
         );
     }
 }

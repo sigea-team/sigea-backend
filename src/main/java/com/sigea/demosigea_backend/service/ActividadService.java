@@ -628,6 +628,7 @@ public class ActividadService {
     private Evento eventoParaProgramar(Long eventoId) {
         Evento evento = eventoRepository.findByIdParaProgramar(eventoId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se encontró el evento con ID: " + eventoId));
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento.getEstado() == EstadoEvento.cerrado) {
             throw new OperacionNoPermitidaException("El evento «" + evento.getNombre()
                     + "» está cerrado: ya no se puede modificar su agenda.");

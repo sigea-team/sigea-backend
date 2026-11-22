@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Cambia automáticamente el estado de los eventos según sus fechas:
- * {@code habilitado} → {@code en_ejecucion} al llegar la fecha de inicio. El cierre del evento
- * ({@code cerrado}) no es automático: corresponde al cierre formal (CU-32).
+ * {@code habilitado} → {@code en_ejecucion} al llegar la fecha de inicio y → {@code cerrado} al pasar la fecha de fin.
+ * El cierre formal (HU-28, CU-32), que consolida la memoria histórica y deja el evento solo de consulta, no es
+ * automático: lo confirma el organizador o el administrador.
  * <p>
  * Se ejecuta:
  * <ul>

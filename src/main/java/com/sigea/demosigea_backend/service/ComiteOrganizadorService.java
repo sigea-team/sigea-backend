@@ -219,6 +219,7 @@ public class ComiteOrganizadorService {
      * Criterio 4: el comité solo se modifica en los estados de {@link #ESTADOS_COMITE_MODIFICABLE}.
      */
     private void validarEventoModificable(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (!ESTADOS_COMITE_MODIFICABLE.contains(evento.getEstado())) {
             String permitidos = ESTADOS_COMITE_MODIFICABLE.stream()
                     .map(Enum::name)

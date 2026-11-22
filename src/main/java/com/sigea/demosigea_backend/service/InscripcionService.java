@@ -158,6 +158,7 @@ public class InscripcionService {
         InscripcionEvento inscripcion = inscripcionEventoRepository.findByEvento_IdAndPersona_Id(eventoId, persona.getId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encontró una inscripción activa en este evento para el participante."));
+        MemoriaHistoricaReglas.verificarEditable(inscripcion.getEvento(), true);
 
         // HU-24: la asistencia registrada respalda certificados e indicadores; no se borra al cancelar
         if (asistenciaRepository.existsByInscripcion_Id(inscripcion.getId())) {
@@ -262,6 +263,7 @@ public class InscripcionService {
         InscripcionActividad ia = inscripcionActividadRepository.findByInscripcion_IdAndActividad_Id(inscripcion.getId(), actividadId)
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No se encuentra inscrito en la actividad seleccionada."));
+        MemoriaHistoricaReglas.verificarEditable(inscripcion.getEvento(), true);
 
         // HU-24: no se cancela una actividad a la que el participante ya asistió
         if (asistenciaRepository.existsByInscripcion_IdAndActividad_Id(inscripcion.getId(), actividadId)) {
@@ -406,6 +408,7 @@ public class InscripcionService {
     }
 
     private void validarInscripcionesAbiertas(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento.getEstado() == EstadoEvento.en_configuracion) {
             throw new OperacionNoPermitidaException(
                     "Las inscripciones no están abiertas porque el evento «" + evento.getNombre() + "» se encuentra en configuración.");

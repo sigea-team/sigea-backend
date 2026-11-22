@@ -107,6 +107,7 @@ public class EjecucionPresupuestalService {
         validarDatosGasto(request);
 
         Evento evento = buscarEvento(eventoId);
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento.getEstado() == EstadoEvento.cerrado) {
             throw new OperacionNoPermitidaException("No se pueden registrar gastos en un evento cerrado.");
         }

@@ -57,3 +57,5 @@ databaseChangeLog:
       file: db/changelog/changes/24-hu24-qr-asistencia.sql
   - include:
       file: db/changelog/changes/25-hu25-encuestas-satisfaccion.sql
+  - include:
+      file: db/changelog/changes/26-hu28-memoria-historica.sql

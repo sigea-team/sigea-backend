@@ -267,6 +267,7 @@ public class PresupuestoAprobadoService {
     }
 
     private void validarEventoModificable(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento.getEstado() == EstadoEvento.cerrado) {
             throw new OperacionNoPermitidaException("No se puede registrar o actualizar el presupuesto de un evento cerrado.");
         }

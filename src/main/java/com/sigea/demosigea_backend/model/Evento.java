@@ -18,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Formula;
 
 /**
  * Entidad JPA que representa un evento académico, científico o tecnológico (RF03)
@@ -103,6 +104,23 @@ public class Evento {
      *
      * @return {@code true} si tiene evento base asociado.
      */
+    /**
+     * HU-28: cantidad de memorias históricas del evento (0 o 1, índice único). Solo lectura: lo calcula la base de
+     * datos al cargar el evento. Con la memoria consolidada la información del evento ya no se modifica.
+     */
+    @Formula("(SELECT COUNT(m.memoria_id) FROM memorias_historicas m WHERE m.evento_id = evento_id)")
+    @Setter(lombok.AccessLevel.NONE)
+    private Long memoriasHistoricas;
+
+    /**
+     * HU-28: indica si el evento fue cerrado formalmente y su información está en la memoria histórica (solo consulta).
+     *
+     * @return {@code true} si tiene memoria histórica consolidada.
+     */
+    public boolean isArchivado() {
+        return memoriasHistoricas != null && memoriasHistoricas > 0;
+    }
+
     public boolean esEdicion() {
         return eventoBase != null;
     }

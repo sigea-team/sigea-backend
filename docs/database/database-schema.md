@@ -1406,8 +1406,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `indicadores`
 
-**Descripción**: Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento.  
-**Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.Indicador` (anotada con `@Entity @Table(name = "indicadores")`)  
+**Descripción**: Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento. HU-28 (changeset 26): se calculan y guardan al cierre formal del evento (inscritos, asistentes, tasa de asistencia, actividades, propuestas, encuestas, presupuesto) y forman parte de su memoria histórica.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.Indicador` (anotada con `@Entity @Immutable @Table(name = "indicadores")`)  
 **Clave Primaria**: `indicador_id`
 
 | Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
@@ -1418,6 +1418,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `valor` | `NUMERIC(14,2)` | `BigDecimal` | NO |  | - | - |
 | `unidad` | `VARCHAR(20)` | `String` | SÍ |  | - | - |
 | `fecha_calculo` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
+| `codigo` | `VARCHAR(50)` | `String` | SÍ |  | - | HU-28: código estable (`INSCRITOS`, `TASA_ASISTENCIA`...). Índice `idx_indicadores_evento` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
@@ -1426,8 +1427,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `memorias_historicas`
 
-**Descripción**: Consolidación final de memorias, relatorías y documentos históricos del evento cerrado.  
-**Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.MemoriaHistorica` (anotada con `@Entity @Table(name = "memorias_historicas")`)  
+**Descripción**: Consolidación final de memorias, relatorías y documentos históricos del evento cerrado. HU-28 (changeset 26): una fila por evento, creada en su cierre formal; mientras exista, los triggers `trg_memoria_historica_*` (función `fn_memoria_historica_inmutable`, SQLSTATE `SG028`) impiden insertar, modificar o eliminar información del evento en sus tablas (salvo el `ON DELETE SET NULL` real al eliminar un usuario, no un UPDATE manual, y la eliminación con autorización especial, que solo deja borrar las filas del evento indicado con `set_config('sigea.eliminacion_historica', '<eventoId>', true)`).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.MemoriaHistorica` (anotada con `@Entity @Immutable @Table(name = "memorias_historicas")`)  
 **Clave Primaria**: `memoria_id`
 
 | Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
@@ -1437,9 +1438,12 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `fecha_consolidacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
 | `archivo_url` | `VARCHAR(255)` | `String` | SÍ |  | - | - |
 | `resumen` | `TEXT` | `String` | SÍ |  | - | - |
+| `contenido` | `TEXT` | `String` | SÍ |  | - | HU-28: información consolidada al cierre, en JSON |
+| `cerrada_por` | `INT` | `Usuario` | SÍ | FK | - | HU-28: FK -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL` |
 
 **Relaciones Foráneas Salientes**:
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
+- Columna `cerrada_por` -> [`usuarios.usuario_id`](#usuarios) `ON DELETE SET NULL` (HU-28)
 
 ---
 

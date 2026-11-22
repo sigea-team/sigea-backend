@@ -21,12 +21,18 @@ import com.sigea.demosigea_backend.dto.observacion.AprobacionRechazadaResponse;
 import com.sigea.demosigea_backend.dto.asistencia.AsistenciaRechazadaResponse;
 import com.sigea.demosigea_backend.dto.auth.ErrorResponse;
 import com.sigea.demosigea_backend.dto.conferencista.ConflictoConferencistaResponse;
+import com.sigea.demosigea_backend.dto.memoria.CierreConPendientesResponse;
+import com.sigea.demosigea_backend.service.MemoriaHistoricaReglas;
+import com.sigea.demosigea_backend.service.RegistroIntentosHistoricosService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Manejador global de excepciones para la API REST de SIGEA.
@@ -41,8 +47,20 @@ import java.util.Map;
  * @version 1.0
  * @since 2026
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * HU-28: registra en la auditoría los intentos rechazados sobre la memoria histórica. Es opcional para que las
+     * pruebas que crean el manejador con {@code new GlobalExceptionHandler()} sigan funcionando.
+     */
+    private RegistroIntentosHistoricosService registroIntentosHistoricos;
+
+    @Autowired(required = false)
+    public void setRegistroIntentosHistoricos(RegistroIntentosHistoricosService registroIntentosHistoricos) {
+        this.registroIntentosHistoricos = registroIntentosHistoricos;
+    }
 
     /**
      * Captura las fallas de validación de Bean Validation (campos obligatorios, formatos, etc.).
@@ -883,6 +901,65 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    /**
+     * HU-28, Criterios 2 y 3: se intentó modificar o eliminar información de un evento cerrado formalmente. El intento
+     * queda en la auditoría (RF56).
+     *
+     * @return 409 CONFLICT con código EVENTO_ARCHIVADO.
+     */
+    @ExceptionHandler(EventoArchivadoException.class)
+    public ResponseEntity<ErrorResponse> handleEventoArchivado(EventoArchivadoException ex,
+                                                               HttpServletRequest request) {
+        registrarIntentoHistorico(ex, request);
+        return construir(HttpStatus.CONFLICT, ex.getMessage(), EventoArchivadoException.CODIGO, request);
+    }
+
+    /**
+     * HU-28 / CU-32, flujo alterno: el evento tiene procesos pendientes y no se confirmó el cierre formal.
+     *
+     * @return 409 CONFLICT con código CIERRE_CON_PENDIENTES y la lista de pendientes.
+     */
+    @ExceptionHandler(CierreConPendientesException.class)
+    public ResponseEntity<CierreConPendientesResponse> handleCierreConPendientes(CierreConPendientesException ex,
+                                                                                 HttpServletRequest request) {
+        CierreConPendientesResponse body = new CierreConPendientesResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                CierreConPendientesException.CODIGO,
+                request != null ? request.getRequestURI() : null,
+                ex.getPendientes());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * HU-28: operación de la memoria histórica rechazada (EVENTO_NO_FINALIZADO, MEMORIA_YA_CONSOLIDADA,
+     * MEMORIA_NO_ENCONTRADA, CONFIRMACION_INVALIDA, ELIMINACION_NO_PERMITIDA).
+     */
+    @ExceptionHandler(MemoriaHistoricaException.class)
+    public ResponseEntity<ErrorResponse> handleMemoriaHistorica(MemoriaHistoricaException ex,
+                                                                HttpServletRequest request) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.CONFLICT;
+        return construir(status, ex.getMessage(), ex.getCodigo(), request);
+    }
+
+    /** Registra el intento en la auditoría sin afectar la respuesta si la auditoría falla. */
+    private void registrarIntentoHistorico(EventoArchivadoException ex, HttpServletRequest request) {
+        if (registroIntentosHistoricos == null) {
+            return;
+        }
+        String metodo = request != null ? request.getMethod() : null;
+        boolean eliminacion = ex.isEliminacion() || "DELETE".equalsIgnoreCase(metodo);
+        try {
+            registroIntentosHistoricos.registrarIntentoRechazado(ex.getEventoId(), eliminacion, metodo,
+                    request != null ? request.getRequestURI() : null, ex.getMessage());
+        } catch (RuntimeException fallo) {
+            log.error("No se pudo registrar en la auditoría el intento rechazado sobre la memoria histórica: {}",
+                    fallo.getMessage());
+        }
+    }
+
     private ResponseEntity<ErrorResponse> construir(HttpStatus status, String mensaje, String codigo,
                                                     HttpServletRequest request) {
         ErrorResponse response = new ErrorResponse(
@@ -906,7 +983,13 @@ public class GlobalExceptionHandler {
      * @return {@link ResponseEntity} con estado 500 INTERNAL_SERVER_ERROR.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
+    public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
+        // HU-28: los triggers de la memoria histórica rechazan cambios con SQLSTATE SG028; llega envuelto por
+        // Hibernate o Spring (al guardar o al confirmar la transacción).
+        Optional<EventoArchivadoException> archivado = MemoriaHistoricaReglas.desdeErrorBaseDatos(ex);
+        if (archivado.isPresent()) {
+            return handleEventoArchivado(archivado.get(), request);
+        }
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),

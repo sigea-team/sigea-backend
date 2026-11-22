@@ -506,6 +506,7 @@ public class AgendaService {
     }
 
     private static void exigirAgendaModificable(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento.getEstado() == EstadoEvento.cerrado) {
             throw new OperacionNoPermitidaException("El evento «" + evento.getNombre()
                     + "» está cerrado: ya no se puede modificar su agenda.");
