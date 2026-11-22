@@ -55,8 +55,8 @@ ON CONFLICT DO NOTHING;
 --comment: tabla del evento tiene un trigger que averigua a qué evento pertenece la fila (directo o a través de la
 --comment: convocatoria, la propuesta, la inscripción o la encuesta) y rechaza la operación con SQLSTATE SG028; el
 --comment: backend la traduce a 409 EVENTO_ARCHIVADO y la registra en la auditoría.
---comment: Excepciones: (1) poner en NULL una columna que apunta a usuarios, que es lo que hace ON DELETE SET NULL al
---comment: eliminar un usuario; (2) la eliminación con autorización especial: el backend guarda el ID del evento en
+--comment: Excepciones: (1) ON DELETE SET NULL al eliminar un usuario (solo desde la acción referencial y si el usuario
+--comment: ya no existe; un UPDATE manual que ponga en NULL la columna se rechaza); (2) la eliminación con autorización especial: el backend guarda el ID del evento en
 --comment: set_config('sigea.eliminacion_historica', '<eventoId>', true) (solo vale dentro de su transacción y la limpia al
 --comment: terminar) y solo se permiten los DELETE de filas de ese evento; las de otros eventos archivados siguen protegidas.
 --comment: runOnChange: el cuerpo es repetible (CREATE OR REPLACE y DROP TRIGGER IF EXISTS).
@@ -142,11 +142,16 @@ BEGIN
         IF v_cambios IS NULL THEN
             RETURN NEW;
         END IF;
-        -- ON DELETE SET NULL al eliminar un usuario: solo pasan a NULL columnas que apuntan a usuarios.
-        IF v_cambios <@ ARRAY['usuario_id', 'creada_por', 'cerrada_por', 'resuelto_por', 'aprobada_por',
-                              'aprobado_por', 'registrado_por', 'invitado_por', 'creado_por']
+        -- ON DELETE SET NULL al eliminar un usuario. Solo se acepta si (1) solo pasan a NULL columnas con esa acción
+        -- referencial hacia usuarios, (2) el UPDATE lo lanza otro trigger (la acción referencial; un UPDATE directo
+        -- tiene pg_trigger_depth() = 1) y (3) los usuarios a los que apuntaban ya no existen. Un UPDATE manual que
+        -- borre la atribución (por ejemplo cerrada_por) se rechaza.
+        IF v_cambios <@ ARRAY['usuario_id', 'creada_por', 'cerrada_por', 'resuelto_por', 'aprobada_por']
+           AND pg_trigger_depth() > 1
            AND NOT EXISTS (SELECT 1 FROM jsonb_each(to_jsonb(NEW)) n
-                           WHERE n.key = ANY (v_cambios) AND n.value <> 'null'::jsonb) THEN
+                           WHERE n.key = ANY (v_cambios) AND n.value <> 'null'::jsonb)
+           AND NOT EXISTS (SELECT 1 FROM "usuarios" u
+                           WHERE u."usuario_id" IN (SELECT (to_jsonb(OLD) ->> k)::INT FROM unnest(v_cambios) k)) THEN
             RETURN NEW;
         END IF;
     END IF;

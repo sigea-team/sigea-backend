@@ -26,7 +26,8 @@ public record MemoriaHistoricaResponse(
         List<IndicadorResponse> indicadores,
         @Schema(description = "Información consolidada al cierre: evento, comiteOrganizador, lineasTematicas, "
                 + "tiposActividad, presupuesto, convocatorias (con propuestas), conferencistas, agenda, participantes, "
-                + "asistencia, encuestas, certificados, indicadores y pendientesAlCierre",
+                + "asistencia, encuestas (con resultados y respuestas abiertas sin autor), certificados (por tipo y detalle), "
+                + "indicadores y pendientesAlCierre",
                 type = "object")
         @JsonRawValue String contenido
 ) {

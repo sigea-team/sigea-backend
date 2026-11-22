@@ -312,16 +312,33 @@ public interface MemoriaHistoricaRepository extends JpaRepository<MemoriaHistori
                                         'texto', o.texto,
                                         'respuestas', (SELECT COUNT(*) FROM respuestas_encuesta r WHERE r.opcion_id = o.opcion_id))
                                         ORDER BY o.orden, o.opcion_id)
-                                    FROM opciones_pregunta_encuesta o WHERE o.pregunta_id = q.pregunta_id), CAST('[]' AS jsonb)))
+                                    FROM opciones_pregunta_encuesta o WHERE o.pregunta_id = q.pregunta_id), CAST('[]' AS jsonb)),
+                                'textos', COALESCE((
+                                    SELECT jsonb_agg(r.respuesta ORDER BY r.respuesta)
+                                    FROM respuestas_encuesta r
+                                    WHERE r.pregunta_id = q.pregunta_id AND r.respuesta IS NOT NULL
+                                      AND btrim(r.respuesta) <> ''), CAST('[]' AS jsonb)))
                                 ORDER BY q.orden, q.pregunta_id)
                             FROM preguntas_encuesta q WHERE q.encuesta_id = en.encuesta_id), CAST('[]' AS jsonb)))
                         ORDER BY en.fecha_creacion, en.encuesta_id)
                     FROM encuestas en LEFT JOIN actividades act ON act.actividad_id = en.actividad_id
                     WHERE en.evento_id = :eventoId), CAST('[]' AS jsonb)),
-                'certificados', COALESCE((
-                    SELECT jsonb_object_agg(x.tipo_certificado, x.cantidad)
-                    FROM (SELECT ce.tipo_certificado, COUNT(*) AS cantidad FROM certificados ce
-                          WHERE ce.evento_id = :eventoId GROUP BY ce.tipo_certificado) x), CAST('{}' AS jsonb)),
+                'certificados', jsonb_build_object(
+                    'porTipo', COALESCE((
+                        SELECT jsonb_object_agg(x.tipo_certificado, x.cantidad)
+                        FROM (SELECT ce.tipo_certificado, COUNT(*) AS cantidad FROM certificados ce
+                              WHERE ce.evento_id = :eventoId GROUP BY ce.tipo_certificado) x), CAST('{}' AS jsonb)),
+                    'detalle', COALESCE((
+                        SELECT jsonb_agg(jsonb_build_object(
+                            'id', ce.certificado_id, 'personaId', p.persona_id,
+                            'nombre', p.nombres || ' ' || p.apellidos, 'numeroDocumento', p.numero_documento,
+                            'tipo', ce.tipo_certificado, 'actividad', act.nombre,
+                            'porcentajeAsistencia', ce.porcentaje_asistencia, 'fechaGeneracion', ce.fecha_generacion,
+                            'archivoUrl', ce.archivo_url) ORDER BY ce.tipo_certificado, p.apellidos, p.nombres, ce.certificado_id)
+                        FROM certificados ce
+                        JOIN personas p ON p.persona_id = ce.persona_id
+                        LEFT JOIN actividades act ON act.actividad_id = ce.actividad_id
+                        WHERE ce.evento_id = :eventoId), CAST('[]' AS jsonb))),
                 'indicadores', COALESCE((
                     SELECT jsonb_agg(jsonb_build_object('codigo', ind.codigo, 'nombre', ind.nombre, 'valor', ind.valor,
                                                         'unidad', ind.unidad, 'fechaCalculo', ind.fecha_calculo)

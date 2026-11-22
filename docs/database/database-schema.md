@@ -1427,7 +1427,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `memorias_historicas`
 
-**Descripción**: Consolidación final de memorias, relatorías y documentos históricos del evento cerrado. HU-28 (changeset 26): una fila por evento, creada en su cierre formal; mientras exista, los triggers `trg_memoria_historica_*` (función `fn_memoria_historica_inmutable`, SQLSTATE `SG028`) impiden insertar, modificar o eliminar información del evento en sus tablas (salvo poner en NULL columnas de usuario por `ON DELETE SET NULL` y la eliminación con autorización especial, que solo deja borrar las filas del evento indicado con `set_config('sigea.eliminacion_historica', '<eventoId>', true)`).  
+**Descripción**: Consolidación final de memorias, relatorías y documentos históricos del evento cerrado. HU-28 (changeset 26): una fila por evento, creada en su cierre formal; mientras exista, los triggers `trg_memoria_historica_*` (función `fn_memoria_historica_inmutable`, SQLSTATE `SG028`) impiden insertar, modificar o eliminar información del evento en sus tablas (salvo el `ON DELETE SET NULL` real al eliminar un usuario, no un UPDATE manual, y la eliminación con autorización especial, que solo deja borrar las filas del evento indicado con `set_config('sigea.eliminacion_historica', '<eventoId>', true)`).  
 **Entidad JPA**: `com.sigea.demosigea_backend.model.MemoriaHistorica` (anotada con `@Entity @Immutable @Table(name = "memorias_historicas")`)  
 **Clave Primaria**: `memoria_id`
 
