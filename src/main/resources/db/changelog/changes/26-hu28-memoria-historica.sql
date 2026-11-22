@@ -50,14 +50,16 @@ ON CONFLICT DO NOTHING;
 --rollback DELETE FROM "roles_permisos" WHERE "permiso_id" IN (SELECT "permiso_id" FROM "permisos" WHERE "codigo" IN ('MEMORIA_HISTORICA_GESTIONAR', 'MEMORIA_HISTORICA_ELIMINAR'));
 --rollback DELETE FROM "permisos" WHERE "codigo" IN ('MEMORIA_HISTORICA_GESTIONAR', 'MEMORIA_HISTORICA_ELIMINAR');
 
---changeset SIGEA:hu28-004-memoria-historica-inmutable splitStatements:false
+--changeset SIGEA:hu28-004-memoria-historica-inmutable splitStatements:false runOnChange:true
 --comment: Criterios 2 y 3: con la memoria consolidada, ninguna fila del evento se inserta, modifica ni elimina. Cada
 --comment: tabla del evento tiene un trigger que averigua a qué evento pertenece la fila (directo o a través de la
 --comment: convocatoria, la propuesta, la inscripción o la encuesta) y rechaza la operación con SQLSTATE SG028; el
 --comment: backend la traduce a 409 EVENTO_ARCHIVADO y la registra en la auditoría.
 --comment: Excepciones: (1) poner en NULL una columna que apunta a usuarios, que es lo que hace ON DELETE SET NULL al
---comment: eliminar un usuario; (2) la eliminación con autorización especial, que el backend habilita solo dentro de su
---comment: transacción con set_config('sigea.eliminacion_historica', 'autorizada', true).
+--comment: eliminar un usuario; (2) la eliminación con autorización especial: el backend guarda el ID del evento en
+--comment: set_config('sigea.eliminacion_historica', '<eventoId>', true) (solo vale dentro de su transacción y la limpia al
+--comment: terminar) y solo se permiten los DELETE de filas de ese evento; las de otros eventos archivados siguen protegidas.
+--comment: runOnChange: el cuerpo es repetible (CREATE OR REPLACE y DROP TRIGGER IF EXISTS).
 --comment: Las salas y su disponibilidad no se incluyen: son recursos reutilizables entre eventos; la memoria guarda el
 --comment: nombre de la sala de cada actividad.
 CREATE OR REPLACE FUNCTION "fn_evento_de_fila"(p_tabla TEXT, p_fila JSONB) RETURNS INT AS $$
@@ -119,9 +121,17 @@ CREATE OR REPLACE FUNCTION "fn_memoria_historica_inmutable"() RETURNS trigger AS
 DECLARE
     v_evento INT;
     v_cambios TEXT[];
+    v_autorizado TEXT;
 BEGIN
-    IF TG_OP = 'DELETE' AND current_setting('sigea.eliminacion_historica', true) = 'autorizada' THEN
-        RETURN OLD;
+    -- Eliminación con autorización especial: solo las filas del evento autorizado en esta transacción.
+    IF TG_OP = 'DELETE' THEN
+        v_autorizado := NULLIF(current_setting('sigea.eliminacion_historica', true), '');
+        IF v_autorizado IS NOT NULL THEN
+            v_evento := "fn_evento_de_fila"(TG_TABLE_NAME, to_jsonb(OLD));
+            IF v_evento IS NOT NULL AND v_evento::TEXT = v_autorizado THEN
+                RETURN OLD;
+            END IF;
+        END IF;
     END IF;
 
     IF TG_OP = 'UPDATE' THEN

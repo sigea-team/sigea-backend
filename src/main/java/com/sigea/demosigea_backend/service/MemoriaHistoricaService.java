@@ -162,6 +162,9 @@ public class MemoriaHistoricaService {
                     usuario);
         }
 
+        // Todo ocurre en esta misma transacción (EncuestaService.cerrar es REQUIRED y la auditoría MANDATORY): si algo
+        // falla, se revierten también el cambio de estado, el cierre de las encuestas y los indicadores. La memoria va
+        // al final porque, una vez guardada, los triggers ya no aceptan cambios del evento.
         // Encuestas publicadas: se cierran para que sus resultados queden definitivos en la memoria.
         List<Long> encuestas = memoriaRepository.idsEncuestasPublicadas(eventoId);
         for (Long encuestaId : encuestas) {
@@ -307,14 +310,17 @@ public class MemoriaHistoricaService {
                         "motivo", request.motivo().trim(),
                         "indicadores", resumenIndicadores));
 
+        // La auditoría va en la misma transacción a propósito: si el borrado falla y se revierte, no debe quedar
+        // registrado un evento «eliminado» que sigue existiendo.
         try {
-            memoriaRepository.autorizarEliminacionHistorica();
+            memoriaRepository.autorizarEliminacionHistorica(eventoId);
             memoriaRepository.eliminarAsistencias(eventoId);
             memoriaRepository.eliminarCertificados(eventoId);
             memoriaRepository.eliminarEncuestas(eventoId);
             memoriaRepository.eliminarActividades(eventoId);
             memoriaRepository.eliminarPropuestas(eventoId);
             memoriaRepository.eliminarEvento(eventoId);
+            memoriaRepository.revocarEliminacionHistorica();
         } catch (DataIntegrityViolationException ex) {
             log.warn("No se pudo eliminar el evento {} de la memoria histórica: {}", eventoId, ex.getMessage());
             throw new MemoriaHistoricaException(MemoriaHistoricaException.ELIMINACION_NO_PERMITIDA,

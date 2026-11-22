@@ -347,13 +347,14 @@ class MemoriaHistoricaServiceTest {
         InOrder orden = inOrder(auditoriaService, memoriaRepository);
         orden.verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.MEMORIA_HISTORICA_ELIMINADA), anyString(),
                 anyLong(), anyMap());
-        orden.verify(memoriaRepository).autorizarEliminacionHistorica();
+        orden.verify(memoriaRepository).autorizarEliminacionHistorica(1L);
         orden.verify(memoriaRepository).eliminarAsistencias(1L);
         orden.verify(memoriaRepository).eliminarCertificados(1L);
         orden.verify(memoriaRepository).eliminarEncuestas(1L);
         orden.verify(memoriaRepository).eliminarActividades(1L);
         orden.verify(memoriaRepository).eliminarPropuestas(1L);
         orden.verify(memoriaRepository).eliminarEvento(1L);
+        orden.verify(memoriaRepository).revocarEliminacionHistorica();
     }
 
     @Test
@@ -366,7 +367,7 @@ class MemoriaHistoricaServiceTest {
                         new EliminacionHistoricaRequest("Congreso", "Evento de prueba creado por error")));
 
         assertEquals(MemoriaHistoricaException.CONFIRMACION_INVALIDA, ex.getCodigo());
-        verify(memoriaRepository, never()).autorizarEliminacionHistorica();
+        verify(memoriaRepository, never()).autorizarEliminacionHistorica(anyLong());
         verify(memoriaRepository, never()).eliminarEvento(anyLong());
     }
 

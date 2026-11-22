@@ -333,11 +333,17 @@ public interface MemoriaHistoricaRepository extends JpaRepository<MemoriaHistori
     String construirContenido(@Param("eventoId") Long eventoId, @Param("pendientes") String pendientes);
 
     /**
-     * Habilita, solo dentro de la transacción actual, la eliminación de información histórica (Criterio 3, con
-     * autorización especial). Los triggers de la memoria histórica dejan pasar los DELETE mientras esté activa.
+     * Habilita la eliminación de la información histórica de un solo evento (Criterio 3, con autorización especial).
+     * Vale solo dentro de la transacción actual ({@code set_config(..., true)}): los triggers dejan pasar únicamente
+     * los DELETE de filas de ese evento; las de otros eventos de la memoria histórica siguen protegidas.
      */
-    @Query(value = "SELECT set_config('" + VARIABLE_ELIMINACION_HISTORICA + "', 'autorizada', true)", nativeQuery = true)
-    String autorizarEliminacionHistorica();
+    @Query(value = "SELECT set_config('" + VARIABLE_ELIMINACION_HISTORICA + "', CAST(:eventoId AS TEXT), true)",
+            nativeQuery = true)
+    String autorizarEliminacionHistorica(@Param("eventoId") Long eventoId);
+
+    /** Quita la autorización de eliminación antes de terminar la transacción (no depende solo del fin de esta). */
+    @Query(value = "SELECT set_config('" + VARIABLE_ELIMINACION_HISTORICA + "', '', true)", nativeQuery = true)
+    String revocarEliminacionHistorica();
 
     // Eliminación con autorización especial, en orden: algunas claves foráneas no tienen ON DELETE CASCADE
     // (asistencias, certificados y encuestas → actividades; actividades → propuestas; asignaciones → comité evaluador),
