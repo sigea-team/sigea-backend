@@ -375,6 +375,7 @@ public class PresupuestoPreliminarService {
      * exista un presupuesto aprobado.
      */
     private void validarPresupuestoEditable(Evento evento) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (!ESTADOS_PRESUPUESTO_EDITABLE.contains(evento.getEstado())) {
             String permitidos = ESTADOS_PRESUPUESTO_EDITABLE.stream()
                     .map(Enum::name)

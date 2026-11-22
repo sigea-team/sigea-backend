@@ -49,7 +49,7 @@ public enum TipoOperacionAuditoria {
     TIPO_EVENTO_ELIMINADO("EVENTOS", "Eliminación de un tipo de evento del catálogo"),
     EVENTO_PUBLICADO("EVENTOS", "Publicación de un evento (pasa a habilitado)"),
     EVENTO_INICIADO("EVENTOS", "Paso automático de un evento a en ejecución al llegar su fecha de inicio"),
-    EVENTO_CERRADO("EVENTOS", "Paso automático de un evento a cerrado al pasar su fecha de fin"),
+    EVENTO_CERRADO("EVENTOS", "Paso de un evento a cerrado: automático al pasar su fecha de fin o en su cierre formal (HU-28)"),
     EVENTO_FECHAS_MODIFICADAS("EVENTOS", "Modificación de las fechas de un evento publicado o en ejecución"),
 
     // ----- Conferencistas y ponentes (HU-12) -----
@@ -139,7 +139,13 @@ public enum TipoOperacionAuditoria {
     ENCUESTA_ELIMINADA("ENCUESTAS", "Eliminación de una encuesta de satisfacción sin respuestas (HU-25)"),
     ENCUESTA_PUBLICADA("ENCUESTAS", "Publicación de una encuesta de satisfacción para los participantes que asistieron (HU-25)"),
     ENCUESTA_CERRADA("ENCUESTAS", "Cierre de una encuesta de satisfacción; no recibe más respuestas (HU-25)"),
-    ENCUESTA_RESPONDIDA("ENCUESTAS", "Un participante respondió una encuesta de satisfacción; no incluye sus respuestas (HU-25)");
+    ENCUESTA_RESPONDIDA("ENCUESTAS", "Un participante respondió una encuesta de satisfacción; no incluye sus respuestas (HU-25)"),
+
+    // HU-28: memoria histórica de los eventos
+    MEMORIA_HISTORICA_CONSOLIDADA("MEMORIA_HISTORICA", "Cierre formal de un evento: su información queda consolidada en la memoria histórica, solo consulta (HU-28)"),
+    MODIFICACION_HISTORICA_RECHAZADA("MEMORIA_HISTORICA", "Intento rechazado de modificar información de un evento cerrado formalmente (HU-28)"),
+    ELIMINACION_HISTORICA_RECHAZADA("MEMORIA_HISTORICA", "Intento rechazado de eliminar información de un evento cerrado formalmente (HU-28)"),
+    MEMORIA_HISTORICA_ELIMINADA("MEMORIA_HISTORICA", "Eliminación con autorización especial de un evento cerrado formalmente y de su memoria histórica (HU-28)");
 
     /** Módulo funcional al que pertenece la operación. */
     private final String modulo;

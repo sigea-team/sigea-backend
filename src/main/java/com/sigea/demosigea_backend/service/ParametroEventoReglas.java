@@ -78,6 +78,7 @@ final class ParametroEventoReglas {
      * @throws OperacionNoPermitidaException si el evento está en ejecución o cerrado.
      */
     static void validarEventoModificable(Evento evento, String catalogo) {
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (!ESTADOS_CATALOGO_MODIFICABLE.contains(evento.getEstado())) {
             String permitidos = ESTADOS_CATALOGO_MODIFICABLE.stream()
                     .map(Enum::name)

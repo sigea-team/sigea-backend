@@ -196,6 +196,7 @@ public class AsistenciaService {
         Actividad actividad = buscarActividad(eventoId, actividadId);
 
         Evento evento = actividad.getEvento();
+        MemoriaHistoricaReglas.verificarEditable(evento);
         if (evento != null && (evento.getEstado() == EstadoEvento.en_configuracion
                 || evento.getEstado() == EstadoEvento.cerrado)) {
             throw new AsistenciaRechazadaException(AsistenciaRechazadaException.EVENTO_NO_DISPONIBLE, HttpStatus.CONFLICT,

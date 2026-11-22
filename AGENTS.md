@@ -86,8 +86,8 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `respuestas_encuesta` ➡️ Respuestas por pregunta, con `valor_escala` u `opcion_id` para consolidar. En encuestas anónimas `persona_id` es NULL y la fecha se guarda sin hora. Entidad `RespuestaEncuesta`.
 - `participaciones_encuesta` ➡️ Quién respondió cada encuesta (único por encuesta y persona); evita duplicados sin ligar la persona a sus respuestas. Entidad `ParticipacionEncuesta` (HU-25).
 - `certificados` ➡️ Certificados emitidos (`'asistente'`, `'ponente'`, `'evaluador'`, `'organizador'`).
-- `indicadores` ➡️ Indicadores de gestión y métricas.
-- `memorias_historicas` ➡️ Memorias finales y actas de consolidación del evento.
+- `indicadores` ➡️ Indicadores de gestión y métricas; `codigo` estable. Se calculan al cierre formal (HU-28). Entidad `Indicador`.
+- `memorias_historicas` ➡️ Memoria histórica del evento cerrado formalmente (HU-28, changeset 26): `contenido` (JSON consolidado) y `cerrada_por`. Entidad `MemoriaHistorica`. Con la memoria, la base de datos rechaza cambios en la información del evento (SQLSTATE `SG028` → 409 `EVENTO_ARCHIVADO`); `Evento.isArchivado()` y `MemoriaHistoricaReglas.verificarEditable` permiten revisarlo en Java.
 
 ---
 

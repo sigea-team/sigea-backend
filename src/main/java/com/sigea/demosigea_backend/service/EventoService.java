@@ -477,6 +477,8 @@ public class EventoService {
     @Transactional
     public void eliminar(Long id, boolean confirmar) {
         Evento evento = buscarEvento(id);
+        // HU-28, Criterio 3: un evento de la memoria histórica solo se elimina con autorización especial.
+        MemoriaHistoricaReglas.verificarEditable(evento, true);
 
         if (evento.getEstado() != EstadoEvento.en_configuracion) {
             throw new OperacionNoPermitidaException(String.format(

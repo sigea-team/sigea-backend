@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.evento.EventoRequest;
 import com.sigea.demosigea_backend.dto.evento.EventoResponse;
 import com.sigea.demosigea_backend.dto.evento.NuevaEdicionRequest;
 import com.sigea.demosigea_backend.exception.ConfirmacionRequeridaException;
+import com.sigea.demosigea_backend.exception.EventoArchivadoException;
 import com.sigea.demosigea_backend.exception.OperacionNoPermitidaException;
 import com.sigea.demosigea_backend.exception.RecursoNoEncontradoException;
 import com.sigea.demosigea_backend.model.EstadoEvento;
@@ -431,6 +432,19 @@ class EventoServiceTest {
         when(eventoRepository.countByEventoBase_Id(1L)).thenReturn(2L);
 
         assertThrows(OperacionNoPermitidaException.class, () -> eventoService.eliminar(1L, true));
+        verify(eventoRepository, never()).delete(any(Evento.class));
+    }
+
+    @Test
+    @DisplayName("HU-28, Criterio 3: un evento de la memoria histórica no se elimina por la vía normal (409 EVENTO_ARCHIVADO)")
+    void eliminar_eventoEnMemoriaHistorica_rechaza() {
+        Evento archivado = Evento.builder().id(1L).nombre("Congreso 2025").estado(EstadoEvento.cerrado)
+                .fechaInicio(LocalDate.of(2025, 10, 1)).fechaFin(LocalDate.of(2025, 10, 3)).memoriasHistoricas(1L).build();
+        when(eventoRepository.findById(1L)).thenReturn(Optional.of(archivado));
+
+        EventoArchivadoException ex = assertThrows(EventoArchivadoException.class, () -> eventoService.eliminar(1L, true));
+
+        assertTrue(ex.isEliminacion());
         verify(eventoRepository, never()).delete(any(Evento.class));
     }
 
