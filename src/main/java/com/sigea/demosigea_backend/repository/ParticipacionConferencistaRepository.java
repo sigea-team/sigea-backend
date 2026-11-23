@@ -45,4 +45,9 @@ public interface ParticipacionConferencistaRepository extends JpaRepository<Part
 
     @EntityGraph(attributePaths = {"persona", "evento"})
     Optional<ParticipacionConferencista> findByIdAndEvento_Id(Long id, Long eventoId);
+
+    /** HU-27: participaciones por tipo (conferencista / ponente) en los eventos ({@code [tipo, cantidad]}). */
+    @Query("SELECT p.tipoParticipacion, COUNT(p) FROM ParticipacionConferencista p WHERE p.evento.id IN :eventoIds "
+            + "GROUP BY p.tipoParticipacion")
+    List<Object[]> contarPorTipo(@Param("eventoIds") Collection<Long> eventoIds);
 }

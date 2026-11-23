@@ -85,4 +85,9 @@ public interface PropuestaAutorRepository extends JpaRepository<PropuestaAutor, 
     @Query("SELECT pa FROM PropuestaAutor pa JOIN FETCH pa.persona "
             + "WHERE pa.propuesta.id IN :propuestaIds ORDER BY pa.propuesta.id, pa.orden")
     List<PropuestaAutor> findByPropuestaIdsConPersona(@Param("propuestaIds") Collection<Long> propuestaIds);
+
+    /** HU-27: propuestas en las que la persona figura como autor o ponente, con convocatoria y evento cargados. */
+    @Query("SELECT pa FROM PropuestaAutor pa JOIN FETCH pa.propuesta p JOIN FETCH p.convocatoria c JOIN FETCH c.evento "
+            + "WHERE pa.persona.id = :personaId")
+    List<PropuestaAutor> findHistorialDePersona(@Param("personaId") Long personaId);
 }
