@@ -116,8 +116,9 @@ public class CertificadoService {
     private final PlantillaCertificadoService plantillaService;
     private final Clock clock;
 
-    @Value("${app.mail.backend-url:http://localhost:8080}")
-    private String urlBackend;
+    /** Base de la página pública de verificación del frontend; el código se agrega al final. */
+    @Value("${app.certificados.url-verificacion:http://localhost:5173/#/verificar/}")
+    private String urlVerificacionBase;
 
     // ──────────────────────────────────────────────────────────────────────────────
     // Participante
@@ -595,10 +596,21 @@ public class CertificadoService {
     }
 
     private String urlVerificacion(String codigo) {
-        if (urlBackend == null || urlBackend.isBlank()) {
+        return urlVerificacion(urlVerificacionBase, codigo);
+    }
+
+    /**
+     * Dirección impresa en el certificado: la página pública del frontend que consulta
+     * {@code GET /api/v1/publico/certificados/{codigo}} ({@code app.certificados.url-verificacion} + código).
+     *
+     * @return la dirección, o null si no hay base configurada (el PDF solo muestra el código).
+     */
+    static String urlVerificacion(String base, String codigo) {
+        if (base == null || base.isBlank()) {
             return null;
         }
-        return urlBackend.replaceAll("/+$", "") + "/api/v1/publico/certificados/" + codigo;
+        String b = base.trim();
+        return (b.endsWith("/") ? b : b + "/") + codigo;
     }
 
     private String nuevoCodigo() {

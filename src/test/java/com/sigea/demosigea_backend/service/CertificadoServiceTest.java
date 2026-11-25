@@ -104,7 +104,7 @@ class CertificadoServiceTest {
         Clock reloj = Clock.fixed(AHORA.atZone(BOGOTA).toInstant(), BOGOTA);
         servicio = new CertificadoService(certificadoRepository, eventoRepository, personaRepository, usuarioRepository,
                 participacionRepository, generadorPdf, almacenamiento, auditoriaService, plantillaService, reloj);
-        ReflectionTestUtils.setField(servicio, "urlBackend", "https://sigea.ufps.edu.co/");
+        ReflectionTestUtils.setField(servicio, "urlVerificacionBase", "https://sigea-team.github.io/sigea-front/#/verificar/");
 
         evento = Evento.builder().id(1L).nombre("Semana de Ingeniería").estado(EstadoEvento.cerrado)
                 .fechaInicio(LocalDate.of(2026, 11, 10)).fechaFin(LocalDate.of(2026, 11, 12))
@@ -172,7 +172,7 @@ class CertificadoServiceTest {
         ArgumentCaptor<GeneradorPdfCertificado.DatosCertificado> datos =
                 ArgumentCaptor.forClass(GeneradorPdfCertificado.DatosCertificado.class);
         verify(generadorPdf).generar(datos.capture());
-        assertEquals("https://sigea.ufps.edu.co/api/v1/publico/certificados/" + c.getCodigoVerificacion(),
+        assertEquals("https://sigea-team.github.io/sigea-front/#/verificar/" + c.getCodigoVerificacion(),
                 datos.getValue().urlVerificacion());
         verify(certificadoRepository).bloquearEmision(10L, 1L);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.CERTIFICADO_GENERADO), eq("certificados"),
@@ -592,6 +592,15 @@ class CertificadoServiceTest {
     // ──────────────────────────────────────────────────────────────────────────
     // Textos
     // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("URL de verificación: base del frontend + código; sin base, el PDF solo muestra el código")
+    void urlVerificacion() {
+        assertEquals("http://localhost:5173/#/verificar/CERT-1", CertificadoService.urlVerificacion("http://localhost:5173/#/verificar/", "CERT-1"));
+        assertEquals("https://x/#/verificar/CERT-1", CertificadoService.urlVerificacion(" https://x/#/verificar ", "CERT-1"));
+        assertNull(CertificadoService.urlVerificacion(" ", "CERT-1"));
+        assertNull(CertificadoService.urlVerificacion(null, "CERT-1"));
+    }
 
     @Test
     @DisplayName("Textos del detalle impreso y del documento oculto")

@@ -66,8 +66,8 @@ public class PlantillaCertificadoService {
     private final AuditoriaService auditoriaService;
     private final Clock clock;
 
-    @Value("${app.mail.backend-url:http://localhost:8080}")
-    private String urlBackend;
+    @Value("${app.certificados.url-verificacion:http://localhost:5173/#/verificar/}")
+    private String urlVerificacionBase;
 
     /** Fondo y firmas listos para el PDF. */
     public record PlantillaPdf(byte[] fondoJpeg, List<GeneradorPdfCertificado.Firma> firmas) {
@@ -115,8 +115,7 @@ public class PlantillaCertificadoService {
         return generadorPdf.generar(new GeneradorPdfCertificado.DatosCertificado(t, "Nombre del participante", "CC",
                 "0000000000", evento.getNombre(), evento.getFechaInicio(), evento.getFechaFin(), detalle,
                 LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS), codigo,
-                urlBackend == null || urlBackend.isBlank() ? null
-                        : urlBackend.replaceAll("/+$", "") + "/api/v1/publico/certificados/" + codigo,
+                CertificadoService.urlVerificacion(urlVerificacionBase, codigo),
                 plantilla.fondoJpeg(), plantilla.firmas()));
     }
 
