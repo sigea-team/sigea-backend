@@ -38,7 +38,7 @@ class GeneradorPdfCertificadoTest {
     }
 
     @Test
-    @DisplayName("Criterio 1: el PDF lleva el rol, el nombre, el documento, el evento, las fechas y el código")
+    @DisplayName("Criterio 1: el PDF lleva la universidad, el nombre, el documento, el rol, el evento, las fechas y el código")
     void contenido() throws Exception {
         byte[] pdf = generador.generar(datos(TipoCertificado.asistente, "Ana María Pérez Núñez",
                 "Semana de Ingeniería de Sistemas", "Asistió a 4 de las 5 actividades en las que se inscribió (80 %)."));
@@ -50,11 +50,11 @@ class GeneradorPdfCertificadoTest {
         assertTrue(completo.contains("/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding"));
 
         String texto = textoDeLaPagina(pdf);
-        assertTrue(texto.contains("CERTIFICADO"));
-        assertTrue(texto.contains("DE ASISTENCIA"));
+        assertTrue(texto.contains("LA UNIVERSIDAD FRANCISCO DE PAULA SANTANDER"));
+        assertTrue(texto.contains("CERTIFICA QUE"));
         assertTrue(texto.contains("ANA MARÍA PÉREZ NÚÑEZ"), texto);
         assertTrue(texto.contains("identificado(a) con CC 1090123456"));
-        assertTrue(texto.contains("participó como asistente en el evento"));
+        assertTrue(texto.contains("asistió al evento"));
         assertTrue(texto.contains("Semana de Ingeniería de Sistemas"));
         assertTrue(texto.contains("realizado del 10 al 12 de noviembre de 2026"));
         assertTrue(texto.contains("(80 %)."));
@@ -63,7 +63,7 @@ class GeneradorPdfCertificadoTest {
     }
 
     @Test
-    @DisplayName("Diseño predeterminado: lleva el logo vertical de la UFPS (el del login) en lugar del nombre en texto")
+    @DisplayName("Lleva el logo vertical de la UFPS (el del login) sobre «La Universidad ... certifica que»")
     void logoInstitucional() throws Exception {
         assertTrue(GeneradorPdfCertificado.class.getResource(GeneradorPdfCertificado.RECURSO_LOGO) != null);
         byte[] pdf = generador.generar(datos(TipoCertificado.asistente, "Ana", "Congreso", null));
@@ -72,8 +72,8 @@ class GeneradorPdfCertificadoTest {
         assertTrue(s.contains("/XObject << /Logo 8 0 R >>"));
         assertTrue(s.contains("/SMask 9 0 R"));
         String texto = textoDeLaPagina(pdf);
-        assertFalse(texto.contains("UNIVERSIDAD FRANCISCO DE PAULA SANTANDER"));
-        assertTrue(texto.contains("SIGEA · Sistema de gestión de eventos académicos"));
+        assertTrue(texto.contains("LA UNIVERSIDAD FRANCISCO DE PAULA SANTANDER"));
+        assertFalse(texto.contains("SIGEA · Sistema de gestión de eventos académicos"));
     }
 
     @Test
@@ -104,15 +104,15 @@ class GeneradorPdfCertificadoTest {
     }
 
     @Test
-    @DisplayName("Subtítulo y rol según el tipo de certificado")
+    @DisplayName("La frase de participación cambia según el tipo de certificado")
     void segunElTipo() throws Exception {
         String ponente = textoDeLaPagina(generador.generar(datos(TipoCertificado.ponente, "Darío", "Congreso", null)));
-        assertTrue(ponente.contains("DE PARTICIPACIÓN COMO PONENTE"));
         assertTrue(ponente.contains("participó como ponente en el evento"));
+        assertFalse(ponente.contains("asistió al evento"));
 
         String conferencista = textoDeLaPagina(generador.generar(
                 datos(TipoCertificado.conferencista, "Elena", "Congreso", null)));
-        assertTrue(conferencista.contains("DE PARTICIPACIÓN COMO CONFERENCISTA"));
+        assertTrue(conferencista.contains("participó como conferencista en el evento"));
     }
 
     @Test
@@ -178,16 +178,17 @@ class GeneradorPdfCertificadoTest {
         byte[] pdf = generador.generar(d);
         String s = new String(pdf, StandardCharsets.ISO_8859_1);
 
-        assertTrue(s.contains("/XObject << /Fondo 8 0 R /Firma1 9 0 R /Firma2 11 0 R >>"), s.substring(0, 600));
+        assertTrue(s.contains("/XObject << /Fondo 8 0 R /Logo 9 0 R /Firma1 11 0 R /Firma2 13 0 R >>"), s.substring(0, 600));
         assertTrue(s.contains("/Filter /DCTDecode"));
         assertTrue(s.contains("/Width 2200 /Height 1700"));
         assertTrue(s.contains("/SMask 10 0 R"));
-        assertTrue(s.contains("xref\n0 13\n"));
+        assertTrue(s.contains("/SMask 12 0 R"));
+        assertTrue(s.contains("xref\n0 15\n"));
         String texto = textoDeLaPagina(pdf);
         assertTrue(texto.contains("Judith Rodríguez") && texto.contains("Directora del programa"));
         assertTrue(texto.contains("Sin imagen") && texto.contains("Coordinador"));
-        // Con fondo no se dibuja el encabezado predeterminado.
-        assertFalse(texto.contains("UNIVERSIDAD FRANCISCO DE PAULA SANTANDER"));
+        // Con fondo también van el logo y el encabezado de la universidad.
+        assertTrue(texto.contains("LA UNIVERSIDAD FRANCISCO DE PAULA SANTANDER"));
         assertArrayEquals(pdf, generador.generar(d));
     }
 
@@ -237,7 +238,7 @@ class GeneradorPdfCertificadoTest {
     @DisplayName("Sin tipo de certificado no se genera")
     void sinTipo() {
         assertThrows(IllegalArgumentException.class, () -> generador.generar(null));
-        assertFalse(GeneradorPdfCertificado.subtitulo(TipoCertificado.evaluador).isBlank());
+        assertEquals("participó como evaluador en el evento", GeneradorPdfCertificado.frasePrincipal(TipoCertificado.evaluador));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

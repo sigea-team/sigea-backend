@@ -16,11 +16,12 @@ import java.util.Locale;
 import java.util.zip.Deflater;
 
 /**
- * Genera el PDF de un certificado de participación (HU-26, RF47): una página carta horizontal con el rol, el nombre
- * y documento de la persona, el evento, sus fechas, el detalle de la participación, la fecha de expedición y el
- * código de verificación. El diseño predeterminado lleva el logo institucional ({@value #RECURSO_LOGO}). Con la plantilla
- * del evento, la imagen de fondo cubre la página (en lugar del marco y el
- * encabezado institucional) y de 1 a {@value #MAXIMO_FIRMAS} firmas se reparten en el pie.
+ * Genera el PDF de un certificado de participación (HU-26, RF47): una página carta horizontal encabezada por el logo
+ * institucional ({@value #RECURSO_LOGO}) y «La Universidad Francisco de Paula Santander certifica que», seguida del
+ * nombre y documento de la persona, su participación (asistió, o participó como ponente o conferencista), el evento,
+ * sus fechas, el detalle, la fecha de expedición y el código de verificación. Con la plantilla del evento, la imagen
+ * de fondo cubre la página (en lugar del marco) y de 1 a {@value #MAXIMO_FIRMAS} firmas se reparten en el pie. El
+ * cuerpo se centra en el espacio que queda entre el encabezado y las firmas.
  * <p>
  * Escribe el PDF directamente (sin dependencias): usa las fuentes estándar Helvetica y Helvetica-Bold con
  * codificación WinAnsi (tildes, eñes, comillas angulares), por eso no incrusta fuentes. Los caracteres fuera de
@@ -43,13 +44,13 @@ public class GeneradorPdfCertificado {
     public static final int MAXIMO_FIRMAS = 4;
     private static final float Y_LINEA_FIRMA = 150f;
     private static final float ALTO_FIRMA = 52f;
-    /** Recurso con el logo institucional del diseño predeterminado (logo vertical del login del frontend). */
+    /** Recurso con el logo institucional (logo vertical del login del frontend); va en todos los certificados. */
     static final String RECURSO_LOGO = "/certificados/logo-ufps.png";
-    private static final float Y_TOPE_LOGO = 574f;
+    private static final float Y_TOPE_LOGO = 562f;
     private static final float ALTO_LOGO = 62f;
 
-    /** Con fondo, línea base del título «CERTIFICADO»: deja libre la franja superior para el encabezado del fondo. */
-    static final float Y_INICIO_CON_FONDO = 455f;
+    /** Espacio que se agrega como máximo entre bloques del cuerpo cuando sobra lugar; el resto lo centra. */
+    private static final float MAXIMO_ESPACIO_EXTRA = 8f;
 
     private static final Charset WIN_ANSI = Charset.forName("windows-1252");
     private static final String COLOR_INSTITUCIONAL = "0.667 0.098 0.086";
@@ -178,79 +179,83 @@ public class GeneradorPdfCertificado {
         boolean conFirmas = !firmas.isEmpty();
 
         Contenido c = new Contenido();
-        float y;
         if (fondo != null) {
-            // El fondo cubre la página; trae el marco y la identidad institucional, así que no se dibujan. La franja
-            // superior (de Y_INICIO_CON_FONDO hacia arriba, unos 5,4 cm) queda libre para el logo o el encabezado del fondo.
+            // El fondo cubre la página y trae el marco; el logo y el texto van encima.
             c.imagen(fondo.nombre, 0, 0, ANCHO, ALTO);
-            y = Y_INICIO_CON_FONDO;
         } else {
             dibujarMarco(c);
-            Imagen logo = logoInstitucional();
-            if (logo != null) {
-                // Logo vertical de la UFPS (el mismo del login); ya trae el nombre de la universidad.
-                imagenes.add(logo);
-                float w = logo.ancho * ALTO_LOGO / logo.alto;
-                c.imagen(logo.nombre, (ANCHO - w) / 2, Y_TOPE_LOGO - ALTO_LOGO, w, ALTO_LOGO);
-                y = Y_TOPE_LOGO - ALTO_LOGO - 12;
-            } else {
-                y = conFirmas ? 548f : 540f;
-                c.textoCentrado("UNIVERSIDAD FRANCISCO DE PAULA SANTANDER", Fuente.NEGRITA, 13, y, COLOR_TEXTO);
-                y -= conFirmas ? 15 : 17;
-            }
-            c.textoCentrado("SIGEA · Sistema de gestión de eventos académicos", Fuente.NORMAL, 10, y, COLOR_SECUNDARIO);
-            y = logo != null ? (conFirmas ? Y_INICIO_CON_FONDO : 458f) : y - (conFirmas ? 50 : 62);
         }
 
-        // Con firmas el pie ocupa más espacio: el cuerpo se compacta y limita el evento y el detalle a 2 líneas.
-        c.textoCentrado("CERTIFICADO", Fuente.NEGRITA, 36, y, COLOR_INSTITUCIONAL);
-        y -= conFirmas ? 23 : 26;
-        c.textoCentrado(subtitulo(datos.tipo()), Fuente.NORMAL, 14, y, COLOR_INSTITUCIONAL);
-        y -= conFirmas ? 12 : 14;
-        c.linea(ANCHO / 2 - 70, y, ANCHO / 2 + 70, y, 1.2f, COLOR_INSTITUCIONAL);
+        // Encabezado: logo de la UFPS (el mismo del login) y «La Universidad Francisco de Paula Santander certifica que».
+        float y;
+        Imagen logo = logoInstitucional();
+        if (logo != null) {
+            imagenes.add(logo);
+            float w = logo.ancho * ALTO_LOGO / logo.alto;
+            c.imagen(logo.nombre, (ANCHO - w) / 2, Y_TOPE_LOGO - ALTO_LOGO, w, ALTO_LOGO);
+            y = Y_TOPE_LOGO - ALTO_LOGO - (conFirmas ? 28 : 34);
+        } else {
+            y = conFirmas ? 540f : 530f;
+        }
+        c.textoCentrado("LA UNIVERSIDAD FRANCISCO DE PAULA SANTANDER", Fuente.NEGRITA, 18, y, COLOR_INSTITUCIONAL);
+        y -= conFirmas ? 24 : 28;
+        c.textoCentrado("CERTIFICA QUE", Fuente.NORMAL, 13, y, COLOR_TEXTO);
 
-        y -= conFirmas ? 27 : 34;
-        c.textoCentrado("Se certifica que", Fuente.NORMAL, 13, y, COLOR_TEXTO);
-
-        y -= conFirmas ? 31 : 36;
+        // Cuerpo. Con firmas el pie ocupa más espacio, así que el evento y el detalle se limitan a 2 líneas. Primero se
+        // arman los renglones con su separación mínima y luego el espacio que sobra hasta las firmas (o el pie) se
+        // reparte entre los bloques, para que el texto no quede amontonado arriba.
+        List<Renglon> renglones = new ArrayList<>();
         String nombre = texto(datos.nombreParticipante(), "Participante").toUpperCase(Locale.of("es", "CO"));
         float tamanoNombre = ajustarTamano(nombre, Fuente.NEGRITA, 26, 15, ANCHO_TEXTO);
         if (ancho(nombre, Fuente.NEGRITA, tamanoNombre) > ANCHO_TEXTO) {
             nombre = recortar(nombre, Fuente.NEGRITA, tamanoNombre, ANCHO_TEXTO);
         }
-        c.textoCentrado(nombre, Fuente.NEGRITA, tamanoNombre, y, COLOR_TEXTO);
-
+        renglones.add(new Renglon(nombre, Fuente.NEGRITA, tamanoNombre, COLOR_TEXTO, 40, true, true));
         String documento = documento(datos.tipoDocumento(), datos.numeroDocumento());
         if (documento != null) {
-            y -= conFirmas ? 19 : 22;
-            c.textoCentrado("identificado(a) con " + documento, Fuente.NORMAL, 12, y, COLOR_SECUNDARIO);
+            renglones.add(new Renglon("identificado(a) con " + documento, Fuente.NORMAL, 12, COLOR_SECUNDARIO, 24,
+                    false, false));
         }
-
-        y -= conFirmas ? 27 : 32;
-        c.textoCentrado("participó como " + datos.tipo().getRolEnTexto() + " en el evento", Fuente.NORMAL, 13, y,
-                COLOR_TEXTO);
-
-        y -= conFirmas ? 23 : 26;
-        float pasoEvento = conFirmas ? 20 : 22;
+        renglones.add(new Renglon(frasePrincipal(datos.tipo()), Fuente.NORMAL, 13, COLOR_TEXTO, 30, true, false));
+        boolean primera = true;
         for (String linea : partir(texto(datos.nombreEvento(), "Evento"), Fuente.NEGRITA, 18, ANCHO_TEXTO,
                 conFirmas ? 2 : 3)) {
-            c.textoCentrado(linea, Fuente.NEGRITA, 18, y, COLOR_INSTITUCIONAL);
-            y -= pasoEvento;
+            renglones.add(new Renglon(linea, Fuente.NEGRITA, 18, COLOR_INSTITUCIONAL, primera ? 24 : 21, false, false));
+            primera = false;
         }
-
         String fechas = rangoFechas(datos.fechaInicioEvento(), datos.fechaFinEvento());
         if (fechas != null) {
-            y -= 2;
-            c.textoCentrado(fechas, Fuente.NORMAL, 12, y, COLOR_TEXTO);
-            y -= conFirmas ? 16 : 18;
+            renglones.add(new Renglon(fechas, Fuente.NORMAL, 12, COLOR_TEXTO, 22, false, false));
         }
-
         String detalle = datos.detalle() == null ? null : datos.detalle().trim();
         if (detalle != null && !detalle.isEmpty()) {
-            y -= conFirmas ? 6 : 8;
-            for (String linea : partir(detalle, Fuente.NORMAL, conFirmas ? 10 : 11, ANCHO_TEXTO, conFirmas ? 2 : 4)) {
-                c.textoCentrado(linea, Fuente.NORMAL, conFirmas ? 10 : 11, y, COLOR_SECUNDARIO);
-                y -= conFirmas ? 13 : 15;
+            float tamanoDetalle = conFirmas ? 10 : 11;
+            primera = true;
+            for (String linea : partir(detalle, Fuente.NORMAL, tamanoDetalle, ANCHO_TEXTO, conFirmas ? 2 : 4)) {
+                renglones.add(new Renglon(linea, Fuente.NORMAL, tamanoDetalle, COLOR_SECUNDARIO,
+                        primera ? 24 : tamanoDetalle + 3, primera, false));
+                primera = false;
+            }
+        }
+
+        float usado = 0;
+        int flexibles = 0;
+        for (Renglon r : renglones) {
+            usado += r.espacioAntes();
+            flexibles += r.flexible() ? 1 : 0;
+        }
+        // Límite inferior: encima de las imágenes de las firmas o, sin firmas, encima de la línea del pie.
+        float limite = conFirmas ? Y_LINEA_FIRMA + ALTO_FIRMA + 26 : 150f;
+        // Lo que sobra: primero un poco más de aire entre bloques y el resto centra el cuerpo entre el encabezado y
+        // las firmas, para que no quede un hueco grande antes de ellas.
+        float sobrante = Math.max(0, y - limite - usado);
+        float extra = flexibles == 0 ? 0 : Math.min(MAXIMO_ESPACIO_EXTRA, sobrante / flexibles);
+        y -= (sobrante - extra * flexibles) / 2;
+        for (Renglon r : renglones) {
+            y -= r.espacioAntes() + (r.flexible() ? extra : 0);
+            c.textoCentrado(r.texto(), r.fuente(), r.tamano(), y, r.color());
+            if (r.subrayado()) {
+                c.linea(ANCHO / 2 - 150, y - 8, ANCHO / 2 + 150, y - 8, 0.8f, COLOR_INSTITUCIONAL);
             }
         }
 
@@ -314,14 +319,22 @@ public class GeneradorPdfCertificado {
     // Textos
     // ──────────────────────────────────────────────────────────────────────────────
 
-    static String subtitulo(TipoCertificado tipo) {
-        return switch (tipo) {
-            case asistente -> "DE ASISTENCIA";
-            case ponente -> "DE PARTICIPACIÓN COMO PONENTE";
-            case conferencista -> "DE PARTICIPACIÓN COMO CONFERENCISTA";
-            case evaluador -> "DE PARTICIPACIÓN COMO EVALUADOR";
-            case organizador -> "DE PARTICIPACIÓN COMO ORGANIZADOR";
-        };
+    /**
+     * Renglón del cuerpo del certificado.
+     *
+     * @param espacioAntes distancia mínima desde la línea base del renglón anterior.
+     * @param flexible     si recibe parte del espacio sobrante (inicio de cada bloque).
+     * @param subrayado    si lleva la línea institucional debajo (el nombre).
+     */
+    private record Renglon(String texto, Fuente fuente, float tamano, String color, float espacioAntes,
+                           boolean flexible, boolean subrayado) {
+    }
+
+    /** «asistió al evento» o «participó como ponente en el evento». */
+    static String frasePrincipal(TipoCertificado tipo) {
+        return tipo == TipoCertificado.asistente
+                ? "asistió al evento"
+                : "participó como " + tipo.getRolEnTexto() + " en el evento";
     }
 
     private static String documento(String tipo, String numero) {
