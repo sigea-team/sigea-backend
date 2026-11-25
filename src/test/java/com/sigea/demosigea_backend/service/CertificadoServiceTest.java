@@ -605,6 +605,11 @@ class CertificadoServiceTest {
         verify(eventoRepository).save(evento);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.CONFIGURACION_CERTIFICADOS_ACTUALIZADA),
                 eq("eventos"), eq(1L), anyMap());
+        // Serializado con «Habilitar certificados»: mismo bloqueo exclusivo, tomado antes de leer el evento.
+        InOrder orden = inOrder(certificadoRepository, eventoRepository);
+        orden.verify(certificadoRepository).bloquearPlantilla(1L);
+        orden.verify(eventoRepository).findById(1L);
+        orden.verify(eventoRepository).save(evento);
     }
 
     @Test
@@ -672,6 +677,10 @@ class CertificadoServiceTest {
         InOrder orden = inOrder(plantillaService, certificadoRepository);
         orden.verify(plantillaService).habilitar(evento);
         orden.verify(certificadoRepository).saveAndFlush(any(Certificado.class));
+        // El bloqueo exclusivo se toma antes de leer el evento (carrera con el cambio de porcentaje).
+        InOrder lectura = inOrder(certificadoRepository, eventoRepository);
+        lectura.verify(certificadoRepository).bloquearPlantilla(1L);
+        lectura.verify(eventoRepository).findById(1L);
         verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.CERTIFICADOS_HABILITADOS), eq("eventos"),
                 eq(1L), anyMap());
     }

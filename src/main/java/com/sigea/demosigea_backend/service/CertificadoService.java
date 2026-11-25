@@ -306,6 +306,9 @@ public class CertificadoService {
      */
     @Transactional
     public HabilitacionCertificadosResponse habilitar(Long eventoId) {
+        // Mismo bloqueo exclusivo que cambiar el porcentaje mínimo o la plantilla, y el evento se lee después de
+        // obtenerlo: así los certificados se evalúan con el mismo porcentaje que queda congelado.
+        certificadoRepository.bloquearPlantilla(eventoId);
         Evento evento = buscarEvento(eventoId);
         MemoriaHistoricaReglas.verificarEditable(evento);
         verificarFinalizado(evento);
@@ -409,6 +412,9 @@ public class CertificadoService {
      */
     @Transactional
     public ConfiguracionCertificadosResponse actualizarConfiguracion(Long eventoId, BigDecimal porcentaje) {
+        // Se serializa con «Habilitar certificados» (mismo bloqueo exclusivo) y el evento se lee después de obtenerlo,
+        // para que el porcentaje no cambie entre la comprobación y la emisión.
+        certificadoRepository.bloquearPlantilla(eventoId);
         Evento evento = buscarEvento(eventoId);
         MemoriaHistoricaReglas.verificarEditable(evento);
         BigDecimal nuevo = porcentaje.setScale(2, RoundingMode.HALF_UP);
