@@ -444,6 +444,37 @@ class CertificadoServiceTest {
         assertTrue(servicio.consultarMios(1L).opciones().isEmpty());
     }
 
+    @Test
+    @DisplayName("Mis certificados por evento: solo eventos terminados en los que participó, del más reciente al más antiguo")
+    void listarMisEventos() {
+        Evento anterior = Evento.builder().id(2L).nombre("Congreso 2025").estado(EstadoEvento.cerrado)
+                .fechaInicio(LocalDate.of(2025, 5, 1)).fechaFin(LocalDate.of(2025, 5, 3)).build();
+        Evento enCurso = Evento.builder().id(3L).nombre("Feria").estado(EstadoEvento.en_ejecucion)
+                .fechaInicio(AHORA.toLocalDate()).fechaFin(AHORA.toLocalDate().plusDays(2)).build();
+        Evento sinRol = Evento.builder().id(4L).nombre("Foro").estado(EstadoEvento.cerrado)
+                .fechaInicio(LocalDate.of(2026, 1, 1)).fechaFin(LocalDate.of(2026, 1, 2)).build();
+        when(certificadoRepository.eventosDeLaPersona(10L)).thenReturn(List.of(2L, 1L, 3L, 4L));
+        when(eventoRepository.findAllById(List.of(2L, 1L, 3L, 4L))).thenReturn(List.of(anterior, evento, enCurso, sinRol));
+        when(certificadoRepository.resumenAsistencia(1L, 10L)).thenReturn(Optional.of(resumen(10L, 2, 2, 60)));
+        when(certificadoRepository.resumenAsistencia(2L, 10L)).thenReturn(Optional.of(resumen(10L, 4, 1, 60)));
+        when(certificadoRepository.resumenAsistencia(4L, 10L)).thenReturn(Optional.empty());
+
+        List<MisCertificadosEventoResponse> lista = servicio.listarMisEventos();
+
+        assertEquals(List.of(1L, 2L), lista.stream().map(MisCertificadosEventoResponse::eventoId).toList());
+        assertTrue(lista.get(0).opciones().get(0).cumpleRequisitos());
+        assertFalse(lista.get(1).opciones().get(0).cumpleRequisitos());
+        assertTrue(lista.get(1).opciones().get(0).motivo().contains("el mínimo es 80 %"));
+    }
+
+    @Test
+    @DisplayName("Mis certificados por evento: sin participación devuelve una lista vacía")
+    void listarMisEventosVacio() {
+        when(certificadoRepository.eventosDeLaPersona(10L)).thenReturn(List.of());
+
+        assertTrue(servicio.listarMisEventos().isEmpty());
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Descarga y verificación
     // ──────────────────────────────────────────────────────────────────────────

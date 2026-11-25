@@ -55,6 +55,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -136,8 +137,34 @@ public class CertificadoService {
      */
     @Transactional(readOnly = true)
     public MisCertificadosEventoResponse consultarMios(Long eventoId) {
+        return consultarMios(personaAutenticada(), buscarEvento(eventoId));
+    }
+
+    /**
+     * Eventos terminados en los que participó el usuario autenticado (inscrito, ponente o conferencista, o con algún
+     * certificado), con el estado de sus certificados en cada uno: los que ya tiene y, si no cumple, el motivo
+     * (Criterios 1 y 2). Del que terminó más recientemente al más antiguo.
+     *
+     * @return estado de sus certificados por evento.
+     */
+    @Transactional(readOnly = true)
+    public List<MisCertificadosEventoResponse> listarMisEventos() {
         Persona persona = personaAutenticada();
-        Evento evento = buscarEvento(eventoId);
+        List<Long> ids = certificadoRepository.eventosDeLaPersona(persona.getId());
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return eventoRepository.findAllById(ids).stream()
+                .filter(this::estaFinalizado)
+                .sorted(Comparator.comparing(Evento::getFechaFin, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Evento::getId, Comparator.reverseOrder()))
+                .map(evento -> consultarMios(persona, evento))
+                .filter(respuesta -> !respuesta.opciones().isEmpty())
+                .toList();
+    }
+
+    private MisCertificadosEventoResponse consultarMios(Persona persona, Evento evento) {
+        Long eventoId = evento.getId();
         boolean finalizado = estaFinalizado(evento);
         boolean habilitados = plantillaService.fechaHabilitacion(eventoId).isPresent();
 

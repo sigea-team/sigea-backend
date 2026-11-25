@@ -110,6 +110,16 @@ public class CertificadoController {
         return ResponseEntity.ok(certificadoService.listarMios());
     }
 
+    @Operation(summary = "Mis certificados por evento",
+            description = "Eventos terminados en los que participó el usuario autenticado, con el estado de sus "
+                    + "certificados en cada uno: los emitidos y, si no cumple los requisitos, el motivo.")
+    @ApiResponse(responseCode = "200", description = "Estado de los certificados del participante por evento")
+    @GetMapping("/certificados/mios/eventos")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<MisCertificadosEventoResponse>> listarMisEventos() {
+        return ResponseEntity.ok(certificadoService.listarMisEventos());
+    }
+
     @Operation(summary = "Descargar un certificado en PDF",
             description = "Lo descarga su titular o quien tiene el permiso CERTIFICADOS_EMITIR. Siempre es la misma "
                     + "versión del certificado (Criterio 3).")

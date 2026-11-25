@@ -122,6 +122,24 @@ public interface CertificadoRepository extends JpaRepository<Certificado, Long> 
             """, nativeQuery = true)
     List<ResumenAsistencia> resumenAsistenciaDelEvento(@Param("eventoId") Long eventoId);
 
+    /**
+     * Eventos con los que la persona tiene relación para certificados: inscrita, ponente de una actividad realizada,
+     * conferencista registrado o con algún certificado emitido.
+     */
+    @Query(value = """
+            SELECT CAST(x.evento_id AS BIGINT) FROM (
+                SELECT ie.evento_id FROM inscripciones_evento ie WHERE ie.persona_id = :personaId
+                UNION
+                SELECT act.evento_id FROM actividades act WHERE act.ponente_id = :personaId
+                       AND lower(act.estado) NOT IN ('cancelada', 'por_programar')
+                UNION
+                SELECT pc.evento_id FROM participaciones_conferencista pc WHERE pc.persona_id = :personaId
+                UNION
+                SELECT c.evento_id FROM certificados c WHERE c.persona_id = :personaId
+            ) x
+            """, nativeQuery = true)
+    List<Long> eventosDeLaPersona(@Param("personaId") Long personaId);
+
     /** Actividades realizadas del evento que la persona tuvo a cargo como ponente, en orden cronológico. */
     @Query("SELECT a FROM Actividad a WHERE a.evento.id = :eventoId AND a.ponente.id = :personaId "
             + "AND LOWER(a.estado) NOT IN ('cancelada', 'por_programar') "

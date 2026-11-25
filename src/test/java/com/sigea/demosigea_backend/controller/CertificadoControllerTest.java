@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosResp
 import com.sigea.demosigea_backend.dto.certificado.EmisionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.GeneracionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.HabilitacionCertificadosResponse;
+import com.sigea.demosigea_backend.dto.certificado.MisCertificadosEventoResponse;
 import com.sigea.demosigea_backend.dto.certificado.VerificacionCertificadoResponse;
 import com.sigea.demosigea_backend.exception.CertificadoException;
 import com.sigea.demosigea_backend.exception.GlobalExceptionHandler;
@@ -142,6 +143,19 @@ class CertificadoControllerTest {
         mockMvc.perform(get("/api/v1/certificados/mios"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].eventoNombre").value("Semana de Ingeniería"));
+    }
+
+    @Test
+    @DisplayName("GET certificados/mios/eventos lista el estado de sus certificados por evento")
+    void listarMisEventos() throws Exception {
+        when(certificadoService.listarMisEventos()).thenReturn(List.of(new MisCertificadosEventoResponse(3L,
+                "Semana de Ingeniería", LocalDate.of(2026, 11, 12), true, false, new BigDecimal("80.00"), true,
+                List.of())));
+
+        mockMvc.perform(get("/api/v1/certificados/mios/eventos"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].eventoId").value(3))
+                .andExpect(jsonPath("$[0].certificadosHabilitados").value(true));
     }
 
     @Test
