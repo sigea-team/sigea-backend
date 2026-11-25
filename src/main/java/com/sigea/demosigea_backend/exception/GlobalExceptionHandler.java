@@ -877,6 +877,31 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * HU-26: certificado no emitido (no cumple los requisitos, evento sin terminar, tipo no disponible) o configuración
+     * bloqueada.
+     *
+     * @param ex      excepción con el código de negocio y el estado.
+     * @param request petición HTTP.
+     * @return {@link ErrorResponse} con {@code codigo}.
+     */
+    @ExceptionHandler(CertificadoException.class)
+    public ResponseEntity<ErrorResponse> handleCertificado(CertificadoException ex, HttpServletRequest request) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.CONFLICT;
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                ex.getMessage(),
+                ex.getCodigo(),
+                null,
+                null,
+                request != null ? request.getRequestURI() : null,
+                null
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    /**
      * HU-25: operación rechazada sobre una encuesta de satisfacción (configuración inválida, encuesta no editable,
      * participante que no asistió, encuesta cerrada o ya respondida, respuestas inválidas).
      *

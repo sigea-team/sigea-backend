@@ -1,5 +1,6 @@
 package com.sigea.demosigea_backend.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
@@ -98,6 +99,18 @@ public class Evento {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "evento_base_id")
     private Evento eventoBase;
+
+    /** HU-26 (RN-01): porcentaje mínimo de asistencia por defecto para el certificado de asistente. */
+    public static final BigDecimal PORCENTAJE_MINIMO_ASISTENCIA_POR_DEFECTO = new BigDecimal("80.00");
+
+    /**
+     * HU-26 (RN-01, changeset hu26-001): porcentaje mínimo de las actividades inscritas (no canceladas ni por
+     * programar) a las que el participante debe asistir para obtener el certificado de asistente. Entre 0 (excluido)
+     * y 100.
+     */
+    @Builder.Default
+    @Column(name = "porcentaje_minimo_asistencia", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeMinimoAsistencia = PORCENTAJE_MINIMO_ASISTENCIA_POR_DEFECTO;
 
     /**
      * Indica si el registro es una edición derivada de otro evento.

@@ -31,6 +31,9 @@ public interface ParticipacionConferencistaRepository extends JpaRepository<Part
             + "ORDER BY p.evento.fechaInicio DESC, p.id DESC")
     List<ParticipacionConferencista> historialDePersona(@Param("personaId") Long personaId);
 
+    /** HU-26: participación de la persona en el evento (define si su certificado es de ponente o de conferencista). */
+    Optional<ParticipacionConferencista> findByEvento_IdAndPersona_Id(Long eventoId, Long personaId);
+
     /** Criterio 3: la persona ya está asociada al evento. */
     boolean existsByEvento_IdAndPersona_Id(Long eventoId, Long personaId);
 
