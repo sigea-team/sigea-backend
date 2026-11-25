@@ -731,6 +731,23 @@ class CertificadoServiceTest {
         assertNull(CertificadoService.documentoOculto("CC", " "));
     }
 
+    @Test
+    @DisplayName("Documento oculto en la verificación pública: casos borde")
+    void documentoOcultoCasosBorde() {
+        // Sin número no se muestra nada.
+        assertNull(CertificadoService.documentoOculto("CC", null));
+        // Con 1 o 2 caracteres se oculta todo: mostrar dígitos revelaría el documento completo.
+        assertEquals("CC *", CertificadoService.documentoOculto("CC", "1"));
+        assertEquals("CC **", CertificadoService.documentoOculto("CC", "12"));
+        // Se dejan visibles a lo sumo los 4 últimos y siempre se ocultan al menos 2.
+        assertEquals("CC **345", CertificadoService.documentoOculto("CC", "12345"));
+        // Los espacios alrededor del tipo y del número no cuentan; el tipo va en mayúsculas.
+        assertEquals("CC ******3456", CertificadoService.documentoOculto(" cc ", " 1090123456 "));
+        // Sin tipo de documento solo se muestra el número oculto.
+        assertEquals("****4455", CertificadoService.documentoOculto(null, "E-334455"));
+        assertEquals("****4567", CertificadoService.documentoOculto("", "88234567"));
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Auxiliares
     // ──────────────────────────────────────────────────────────────────────────
