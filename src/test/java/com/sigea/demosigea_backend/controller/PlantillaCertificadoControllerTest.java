@@ -57,7 +57,7 @@ class PlantillaCertificadoControllerTest {
     private static PlantillaCertificadoResponse plantilla() {
         return new PlantillaCertificadoResponse(3L, true, URL + "/fondo",
                 List.of(new FirmanteCertificadoResponse(4L, "Judith Rodríguez", "Directora", 1,
-                        URL + "/firmantes/4/firma")), 4, true, null, URL + "/vista-previa");
+                        URL + "/firmantes/4/firma")), 4, true, null, URL + "/vista-previa", true, List.of(), false, null);
     }
 
     @Test

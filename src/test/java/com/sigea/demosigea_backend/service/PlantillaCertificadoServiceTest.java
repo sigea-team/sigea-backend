@@ -160,6 +160,58 @@ class PlantillaCertificadoServiceTest {
     }
 
     @Test
+    @DisplayName("Habilitar: exige fondo y al menos una firma; deja la plantilla fija con la fecha")
+    void habilitar() {
+        CertificadoException sinNada = assertThrows(CertificadoException.class, () -> servicio.habilitar(evento));
+        assertEquals(CertificadoException.PLANTILLA_INCOMPLETA, sinNada.getCodigo());
+        assertTrue(sinNada.getMessage().contains("fondo") && sinNada.getMessage().contains("firmante"));
+
+        PlantillaCertificado plantilla = PlantillaCertificado.builder().id(9L).evento(evento).fondoUrl("f.jpg")
+                .fechaActualizacion(AHORA).build();
+        when(plantillaRepository.findByEvento_Id(1L)).thenReturn(Optional.of(plantilla));
+        CertificadoException sinFirma = assertThrows(CertificadoException.class, () -> servicio.habilitar(evento));
+        assertFalse(sinFirma.getMessage().contains("fondo"));
+
+        firmante(4L, 1);
+        PlantillaCertificadoResponse antes = servicio.consultar(1L);
+        assertTrue(antes.completa());
+        assertTrue(antes.faltantes().isEmpty());
+
+        assertEquals(AHORA, servicio.habilitar(evento));
+        assertEquals(AHORA, plantilla.getFechaHabilitacion());
+        verify(plantillaRepository).save(plantilla);
+        verify(certificadoRepository, org.mockito.Mockito.atLeastOnce()).bloquearPlantilla(1L);
+
+        CertificadoException otraVez = assertThrows(CertificadoException.class, () -> servicio.habilitar(evento));
+        assertEquals(CertificadoException.YA_HABILITADOS, otraVez.getCodigo());
+    }
+
+    @Test
+    @DisplayName("Habilitada: la plantilla ya no se modifica y la consulta lo indica")
+    void habilitadaNoSeModifica() {
+        when(plantillaRepository.findByEvento_Id(1L)).thenReturn(Optional.of(PlantillaCertificado.builder().id(9L)
+                .evento(evento).fondoUrl("f.jpg").fechaActualizacion(AHORA).fechaHabilitacion(AHORA).build()));
+
+        CertificadoException ex = assertThrows(CertificadoException.class,
+                () -> servicio.agregarFirmante(1L, "A", "B", new byte[]{1}));
+        assertEquals(CertificadoException.PLANTILLA_BLOQUEADA, ex.getCodigo());
+        assertTrue(ex.getMessage().contains("24/11/2026 19:00"));
+        PlantillaCertificadoResponse r = servicio.consultar(1L);
+        assertTrue(r.habilitada());
+        assertFalse(r.editable());
+        assertEquals(AHORA, r.fechaHabilitacion());
+    }
+
+    @Test
+    @DisplayName("Consulta: sin fondo ni firmas indica lo que falta para habilitar")
+    void faltantes() {
+        PlantillaCertificadoResponse r = servicio.consultar(1L);
+        assertFalse(r.completa());
+        assertEquals(2, r.faltantes().size());
+        assertFalse(r.habilitada());
+    }
+
+    @Test
     @DisplayName("HU-28: con el evento archivado la plantilla no se modifica")
     void archivado() {
         Evento archivado = Evento.builder().id(1L).nombre("Semana").estado(EstadoEvento.cerrado)

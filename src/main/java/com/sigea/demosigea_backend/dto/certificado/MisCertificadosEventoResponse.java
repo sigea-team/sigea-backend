@@ -34,6 +34,9 @@ public record MisCertificadosEventoResponse(
         @Schema(description = "Porcentaje mínimo de asistencia del evento para el certificado de asistente", example = "80")
         BigDecimal porcentajeMinimoAsistencia,
 
+        @Schema(description = "Si el organizador ya habilitó los certificados del evento", example = "true")
+        boolean certificadosHabilitados,
+
         @Schema(description = "Un elemento por rol del participante; vacío si no participó en el evento")
         List<OpcionCertificadoResponse> opciones
 ) {

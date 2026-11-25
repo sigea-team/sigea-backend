@@ -81,7 +81,7 @@ Cada vez que se solicite implementar, modificar, consultar o refactorizar cualqu
 - `respuestas_encuesta` ➡️ Respuestas individuales por participante.
 - `certificados` ➡️ Certificados emitidos (`'asistente'`, `'ponente'`, `'conferencista'`, `'evaluador'`, `'organizador'`). Entidad `Certificado` (HU-26, changeset 27): PDF en el almacenamiento, uno por persona/evento/tipo, datos impresos guardados y `codigo_verificacion` para la consulta pública. El porcentaje mínimo de asistencia es `eventos.porcentaje_minimo_asistencia` (RN-01).
 - `plantillas_certificado` ➡️ Imagen de fondo de los certificados de un evento (HU-26, changeset 28). Entidad `PlantillaCertificado`.
-- `firmantes_certificado` ➡️ Firmantes (nombre, cargo, imagen de la firma, orden; máximo 4) de los certificados de un evento (HU-26, changeset 28). Entidad `FirmanteCertificado`. La plantilla no se modifica si el evento ya tiene certificados emitidos.
+- `firmantes_certificado` ➡️ Firmantes (nombre, cargo, imagen de la firma, orden; máximo 4) de los certificados de un evento (HU-26, changeset 28). Entidad `FirmanteCertificado`. Los certificados se obtienen solo después de que el organizador los habilita (`plantillas_certificado.fecha_habilitacion`, exige fondo y al menos una firma); desde ahí la plantilla no se modifica.
 - `indicadores` ➡️ Indicadores de gestión y métricas.
 - `memorias_historicas` ➡️ Memorias finales y actas de consolidación del evento.
 

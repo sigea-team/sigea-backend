@@ -2,6 +2,7 @@ package com.sigea.demosigea_backend.dto.certificado;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -26,6 +27,13 @@ public record PlantillaCertificadoResponse(
                 example = "Ya se emitieron 12 certificados con esta plantilla; todos deben ser iguales.")
         String motivoNoEditable,
         @Schema(description = "Ruta de la vista previa en PDF", example = "/api/v1/eventos/3/certificados/plantilla/vista-previa")
-        String urlVistaPrevia
+        String urlVistaPrevia,
+        @Schema(description = "Si tiene lo necesario para habilitar los certificados (fondo y al menos una firma)",
+                example = "false") boolean completa,
+        @Schema(description = "Lo que falta para habilitar; vacío si está completa",
+                example = "[\"Suba la imagen de fondo del certificado.\"]") List<String> faltantes,
+        @Schema(description = "Si los certificados del evento ya fueron habilitados", example = "false") boolean habilitada,
+        @Schema(description = "Fecha y hora de habilitación, o null", example = "2026-12-04T10:15:00")
+        LocalDateTime fechaHabilitacion
 ) {
 }

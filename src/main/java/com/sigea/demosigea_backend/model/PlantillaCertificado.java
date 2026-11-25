@@ -18,8 +18,8 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Plantilla de los certificados de un evento (HU-26, changeset hu26-006): por ahora, la imagen de fondo. Una por
- * evento. Mapea la tabla {@code plantillas_certificado}.
+ * Plantilla de los certificados de un evento (HU-26, changeset hu26-006): la imagen de fondo y la fecha en que se
+ * habilitaron los certificados. Una por evento. Mapea la tabla {@code plantillas_certificado}.
  *
  * @author SIGEA Development Team
  * @version 1.0
@@ -49,4 +49,16 @@ public class PlantillaCertificado {
 
     @Column(name = "fecha_actualizacion", nullable = false)
     private LocalDateTime fechaActualizacion;
+
+    /**
+     * Fecha en que el organizador habilitó los certificados del evento (changeset hu26-009); null = aún no habilitados.
+     * Desde ese momento la plantilla queda fija y los participantes pueden obtener sus certificados.
+     */
+    @Column(name = "fecha_habilitacion")
+    private LocalDateTime fechaHabilitacion;
+
+    /** @return true si los certificados del evento ya fueron habilitados. */
+    public boolean estaHabilitada() {
+        return fechaHabilitacion != null;
+    }
 }

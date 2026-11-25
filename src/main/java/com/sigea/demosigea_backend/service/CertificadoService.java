@@ -5,6 +5,7 @@ import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosResp
 import com.sigea.demosigea_backend.dto.certificado.EmisionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.ExclusionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.GeneracionCertificadosResponse;
+import com.sigea.demosigea_backend.dto.certificado.HabilitacionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.MisCertificadosEventoResponse;
 import com.sigea.demosigea_backend.dto.certificado.OpcionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.VerificacionCertificadoResponse;
@@ -81,8 +82,9 @@ import java.util.stream.Collectors;
  *   <li>Ponente o conferencista: tener a cargo al menos una actividad realizada del evento. Es conferencista quien está
  *       registrado así en el evento (HU-12); los demás ponentes de actividades reciben el de ponente.</li>
  * </ul>
- * El PDF usa la plantilla del evento (fondo y firmantes, {@link PlantillaCertificadoService}), que queda fija desde
- * el primer certificado emitido.
+ * Nadie genera certificados hasta que el organizador los habilita ({@link #habilitar}): exige la plantilla completa
+ * (fondo y al menos una firma, {@link PlantillaCertificadoService}), la deja fija y genera los de todos los que cumplen.
+ * Después cada participante encuentra el suyo en SIGEA; no se envían por correo.
  * Los certificados se generan cuando el evento terminó (estado {@code cerrado} o pasada su fecha de fin): antes la
  * asistencia todavía puede cambiar. Con el evento cerrado formalmente (HU-28) solo se entregan los ya emitidos.
  *
@@ -101,6 +103,8 @@ public class CertificadoService {
     private static final int INTENTOS_CODIGO = 5;
     private static final SecureRandom ALEATORIO = new SecureRandom();
     private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    static final String MENSAJE_NO_HABILITADOS =
+            "El organizador aún no ha habilitado los certificados de este evento.";
 
     /** Autoridades que gestionan los certificados de un evento. */
     static final Set<String> AUTORIDADES_GESTION = Set.of("CERTIFICADOS_EMITIR", "ROLE_ADMIN", "ADMIN");
@@ -135,6 +139,7 @@ public class CertificadoService {
         Persona persona = personaAutenticada();
         Evento evento = buscarEvento(eventoId);
         boolean finalizado = estaFinalizado(evento);
+        boolean habilitados = plantillaService.fechaHabilitacion(eventoId).isPresent();
 
         Map<TipoCertificado, Certificado> emitidos = certificadoRepository
                 .findByPersona_IdAndEvento_IdOrderByFechaGeneracionAscIdAsc(persona.getId(), eventoId).stream()
@@ -161,10 +166,10 @@ public class CertificadoService {
         }
 
         List<OpcionCertificadoResponse> opciones = evaluaciones.stream()
-                .map(e -> aOpcion(e, emitidos.get(e.tipo()), evento, finalizado))
+                .map(e -> aOpcion(e, emitidos.get(e.tipo()), evento, finalizado, habilitados))
                 .toList();
         return new MisCertificadosEventoResponse(evento.getId(), evento.getNombre(), evento.getFechaFin(), finalizado,
-                evento.isArchivado(), porcentajeMinimo(evento), opciones);
+                evento.isArchivado(), porcentajeMinimo(evento), habilitados, opciones);
     }
 
     /**
@@ -196,6 +201,7 @@ public class CertificadoService {
 
         MemoriaHistoricaReglas.verificarEditable(evento);
         verificarFinalizado(evento);
+        verificarHabilitados(evento);
         Evaluacion evaluacion = evaluar(evento, persona.getId(), tipo);
         if (!evaluacion.cumple()) {
             throw new CertificadoException(CertificadoException.REQUISITOS_NO_CUMPLIDOS, HttpStatus.CONFLICT,
@@ -256,7 +262,47 @@ public class CertificadoService {
         Evento evento = buscarEvento(eventoId);
         MemoriaHistoricaReglas.verificarEditable(evento);
         verificarFinalizado(evento);
+        verificarHabilitados(evento);
+        GeneracionCertificadosResponse resultado = generarTodos(evento);
+        auditoriaService.registrar(TipoOperacionAuditoria.CERTIFICADOS_GENERADOS_EVENTO, "eventos", eventoId,
+                resumenAuditoria(evento, resultado));
+        return resultado;
+    }
 
+    /**
+     * Habilita los certificados del evento (HU-26): exige que el evento haya terminado y que la plantilla tenga fondo y
+     * al menos una firma; la plantilla queda fija y se generan de una vez los certificados de quienes cumplen. Desde
+     * ese momento cada participante los encuentra en SIGEA (no se envían por correo).
+     *
+     * @param eventoId evento.
+     * @return fecha de habilitación y resultado de la generación.
+     */
+    @Transactional
+    public HabilitacionCertificadosResponse habilitar(Long eventoId) {
+        Evento evento = buscarEvento(eventoId);
+        MemoriaHistoricaReglas.verificarEditable(evento);
+        verificarFinalizado(evento);
+        LocalDateTime fecha = plantillaService.habilitar(evento);
+        GeneracionCertificadosResponse resultado = generarTodos(evento);
+        Map<String, Object> detalle = resumenAuditoria(evento, resultado);
+        detalle.put("fechaHabilitacion", fecha);
+        auditoriaService.registrar(TipoOperacionAuditoria.CERTIFICADOS_HABILITADOS, "eventos", eventoId, detalle);
+        return new HabilitacionCertificadosResponse(eventoId, fecha, resultado.generados(), resultado.yaEmitidos(),
+                resultado.excluidos());
+    }
+
+    private Map<String, Object> resumenAuditoria(Evento evento, GeneracionCertificadosResponse r) {
+        return DetalleAuditoria.de(
+                "eventoNombre", evento.getNombre(),
+                "generados", r.generados().size(),
+                "yaEmitidos", r.yaEmitidos(),
+                "excluidos", r.excluidos().size(),
+                "porcentajeMinimoAsistencia", porcentajeMinimo(evento));
+    }
+
+    /** Genera los certificados de todos los que cumplen (sin verificar estado ni registrar auditoría). */
+    private GeneracionCertificadosResponse generarTodos(Evento evento) {
+        Long eventoId = evento.getId();
         List<Candidato> candidatos = new ArrayList<>();
         for (ResumenAsistencia resumen : certificadoRepository.resumenAsistenciaDelEvento(eventoId)) {
             candidatos.add(new Candidato(resumen.getPersonaId(), TipoCertificado.asistente,
@@ -306,14 +352,6 @@ public class CertificadoService {
             }
         }
 
-        auditoriaService.registrar(TipoOperacionAuditoria.CERTIFICADOS_GENERADOS_EVENTO, "eventos", eventoId,
-                DetalleAuditoria.de(
-                        "eventoNombre", evento.getNombre(),
-                        "generados", generados.size(),
-                        "yaEmitidos", yaEmitidos,
-                        "excluidos", excluidos.size(),
-                        "porcentajeMinimoAsistencia", porcentajeMinimo(evento)
-                ));
         log.info("Certificados del evento {}: {} generados, {} ya emitidos, {} excluidos",
                 eventoId, generados.size(), yaEmitidos, excluidos.size());
         return new GeneracionCertificadosResponse(eventoId, generados, yaEmitidos, excluidos);
@@ -350,6 +388,11 @@ public class CertificadoService {
         BigDecimal anterior = porcentajeMinimo(evento);
         if (anterior.compareTo(nuevo) == 0) {
             return configuracion(evento);
+        }
+        if (plantillaService.fechaHabilitacion(eventoId).isPresent()) {
+            throw new CertificadoException(CertificadoException.CONFIGURACION_BLOQUEADA, HttpStatus.CONFLICT,
+                    "Los certificados ya fueron habilitados con el mínimo de " + ReglasCertificado.formatear(anterior)
+                            + "; el porcentaje ya no se puede cambiar.");
         }
         long deAsistente = certificadoRepository.countByEvento_IdAndTipo(eventoId, TipoCertificado.asistente);
         if (deAsistente > 0) {
@@ -652,7 +695,8 @@ public class CertificadoService {
     public record ArchivoCertificado(String nombre, byte[] contenido) {
     }
 
-    private OpcionCertificadoResponse aOpcion(Evaluacion e, Certificado emitido, Evento evento, boolean finalizado) {
+    private OpcionCertificadoResponse aOpcion(Evaluacion e, Certificado emitido, Evento evento, boolean finalizado,
+                                              boolean habilitados) {
         String motivo = null;
         boolean puedeGenerar = false;
         if (emitido == null) {
@@ -664,6 +708,8 @@ public class CertificadoService {
                 motivo = "El evento fue cerrado formalmente; ya no se emiten certificados nuevos.";
             } else if (!finalizado) {
                 motivo = "Disponible cuando termine el evento (" + formatear(evento.getFechaFin()) + ").";
+            } else if (!habilitados) {
+                motivo = MENSAJE_NO_HABILITADOS;
             } else {
                 puedeGenerar = true;
             }
@@ -679,6 +725,8 @@ public class CertificadoService {
         String motivo = null;
         if (evento.isArchivado()) {
             motivo = "El evento fue cerrado formalmente; su información solo se consulta.";
+        } else if (plantillaService.fechaHabilitacion(evento.getId()).isPresent()) {
+            motivo = "Los certificados ya fueron habilitados con este porcentaje.";
         } else if (deAsistente > 0) {
             motivo = "Ya se emitieron " + deAsistente + " certificado(s) de asistente con este porcentaje.";
         }
@@ -700,6 +748,12 @@ public class CertificadoService {
         }
         return evento.getEstado() != EstadoEvento.en_configuracion && evento.getFechaFin() != null
                 && LocalDate.now(clock).isAfter(evento.getFechaFin());
+    }
+
+    private void verificarHabilitados(Evento evento) {
+        if (plantillaService.fechaHabilitacion(evento.getId()).isEmpty()) {
+            throw new CertificadoException(CertificadoException.NO_HABILITADOS, HttpStatus.CONFLICT, MENSAJE_NO_HABILITADOS);
+        }
     }
 
     private void verificarFinalizado(Evento evento) {

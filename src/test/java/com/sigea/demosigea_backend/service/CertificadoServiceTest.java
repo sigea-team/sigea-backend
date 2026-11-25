@@ -3,6 +3,7 @@ package com.sigea.demosigea_backend.service;
 import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.EmisionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.GeneracionCertificadosResponse;
+import com.sigea.demosigea_backend.dto.certificado.HabilitacionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.MisCertificadosEventoResponse;
 import com.sigea.demosigea_backend.dto.certificado.OpcionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.VerificacionCertificadoResponse;
@@ -126,6 +127,8 @@ class CertificadoServiceTest {
         when(participacionRepository.findByEvento_IdAndPersona_Id(anyLong(), anyLong())).thenReturn(Optional.empty());
         when(generadorPdf.generar(any())).thenReturn(PDF);
         when(plantillaService.cargarParaPdf(anyLong())).thenReturn(new PlantillaCertificadoService.PlantillaPdf(null, List.of()));
+        // Por defecto los certificados del evento ya están habilitados; las pruebas de habilitación lo cambian.
+        when(plantillaService.fechaHabilitacion(anyLong())).thenReturn(Optional.of(AHORA.minusDays(1)));
         when(almacenamiento.guardar(anyString(), eq("pdf"), any(InputStream.class))).thenReturn("certificados/1/a.pdf");
 
         autenticar(CORREO, "ROLE_PARTICIPANTE");
@@ -560,6 +563,7 @@ class CertificadoServiceTest {
     @Test
     @DisplayName("RN-01: el porcentaje mínimo se cambia mientras no haya certificados de asistente")
     void actualizarConfiguracion() {
+        when(plantillaService.fechaHabilitacion(1L)).thenReturn(Optional.empty());
         when(certificadoRepository.countByEvento_IdAndTipo(1L, TipoCertificado.asistente)).thenReturn(0L);
 
         ConfiguracionCertificadosResponse r = servicio.actualizarConfiguracion(1L, new BigDecimal("75"));
@@ -587,6 +591,86 @@ class CertificadoServiceTest {
         ConfiguracionCertificadosResponse consulta = servicio.consultarConfiguracion(1L);
         assertFalse(consulta.editable());
         assertNotNull(consulta.motivoNoEditable());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Habilitación
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Sin habilitar: el participante no puede generar su certificado aunque cumpla")
+    void noHabilitadosParticipante() {
+        when(plantillaService.fechaHabilitacion(1L)).thenReturn(Optional.empty());
+        when(certificadoRepository.resumenAsistencia(1L, 10L)).thenReturn(Optional.of(resumen(10L, 2, 2, 120)));
+
+        CertificadoException ex = assertThrows(CertificadoException.class,
+                () -> servicio.solicitar(1L, TipoCertificado.asistente));
+
+        assertEquals(CertificadoException.NO_HABILITADOS, ex.getCodigo());
+        verify(certificadoRepository, never()).saveAndFlush(any());
+        OpcionCertificadoResponse opcion = servicio.consultarMios(1L).opciones().get(0);
+        assertTrue(opcion.cumpleRequisitos());
+        assertFalse(opcion.puedeGenerar());
+        assertEquals(CertificadoService.MENSAJE_NO_HABILITADOS, opcion.motivo());
+        assertFalse(servicio.consultarMios(1L).certificadosHabilitados());
+    }
+
+    @Test
+    @DisplayName("Sin habilitar: la generación del evento tampoco está disponible")
+    void noHabilitadosOrganizador() {
+        when(plantillaService.fechaHabilitacion(1L)).thenReturn(Optional.empty());
+
+        CertificadoException ex = assertThrows(CertificadoException.class, () -> servicio.generarDelEvento(1L));
+        assertEquals(CertificadoException.NO_HABILITADOS, ex.getCodigo());
+    }
+
+    @Test
+    @DisplayName("Habilitar: deja la plantilla fija y genera los certificados de quienes cumplen")
+    void habilitar() {
+        LocalDateTime fecha = AHORA;
+        when(plantillaService.fechaHabilitacion(1L)).thenReturn(Optional.empty());
+        when(plantillaService.habilitar(evento)).thenReturn(fecha);
+        when(certificadoRepository.resumenAsistenciaDelEvento(1L)).thenReturn(List.of(resumen(10L, 2, 2, 120)));
+        when(personaRepository.findAllById(any())).thenReturn(List.of(ana));
+
+        HabilitacionCertificadosResponse r = servicio.habilitar(1L);
+
+        assertEquals(fecha, r.fechaHabilitacion());
+        assertEquals(1, r.generados().size());
+        assertEquals("Ana María Pérez", r.generados().get(0).nombreParticipante());
+        InOrder orden = inOrder(plantillaService, certificadoRepository);
+        orden.verify(plantillaService).habilitar(evento);
+        orden.verify(certificadoRepository).saveAndFlush(any(Certificado.class));
+        verify(auditoriaService).registrar(eq(TipoOperacionAuditoria.CERTIFICADOS_HABILITADOS), eq("eventos"),
+                eq(1L), anyMap());
+    }
+
+    @Test
+    @DisplayName("Habilitar: el evento debe haber terminado; la plantilla incompleta lo impide")
+    void habilitarRestricciones() {
+        evento.setEstado(EstadoEvento.en_ejecucion);
+        evento.setFechaFin(AHORA.toLocalDate());
+        CertificadoException noTermino = assertThrows(CertificadoException.class, () -> servicio.habilitar(1L));
+        assertEquals(CertificadoException.EVENTO_NO_FINALIZADO, noTermino.getCodigo());
+        verify(plantillaService, never()).habilitar(any());
+
+        evento.setEstado(EstadoEvento.cerrado);
+        when(plantillaService.habilitar(evento)).thenThrow(new CertificadoException(
+                CertificadoException.PLANTILLA_INCOMPLETA, HttpStatus.CONFLICT, "Falta el fondo."));
+        CertificadoException incompleta = assertThrows(CertificadoException.class, () -> servicio.habilitar(1L));
+        assertEquals(CertificadoException.PLANTILLA_INCOMPLETA, incompleta.getCodigo());
+        verify(certificadoRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("RN-01: con los certificados habilitados el porcentaje ya no se cambia")
+    void porcentajeBloqueadoAlHabilitar() {
+        when(certificadoRepository.countByEvento_IdAndTipo(1L, TipoCertificado.asistente)).thenReturn(0L);
+
+        CertificadoException ex = assertThrows(CertificadoException.class,
+                () -> servicio.actualizarConfiguracion(1L, new BigDecimal("70")));
+        assertEquals(CertificadoException.CONFIGURACION_BLOQUEADA, ex.getCodigo());
+        assertFalse(servicio.consultarConfiguracion(1L).editable());
     }
 
     // ──────────────────────────────────────────────────────────────────────────

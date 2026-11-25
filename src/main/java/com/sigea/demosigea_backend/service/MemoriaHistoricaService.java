@@ -373,7 +373,7 @@ public class MemoriaHistoricaService {
         agregar(pendientes, "ENCUESTAS_ABIERTAS", conteo.getEncuestasAbiertas(),
                 "Encuestas de satisfacción publicadas; se cerrarán con el cierre formal");
         agregar(pendientes, "CERTIFICADOS_SIN_GENERAR", conteo.getCertificadosSinGenerar(),
-                "Participantes que cumplen los requisitos y aún no tienen su certificado (HU-26)");
+                "Participantes que cumplen los requisitos y aún no tienen su certificado: habilite los certificados del evento (HU-26)");
         return pendientes;
     }
 

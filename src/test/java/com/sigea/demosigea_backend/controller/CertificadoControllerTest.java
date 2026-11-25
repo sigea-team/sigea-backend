@@ -4,6 +4,7 @@ import com.sigea.demosigea_backend.dto.certificado.CertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.EmisionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.GeneracionCertificadosResponse;
+import com.sigea.demosigea_backend.dto.certificado.HabilitacionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.VerificacionCertificadoResponse;
 import com.sigea.demosigea_backend.exception.CertificadoException;
 import com.sigea.demosigea_backend.exception.GlobalExceptionHandler;
@@ -141,6 +142,24 @@ class CertificadoControllerTest {
         mockMvc.perform(get("/api/v1/certificados/mios"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].eventoNombre").value("Semana de Ingeniería"));
+    }
+
+    @Test
+    @DisplayName("POST habilitar devuelve la fecha y los certificados generados; plantilla incompleta → 409")
+    void habilitar() throws Exception {
+        when(certificadoService.habilitar(3L)).thenReturn(new HabilitacionCertificadosResponse(3L,
+                LocalDateTime.of(2026, 12, 4, 10, 15), List.of(certificado()), 0, List.of()));
+
+        mockMvc.perform(post("/api/v1/eventos/3/certificados/habilitar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generados.length()").value(1))
+                .andExpect(jsonPath("$.fechaHabilitacion").exists());
+
+        when(certificadoService.habilitar(4L)).thenThrow(new CertificadoException(
+                CertificadoException.PLANTILLA_INCOMPLETA, HttpStatus.CONFLICT, "Suba la imagen de fondo."));
+        mockMvc.perform(post("/api/v1/eventos/4/certificados/habilitar"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value(CertificadoException.PLANTILLA_INCOMPLETA));
     }
 
     @Test

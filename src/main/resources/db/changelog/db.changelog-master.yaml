@@ -63,3 +63,5 @@ databaseChangeLog:
       file: db/changelog/changes/27-hu26-certificados.sql
   - include:
       file: db/changelog/changes/28-hu26-plantilla-certificados.sql
+  - include:
+      file: db/changelog/changes/29-hu26-habilitar-certificados.sql

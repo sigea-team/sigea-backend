@@ -28,18 +28,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Plantilla de los certificados de un evento (HU-26, RF47): imagen de fondo y de 1 a
  * {@value GeneradorPdfCertificado#MAXIMO_FIRMAS} firmantes (nombre, cargo e imagen de la firma).
  * <p>
- * Todos los certificados de un evento deben ser iguales: la plantilla solo se modifica mientras no haya certificados
- * emitidos (409 {@value CertificadoException#PLANTILLA_BLOQUEADA}). Las modificaciones toman un bloqueo exclusivo de la
+ * Todos los certificados de un evento deben ser iguales: la plantilla solo se modifica mientras los certificados no se
+ * hayan habilitado ({@link #habilitar}, que exige fondo y al menos una firma) ni emitido (409
+ * {@value CertificadoException#PLANTILLA_BLOQUEADA}). Las modificaciones toman un bloqueo exclusivo de la
  * plantilla y la emisión uno compartido, así una emisión y un cambio simultáneos no se mezclan. Con el evento cerrado
  * formalmente (HU-28) tampoco se modifica.
  * </p>
@@ -54,6 +57,7 @@ import java.util.Objects;
 public class PlantillaCertificadoService {
 
     static final int LARGO_MAXIMO_TEXTO = 150;
+    private static final DateTimeFormatter FORMATO_FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final String ENTIDAD = "plantillas_certificado";
 
     private final PlantillaCertificadoRepository plantillaRepository;
@@ -134,6 +138,54 @@ public class PlantillaCertificadoService {
             firmas.add(new GeneradorPdfCertificado.Firma(f.getNombre(), f.getCargo(), leerOpcional(f.getFirmaUrl())));
         }
         return new PlantillaPdf(fondo, firmas);
+    }
+
+    /** Fecha en que se habilitaron los certificados del evento, o vacío si aún no se han habilitado. */
+    @Transactional(readOnly = true)
+    public Optional<LocalDateTime> fechaHabilitacion(Long eventoId) {
+        return plantillaRepository.findByEvento_Id(eventoId).map(PlantillaCertificado::getFechaHabilitacion);
+    }
+
+    /**
+     * Deja la plantilla fija y marca los certificados del evento como habilitados. Exige fondo y al menos una firma.
+     * Lo llama {@link CertificadoService#habilitar(Long)} dentro de su transacción, que después genera los certificados.
+     *
+     * @return fecha de habilitación.
+     * @throws CertificadoException si falta el fondo o las firmas, o si ya estaban habilitados.
+     */
+    @Transactional
+    public LocalDateTime habilitar(Evento evento) {
+        Long eventoId = evento.getId();
+        certificadoRepository.bloquearPlantilla(eventoId);
+        Optional<PlantillaCertificado> plantilla = plantillaRepository.findByEvento_Id(eventoId);
+        if (plantilla.isPresent() && plantilla.get().estaHabilitada()) {
+            throw new CertificadoException(CertificadoException.YA_HABILITADOS, HttpStatus.CONFLICT,
+                    "Los certificados de este evento ya fueron habilitados el "
+                            + plantilla.get().getFechaHabilitacion().format(FORMATO_FECHA_HORA) + ".");
+        }
+        List<String> faltantes = faltantes(plantilla.orElse(null),
+                firmanteRepository.findByEvento_IdOrderByOrdenAscIdAsc(eventoId).size());
+        if (!faltantes.isEmpty()) {
+            throw new CertificadoException(CertificadoException.PLANTILLA_INCOMPLETA, HttpStatus.CONFLICT,
+                    "Para habilitar los certificados complete la plantilla: " + String.join(" ", faltantes));
+        }
+        PlantillaCertificado p = plantilla.get();
+        LocalDateTime fecha = ahora();
+        p.setFechaHabilitacion(fecha);
+        plantillaRepository.save(p);
+        return fecha;
+    }
+
+    /** Lo que falta en la plantilla para habilitar los certificados. */
+    static List<String> faltantes(PlantillaCertificado plantilla, int firmantes) {
+        List<String> faltan = new ArrayList<>();
+        if (plantilla == null || plantilla.getFondoUrl() == null) {
+            faltan.add("Suba la imagen de fondo del certificado.");
+        }
+        if (firmantes < 1) {
+            faltan.add("Agregue al menos un firmante con su firma.");
+        }
+        return faltan;
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -284,12 +336,22 @@ public class PlantillaCertificadoService {
         Evento evento = buscarEvento(eventoId);
         MemoriaHistoricaReglas.verificarEditable(evento);
         certificadoRepository.bloquearPlantilla(eventoId);
+        Optional<PlantillaCertificado> plantilla = plantillaRepository.findByEvento_Id(eventoId);
+        if (plantilla.isPresent() && plantilla.get().estaHabilitada()) {
+            throw new CertificadoException(CertificadoException.PLANTILLA_BLOQUEADA, HttpStatus.CONFLICT,
+                    mensajeHabilitada(plantilla.get().getFechaHabilitacion()));
+        }
         long emitidos = certificadoRepository.countByEvento_Id(eventoId);
         if (emitidos > 0) {
             throw new CertificadoException(CertificadoException.PLANTILLA_BLOQUEADA, HttpStatus.CONFLICT,
                     mensajeBloqueo(emitidos));
         }
         return evento;
+    }
+
+    private static String mensajeHabilitada(LocalDateTime fecha) {
+        return "Los certificados del evento se habilitaron el " + fecha.format(FORMATO_FECHA_HORA)
+                + "; la plantilla quedó fija porque todos los certificados deben ser iguales.";
     }
 
     private static String mensajeBloqueo(long emitidos) {
@@ -300,7 +362,9 @@ public class PlantillaCertificadoService {
     private PlantillaCertificadoResponse respuesta(Evento evento) {
         Long eventoId = evento.getId();
         String base = "/api/v1/eventos/" + eventoId + "/certificados/plantilla";
-        boolean tieneFondo = plantillaRepository.findByEvento_Id(eventoId).map(p -> p.getFondoUrl() != null).orElse(false);
+        Optional<PlantillaCertificado> plantilla = plantillaRepository.findByEvento_Id(eventoId);
+        boolean tieneFondo = plantilla.map(p -> p.getFondoUrl() != null).orElse(false);
+        LocalDateTime habilitada = plantilla.map(PlantillaCertificado::getFechaHabilitacion).orElse(null);
         List<FirmanteCertificadoResponse> firmantes = firmanteRepository.findByEvento_IdOrderByOrdenAscIdAsc(eventoId)
                 .stream()
                 .map(f -> new FirmanteCertificadoResponse(f.getId(), f.getNombre(), f.getCargo(), f.getOrden(),
@@ -310,11 +374,15 @@ public class PlantillaCertificadoService {
         String motivo = null;
         if (evento.isArchivado()) {
             motivo = "El evento fue cerrado formalmente; su información solo se consulta.";
+        } else if (habilitada != null) {
+            motivo = mensajeHabilitada(habilitada);
         } else if (emitidos > 0) {
             motivo = mensajeBloqueo(emitidos);
         }
+        List<String> faltan = faltantes(plantilla.orElse(null), firmantes.size());
         return new PlantillaCertificadoResponse(eventoId, tieneFondo, tieneFondo ? base + "/fondo" : null, firmantes,
-                GeneradorPdfCertificado.MAXIMO_FIRMAS, motivo == null, motivo, base + "/vista-previa");
+                GeneradorPdfCertificado.MAXIMO_FIRMAS, motivo == null, motivo, base + "/vista-previa",
+                faltan.isEmpty(), faltan, habilitada != null, habilitada);
     }
 
     private static String textoObligatorio(String campo, String valor, String descripcion) {

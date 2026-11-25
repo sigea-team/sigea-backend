@@ -6,6 +6,7 @@ import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosRequ
 import com.sigea.demosigea_backend.dto.certificado.ConfiguracionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.EmisionCertificadoResponse;
 import com.sigea.demosigea_backend.dto.certificado.GeneracionCertificadosResponse;
+import com.sigea.demosigea_backend.dto.certificado.HabilitacionCertificadosResponse;
 import com.sigea.demosigea_backend.dto.certificado.MisCertificadosEventoResponse;
 import com.sigea.demosigea_backend.dto.certificado.SolicitudCertificadoRequest;
 import com.sigea.demosigea_backend.service.CertificadoService;
@@ -87,8 +88,9 @@ public class CertificadoController {
             @ApiResponse(responseCode = "404", description = "Evento no encontrado",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "409", description = "No cumple los requisitos (CERTIFICADO_REQUISITOS_NO_CUMPLIDOS), "
-                    + "el evento no ha terminado (EVENTO_NO_FINALIZADO), el tipo no se emite (CERTIFICADO_TIPO_NO_DISPONIBLE) "
-                    + "o el evento está archivado (EVENTO_ARCHIVADO)",
+                    + "los certificados no están habilitados (CERTIFICADOS_NO_HABILITADOS), el evento no ha terminado "
+                    + "(EVENTO_NO_FINALIZADO), el tipo no se emite (CERTIFICADO_TIPO_NO_DISPONIBLE) o el evento está "
+                    + "archivado (EVENTO_ARCHIVADO)",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/eventos/{eventoId}/certificados/mios")
@@ -134,9 +136,29 @@ public class CertificadoController {
     // Organizador (CU-23)
     // ──────────────────────────────────────────────────────────────────────────────
 
+    @Operation(summary = "Habilitar los certificados del evento",
+            description = "Con el evento terminado y la plantilla completa (fondo y al menos una firma), la plantilla "
+                    + "queda fija y se generan los certificados de todos los que cumplen los requisitos. Desde ese "
+                    + "momento cada participante encuentra el suyo en SIGEA. Antes de habilitar nadie puede generarlos.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Certificados habilitados y generados"),
+            @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Plantilla incompleta (PLANTILLA_CERTIFICADO_INCOMPLETA), "
+                    + "ya habilitados (CERTIFICADOS_YA_HABILITADOS), evento sin terminar (EVENTO_NO_FINALIZADO) o "
+                    + "archivado (EVENTO_ARCHIVADO)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/eventos/{eventoId}/certificados/habilitar")
+    @PreAuthorize(PERMISO_GESTION)
+    public ResponseEntity<HabilitacionCertificadosResponse> habilitar(@PathVariable Long eventoId) {
+        return ResponseEntity.ok(certificadoService.habilitar(eventoId));
+    }
+
     @Operation(summary = "Generar los certificados del evento",
-            description = "Genera el certificado de cada participante que cumple los requisitos de su rol. Los que ya "
-                    + "existían no se duplican y los que no cumplen se listan con el motivo (CU-23).")
+            description = "Con los certificados ya habilitados, genera los que falten de quienes cumplen los requisitos "
+                    + "(los que ya existían no se duplican y los que no cumplen se listan con el motivo, CU-23).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resultado de la generación"),
             @ApiResponse(responseCode = "403", description = "Acceso denegado"),

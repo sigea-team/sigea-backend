@@ -1420,7 +1420,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `plantillas_certificado`
 
-**Descripción**: HU-26 (changeset 28, hu26-006): imagen de fondo de los certificados del evento, una por evento. Sin fila o con `fondo_url` nulo se usa el diseño predeterminado. Solo se modifica mientras el evento no tenga certificados emitidos (todos deben ser iguales). Protegida por los triggers de la memoria histórica (hu26-008).  
+**Descripción**: HU-26 (changeset 28, hu26-006): imagen de fondo de los certificados del evento, una por evento. Sin fila o con `fondo_url` nulo se usa el diseño predeterminado. Solo se modifica mientras los certificados no estén habilitados (`fecha_habilitacion`) ni emitidos (todos deben ser iguales). Protegida por los triggers de la memoria histórica (hu26-008).  
 **Entidad JPA**: `com.sigea.demosigea_backend.model.PlantillaCertificado`  
 **Clave Primaria**: `plantilla_id`
 
@@ -1430,6 +1430,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `evento_id` | `INT` | `Long` | NO | FK, UNIQUE | - | FK -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE` |
 | `fondo_url` | `VARCHAR(255)` | `String` | SÍ |  | - | Ruta del JPEG normalizado (2200 × 1700 px) en el almacenamiento de archivos |
 | `fecha_actualizacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+| `fecha_habilitacion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-26 (changeset 29): fecha en que el organizador habilitó los certificados (exige fondo y al menos una firma); null = no habilitados. Desde ahí la plantilla queda fija y los participantes obtienen sus certificados |
 
 ---
 
