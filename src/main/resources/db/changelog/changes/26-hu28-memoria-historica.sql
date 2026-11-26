@@ -12,6 +12,8 @@
 --
 -- ATENCIÓN (rollback): deshacer hu28-004 vuelve editable la información de los eventos cerrados formalmente.
 -- (La nota va en la cabecera y no dentro del changeset para no cambiar su checksum.)
+-- HU-26: changeset 28 (hu26-008) redefine fn_evento_de_fila con 'plantillas_certificado' y 'firmantes_certificado'.
+-- Si se modifica hu28-004, agregue esas dos tablas a su primera lista para no quitarles la protección.
 -- =====================================================================
 
 --changeset SIGEA:hu28-001-memorias-historicas-contenido

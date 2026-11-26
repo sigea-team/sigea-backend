@@ -141,6 +141,13 @@ public enum TipoOperacionAuditoria {
     ENCUESTA_CERRADA("ENCUESTAS", "Cierre de una encuesta de satisfacción; no recibe más respuestas (HU-25)"),
     ENCUESTA_RESPONDIDA("ENCUESTAS", "Un participante respondió una encuesta de satisfacción; no incluye sus respuestas (HU-25)"),
 
+    // HU-26: certificados de participación
+    CERTIFICADO_GENERADO("CERTIFICADOS", "Emisión del certificado de asistente, ponente o conferencista de una persona en un evento (HU-26)"),
+    CERTIFICADOS_GENERADOS_EVENTO("CERTIFICADOS", "Generación de los certificados de todos los participantes que cumplen los requisitos de un evento (HU-26)"),
+    CERTIFICADOS_HABILITADOS("CERTIFICADOS", "Habilitación de los certificados de un evento: la plantilla queda fija y se generan los de quienes cumplen (HU-26)"),
+    PLANTILLA_CERTIFICADO_ACTUALIZADA("CERTIFICADOS", "Cambio del fondo o de los firmantes de los certificados de un evento (HU-26)"),
+    CONFIGURACION_CERTIFICADOS_ACTUALIZADA("CERTIFICADOS", "Cambio del porcentaje mínimo de asistencia para el certificado de asistente de un evento (HU-26)"),
+
     // HU-28: memoria histórica de los eventos
     MEMORIA_HISTORICA_CONSOLIDADA("MEMORIA_HISTORICA", "Cierre formal de un evento: su información queda consolidada en la memoria histórica, solo consulta (HU-28)"),
     MODIFICACION_HISTORICA_RECHAZADA("MEMORIA_HISTORICA", "Intento rechazado de modificar información de un evento cerrado formalmente (HU-28)"),

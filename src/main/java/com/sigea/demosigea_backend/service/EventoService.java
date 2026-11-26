@@ -258,6 +258,9 @@ public class EventoService {
                 .semestre(semestre)
                 .estado(EstadoEvento.en_configuracion)
                 .eventoBase(raiz)
+                // HU-26 (RN-01): la nueva edición conserva la condición de asistencia del evento de origen
+                .porcentajeMinimoAsistencia(origen.getPorcentajeMinimoAsistencia() != null
+                        ? origen.getPorcentajeMinimoAsistencia() : Evento.PORCENTAJE_MINIMO_ASISTENCIA_POR_DEFECTO)
                 .build();
 
         Evento guardada = guardarControlandoSemestre(edicion);

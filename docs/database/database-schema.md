@@ -80,6 +80,8 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 - [`respuestas_encuesta`](#respuestas_encuesta) (`RespuestaEncuesta`): Respuestas recopiladas de los participantes a las preguntas de una encuesta.
 - [`participaciones_encuesta`](#participaciones_encuesta) (`ParticipacionEncuesta`): Constancia de quién respondió cada encuesta (HU-25).
 - [`certificados`](#certificados) (`Certificado`): Certificados digitales generados para participantes, ponentes, evaluadores y organizadores.
+- [`plantillas_certificado`](#plantillas_certificado) (`PlantillaCertificado`): Imagen de fondo de los certificados de un evento (HU-26).
+- [`firmantes_certificado`](#firmantes_certificado) (`FirmanteCertificado`): Firmantes (nombre, cargo e imagen de la firma) de los certificados de un evento (HU-26).
 - [`indicadores`](#indicadores) (`Indicador`): Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento.
 - [`memorias_historicas`](#memorias_historicas) (`MemoriaHistorica`): Consolidación final de memorias, relatorías y documentos históricos del evento cerrado.
 
@@ -278,9 +280,11 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `semestre` | `VARCHAR(10)` | `String` | SÍ |  | - | - |
 | `estado` | `VARCHAR(30)` | `String` | NO |  | `'en_configuracion'` | CHECK `estado IN ('en_configuracion','habilitado','en_ejecucion','cerrado'` |
 | `evento_base_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`eventos.evento_id`](#eventos) |
+| `porcentaje_minimo_asistencia` | `NUMERIC(5,2)` | `BigDecimal` | NO |  | `80` | HU-26 (RN-01, changeset hu26-001): porcentaje mínimo de las actividades inscritas (no canceladas ni por programar) al que se debe asistir para el certificado de asistente. CHECK `> 0 AND <= 100`. No se cambia si ya hay certificados de asistente. |
 
 **Restricciones de Tabla (CHECK)**:
 - `CHECK (fecha_fin >= fecha_inicio)`
+- `eventos_porcentaje_minimo_asistencia_check`: `porcentaje_minimo_asistencia > 0 AND porcentaje_minimo_asistencia <= 100` (HU-26)
 
 **Índices Definidos**:
 - Índice `idx_eventos_semestre` sobre (`semestre`)
@@ -1382,7 +1386,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `certificados`
 
-**Descripción**: Certificados digitales generados para participantes, ponentes, evaluadores y organizadores.  
+**Descripción**: Certificados digitales generados para participantes, ponentes, evaluadores y organizadores. HU-26 (changeset 27): se emiten los de asistente, ponente y conferencista en PDF (`archivo_url` es la ruta en el almacenamiento de archivos); uno por persona, evento y tipo (`ux_certificados_persona_evento_tipo`, con `actividad_id` nulo); los datos impresos se guardan al emitir para entregar siempre la misma versión. Entidad `Certificado`, enum `TipoCertificado`.  
 **Entidad JPA Recomendada**: `com.sigea.demosigea_backend.model.Certificado` (anotada con `@Entity @Table(name = "certificados")`)  
 **Clave Primaria**: `certificado_id`
 
@@ -1392,15 +1396,61 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 | `persona_id` | `INT` | `Integer` | NO | FK | - | FK -> [`personas.persona_id`](#personas) |
 | `evento_id` | `INT` | `Integer` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) |
 | `actividad_id` | `INT` | `Integer` | SÍ | FK | - | FK -> [`actividades.actividad_id`](#actividades) |
-| `tipo_certificado` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo_certificado IN ('asistente','ponente','evaluador','organizador'` |
+| `tipo_certificado` | `VARCHAR(20)` | `String` | NO |  | - | CHECK `tipo_certificado IN ('asistente','ponente','conferencista','evaluador','organizador')` ('conferencista' desde HU-26) |
 | `porcentaje_asistencia` | `NUMERIC(5,2)` | `BigDecimal` | SÍ |  | - | - |
 | `fecha_generacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `(CURRENT_TIMESTAMP)` | - |
-| `archivo_url` | `VARCHAR(255)` | `String` | NO |  | - | - |
+| `archivo_url` | `VARCHAR(255)` | `String` | NO |  | - | HU-26: ruta del PDF en el almacenamiento (`certificados/<eventoId>/<uuid>.pdf`) |
+| `codigo_verificacion` | `VARCHAR(40)` | `String` | NO | UNIQUE | - | HU-26: código impreso (`CERT-` + 24 hex) para la verificación pública `GET /api/v1/publico/certificados/{codigo}` |
+| `nombre_participante` | `VARCHAR(201)` | `String` | SÍ |  | - | HU-26: nombre impreso al emitir |
+| `tipo_documento` | `VARCHAR(20)` | `String` | SÍ |  | - | HU-26: tipo de documento impreso |
+| `numero_documento` | `VARCHAR(30)` | `String` | SÍ |  | - | HU-26: número de documento impreso |
+| `nombre_evento` | `VARCHAR(200)` | `String` | SÍ |  | - | HU-26: nombre del evento al emitir |
+| `fecha_inicio_evento` | `DATE` | `LocalDate` | SÍ |  | - | HU-26: fecha de inicio impresa |
+| `fecha_fin_evento` | `DATE` | `LocalDate` | SÍ |  | - | HU-26: fecha de fin impresa |
+| `detalle` | `TEXT` | `String` | SÍ |  | - | HU-26: detalle impreso (asistencia o actividades a cargo, con intensidad horaria) |
+
+**Índices (HU-26)**: `ux_certificados_persona_evento_tipo` (único, `persona_id, evento_id, tipo_certificado` con `actividad_id IS NULL`), `ux_certificados_persona_actividad_tipo` (único, con `actividad_id IS NOT NULL`), `idx_certificados_evento`, `idx_certificados_persona`.
 
 **Relaciones Foráneas Salientes**:
 - Columna `persona_id` -> [`personas.persona_id`](#personas) `DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `evento_id` -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE`
 - Columna `actividad_id` -> [`actividades.actividad_id`](#actividades) `DEFERRABLE INITIALLY IMMEDIATE`
+
+---
+
+### `plantillas_certificado`
+
+**Descripción**: HU-26 (changeset 28, hu26-006): imagen de fondo de los certificados del evento, una por evento. Sin fila o con `fondo_url` nulo se usa el diseño predeterminado. Solo se modifica mientras los certificados no estén habilitados (`fecha_habilitacion`) ni emitidos (todos deben ser iguales). Protegida por los triggers de la memoria histórica (hu26-008).  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.PlantillaCertificado`  
+**Clave Primaria**: `plantilla_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `plantilla_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `evento_id` | `INT` | `Long` | NO | FK, UNIQUE | - | FK -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE` |
+| `fondo_url` | `VARCHAR(255)` | `String` | SÍ |  | - | Ruta del JPEG normalizado (2200 × 1700 px) en el almacenamiento de archivos |
+| `fecha_actualizacion` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+| `fecha_habilitacion` | `TIMESTAMP` | `LocalDateTime` | SÍ |  | - | HU-26 (changeset 29): fecha en que el organizador habilitó los certificados (exige fondo y al menos una firma); null = no habilitados. Desde ahí la plantilla queda fija y los participantes obtienen sus certificados |
+
+---
+
+### `firmantes_certificado`
+
+**Descripción**: HU-26 (changeset 28, hu26-007): personas que firman los certificados del evento (de 1 a 4, el máximo lo controla el backend). No tienen que ser usuarios del sistema. Mismas reglas de bloqueo que `plantillas_certificado`.  
+**Entidad JPA**: `com.sigea.demosigea_backend.model.FirmanteCertificado`  
+**Clave Primaria**: `firmante_id`
+
+| Columna | Tipo SQL | Tipo Java | Nulo | Clave | Default | Restricciones / Referencias |
+| :--- | :--- | :--- | :---: | :---: | :--- | :--- |
+| `firmante_id` | `SERIAL` | `Long` | NO | PK | - | - |
+| `evento_id` | `INT` | `Long` | NO | FK | - | FK -> [`eventos.evento_id`](#eventos) `ON DELETE CASCADE` |
+| `nombre` | `VARCHAR(150)` | `String` | NO |  | - | Nombre impreso bajo la firma |
+| `cargo` | `VARCHAR(150)` | `String` | NO |  | - | Cargo impreso bajo el nombre |
+| `firma_url` | `VARCHAR(255)` | `String` | NO |  | - | Ruta del PNG normalizado (con transparencia) en el almacenamiento de archivos |
+| `orden` | `INT` | `Integer` | NO |  | - | CHECK `orden >= 1`; posición en el pie de izquierda a derecha |
+| `fecha_registro` | `TIMESTAMP` | `LocalDateTime` | NO |  | `CURRENT_TIMESTAMP` | - |
+
+**Índices**: `idx_firmantes_certificado_evento` (`evento_id`, `orden`).
 
 ---
 
@@ -1469,7 +1519,7 @@ Lista de todas las columnas con restricciones de tipo `CHECK (columna IN (...))`
 | `inscripciones_evento` | `categoria_participante` | `CategoriaParticipante` | `'estudiante'`, `'egresado'`, `'docente'`, `'particular'` | Tipo de participante en la inscripción |
 | `asistencias` | `metodo_registro` | `MetodoRegistroAsistencia` | `'qr'`, `'manual'` | Mecanismo de captura de asistencia |
 | `preguntas_encuesta` | `tipo_respuesta` | `TipoRespuesta` | `'escala'`, `'texto'`, `'opcion'` | Formato de respuesta de la pregunta |
-| `certificados` | `tipo_certificado` | `TipoCertificado` | `'asistente'`, `'ponente'`, `'evaluador'`, `'organizador'` | Tipo y rol del certificado expedido |
+| `certificados` | `tipo_certificado` | `TipoCertificado` | `'asistente'`, `'ponente'`, `'conferencista'`, `'evaluador'`, `'organizador'` | Tipo y rol del certificado expedido (HU-26 emite asistente, ponente y conferencista) |
 
 --------------------------------------------------------------------------------
 

@@ -58,6 +58,11 @@ public interface MemoriaHistoricaRepository extends JpaRepository<MemoriaHistori
 
     /**
      * Procesos pendientes del evento al cierre (CU-32, flujo alterno 1.1).
+     * <p>
+     * HU-26: {@code certificadosSinGenerar} cuenta a quienes cumplen los requisitos de su rol y aún no tienen el
+     * certificado, con las mismas reglas de {@code CertificadoService}: asistentes con el porcentaje mínimo del evento
+     * sobre sus actividades inscritas no canceladas ni por programar, y ponentes con alguna actividad realizada.
+     * </p>
      */
     @Query(value = """
             SELECT
@@ -75,12 +80,29 @@ public interface MemoriaHistoricaRepository extends JpaRepository<MemoriaHistori
                  WHERE a.evento_id = :eventoId AND a.estado = 'por_programar') AS "actividadesPorProgramar",
                 (SELECT COUNT(*) FROM encuestas e
                  WHERE e.evento_id = :eventoId AND e.estado = 'publicada') AS "encuestasAbiertas",
-                (SELECT COUNT(DISTINCT i.persona_id) FROM asistencias a
-                 JOIN inscripciones_evento i ON i.inscripcion_id = a.inscripcion_id
-                 WHERE i.evento_id = :eventoId
-                   AND NOT EXISTS (SELECT 1 FROM certificados ce
-                                   WHERE ce.evento_id = :eventoId AND ce.persona_id = i.persona_id
-                                     AND ce.tipo_certificado = 'asistente')) AS "certificadosSinGenerar"
+                ((SELECT COUNT(*) FROM (
+                    SELECT ie.persona_id
+                    FROM inscripciones_evento ie
+                    JOIN inscripciones_actividad ia ON ia.inscripcion_id = ie.inscripcion_id
+                    JOIN actividades act ON act.actividad_id = ia.actividad_id AND act.evento_id = ie.evento_id
+                         AND lower(act.estado) NOT IN ('cancelada', 'por_programar')
+                    LEFT JOIN asistencias asi ON asi.inscripcion_id = ie.inscripcion_id
+                         AND asi.actividad_id = act.actividad_id
+                    WHERE ie.evento_id = :eventoId
+                    GROUP BY ie.persona_id
+                    HAVING COUNT(asi.asistencia_id) * 100 >= COUNT(*) * (
+                        SELECT ev.porcentaje_minimo_asistencia FROM eventos ev WHERE ev.evento_id = :eventoId)
+                 ) elegibles
+                 WHERE NOT EXISTS (SELECT 1 FROM certificados ce
+                                   WHERE ce.evento_id = :eventoId AND ce.persona_id = elegibles.persona_id
+                                     AND ce.tipo_certificado = 'asistente' AND ce.actividad_id IS NULL))
+                 + (SELECT COUNT(DISTINCT act.ponente_id) FROM actividades act
+                    WHERE act.evento_id = :eventoId AND act.ponente_id IS NOT NULL
+                      AND lower(act.estado) NOT IN ('cancelada', 'por_programar')
+                      AND NOT EXISTS (SELECT 1 FROM certificados ce
+                                      WHERE ce.evento_id = :eventoId AND ce.persona_id = act.ponente_id
+                                        AND ce.tipo_certificado IN ('ponente', 'conferencista')
+                                        AND ce.actividad_id IS NULL))) AS "certificadosSinGenerar"
             """, nativeQuery = true)
     ConteoPendientes contarPendientes(@Param("eventoId") Long eventoId);
 
