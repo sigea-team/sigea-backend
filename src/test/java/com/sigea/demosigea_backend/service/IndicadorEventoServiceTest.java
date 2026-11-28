@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -117,6 +119,16 @@ class IndicadorEventoServiceTest {
 
         assertTrue(r.archivado());
         assertEquals(ReglasIndicadoresEvento.MENSAJE_ARCHIVADO, r.mensaje());
+    }
+
+    @Test
+    @DisplayName("Criterio 3: transacción de solo lectura REPEATABLE READ (todas las consultas ven la misma foto)")
+    void transaccionRepeatableRead() throws NoSuchMethodException {
+        Transactional transaccion = IndicadorEventoService.class.getMethod("generar", Long.class)
+                .getAnnotation(Transactional.class);
+
+        assertTrue(transaccion.readOnly());
+        assertEquals(Isolation.REPEATABLE_READ, transaccion.isolation());
     }
 
     @Test

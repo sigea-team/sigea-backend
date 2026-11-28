@@ -57,11 +57,20 @@ public interface IndicadorEventoRepository extends Repository<Indicador, Long> {
     /**
      * Inscritos y asistentes de cada actividad programada (no cancelada ni por programar):
      * {@code [actividadId, nombre, fecha, horaInicio, inscritos, asistentes]}.
+     * <p>
+     * Solo cuenta inscripciones y asistencias cuya inscripción al evento es de este mismo evento (igual que los
+     * indicadores generales), aunque la base de datos no impide por sí sola mezclar eventos. Por el índice único
+     * {@code (inscripcion_id, actividad_id)} de cada tabla, cada registro es una persona distinta en la actividad.
+     * </p>
      */
     @Query(value = """
             SELECT a.actividad_id, a.nombre, a.fecha, a.hora_inicio,
-                   (SELECT COUNT(*) FROM inscripciones_actividad ia WHERE ia.actividad_id = a.actividad_id) AS inscritos,
-                   (SELECT COUNT(*) FROM asistencias s WHERE s.actividad_id = a.actividad_id) AS asistentes
+                   (SELECT COUNT(*) FROM inscripciones_actividad ia
+                    JOIN inscripciones_evento ie ON ie.inscripcion_id = ia.inscripcion_id AND ie.evento_id = a.evento_id
+                    WHERE ia.actividad_id = a.actividad_id) AS inscritos,
+                   (SELECT COUNT(*) FROM asistencias s
+                    JOIN inscripciones_evento ie ON ie.inscripcion_id = s.inscripcion_id AND ie.evento_id = a.evento_id
+                    WHERE s.actividad_id = a.actividad_id) AS asistentes
             FROM actividades a
             WHERE a.evento_id = :eventoId AND a.estado NOT IN ('cancelada', 'por_programar')
             ORDER BY a.fecha, a.hora_inicio, a.actividad_id
