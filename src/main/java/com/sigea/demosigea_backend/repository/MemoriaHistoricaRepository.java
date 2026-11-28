@@ -116,74 +116,15 @@ public interface MemoriaHistoricaRepository extends JpaRepository<MemoriaHistori
 
     /**
      * Calcula y guarda los indicadores del evento al cierre (los que no tienen dato, como la tasa de asistencia sin
-     * inscritos, no se guardan).
+     * inscritos, no se guardan). El cálculo es el mismo del dashboard de HU-29 ({@link ConsultasIndicadoresEvento}).
      *
      * @return cantidad de indicadores guardados.
      */
     @Modifying
-    @Query(value = """
-            INSERT INTO indicadores (evento_id, codigo, nombre, valor, unidad, fecha_calculo)
-            SELECT :eventoId, x.codigo, x.nombre, x.valor, x.unidad, :fechaCalculo
-            FROM (
-                SELECT b.*,
-                       (SELECT COALESCE(SUM(g.valor), 0) FROM gastos_ejecutados g
-                        JOIN rubros_presupuestales r ON r.rubro_id = g.rubro_id WHERE r.evento_id = :eventoId) AS ejecutado,
-                       (SELECT pa.valor_total_aprobado FROM presupuestos_aprobados pa
-                        WHERE pa.evento_id = :eventoId AND pa.estado = 'aprobado'
-                        ORDER BY pa.fecha_aprobacion DESC LIMIT 1) AS aprobado
-                FROM (
-                    SELECT
-                        (SELECT COUNT(*) FROM inscripciones_evento i WHERE i.evento_id = :eventoId) AS inscritos,
-                        (SELECT COUNT(DISTINCT i.persona_id) FROM asistencias a
-                         JOIN inscripciones_evento i ON i.inscripcion_id = a.inscripcion_id WHERE i.evento_id = :eventoId) AS asistentes,
-                        (SELECT COUNT(*) FROM asistencias a
-                         JOIN inscripciones_evento i ON i.inscripcion_id = a.inscripcion_id WHERE i.evento_id = :eventoId) AS registros,
-                        (SELECT COUNT(*) FROM actividades a
-                         WHERE a.evento_id = :eventoId AND a.estado NOT IN ('cancelada', 'por_programar')) AS realizadas,
-                        (SELECT COUNT(*) FROM actividades a WHERE a.evento_id = :eventoId AND a.estado = 'cancelada') AS canceladas,
-                        (SELECT COUNT(*) FROM propuestas p
-                         JOIN convocatorias c ON c.convocatoria_id = p.convocatoria_id WHERE c.evento_id = :eventoId) AS propuestas,
-                        (SELECT COUNT(*) FROM propuestas p
-                         JOIN convocatorias c ON c.convocatoria_id = p.convocatoria_id
-                         WHERE c.evento_id = :eventoId AND p.estado IN ('aprobada', 'ajustes')) AS aprobadas,
-                        (SELECT COUNT(*) FROM propuestas p
-                         JOIN convocatorias c ON c.convocatoria_id = p.convocatoria_id
-                         WHERE c.evento_id = :eventoId AND p.estado = 'rechazada') AS rechazadas,
-                        (SELECT COUNT(DISTINCT pc.persona_id) FROM participaciones_conferencista pc
-                         WHERE pc.evento_id = :eventoId) AS conferencistas,
-                        (SELECT COUNT(*) FROM participaciones_encuesta pe
-                         JOIN encuestas e ON e.encuesta_id = pe.encuesta_id WHERE e.evento_id = :eventoId) AS respuestas_encuesta,
-                        (SELECT ROUND(AVG(100.0 * (r.valor_escala - q.escala_minima) / (q.escala_maxima - q.escala_minima)), 2)
-                         FROM respuestas_encuesta r
-                         JOIN preguntas_encuesta q ON q.pregunta_id = r.pregunta_id
-                         JOIN encuestas e ON e.encuesta_id = q.encuesta_id
-                         WHERE e.evento_id = :eventoId AND r.valor_escala IS NOT NULL
-                           AND q.escala_maxima > q.escala_minima) AS satisfaccion
-                ) b
-            ) t
-            CROSS JOIN LATERAL (VALUES
-                ('INSCRITOS', 'Participantes inscritos', CAST(t.inscritos AS NUMERIC), 'personas'),
-                ('ASISTENTES', 'Participantes con asistencia registrada', CAST(t.asistentes AS NUMERIC), 'personas'),
-                ('TASA_ASISTENCIA', 'Tasa de asistencia de los inscritos',
-                    CASE WHEN t.inscritos = 0 THEN NULL ELSE ROUND(100.0 * t.asistentes / t.inscritos, 2) END, '%'),
-                ('ASISTENCIAS_REGISTRADAS', 'Registros de asistencia a actividades', CAST(t.registros AS NUMERIC), 'registros'),
-                ('ACTIVIDADES_REALIZADAS', 'Actividades programadas (no canceladas)', CAST(t.realizadas AS NUMERIC), 'actividades'),
-                ('ACTIVIDADES_CANCELADAS', 'Actividades canceladas', CAST(t.canceladas AS NUMERIC), 'actividades'),
-                ('PROPUESTAS_RECIBIDAS', 'Propuestas recibidas', CAST(t.propuestas AS NUMERIC), 'propuestas'),
-                ('PROPUESTAS_APROBADAS', 'Propuestas aprobadas (incluye con ajustes)', CAST(t.aprobadas AS NUMERIC), 'propuestas'),
-                ('PROPUESTAS_RECHAZADAS', 'Propuestas rechazadas', CAST(t.rechazadas AS NUMERIC), 'propuestas'),
-                ('TASA_APROBACION', 'Tasa de aprobación de propuestas',
-                    CASE WHEN t.propuestas = 0 THEN NULL ELSE ROUND(100.0 * t.aprobadas / t.propuestas, 2) END, '%'),
-                ('CONFERENCISTAS', 'Conferencistas y ponentes', CAST(t.conferencistas AS NUMERIC), 'personas'),
-                ('RESPUESTAS_ENCUESTAS', 'Respuestas a encuestas de satisfacción', CAST(t.respuestas_encuesta AS NUMERIC), 'respuestas'),
-                ('SATISFACCION_PROMEDIO', 'Satisfacción promedio (preguntas de escala)', t.satisfaccion, '%'),
-                ('PRESUPUESTO_APROBADO', 'Presupuesto aprobado', t.aprobado, 'COP'),
-                ('PRESUPUESTO_EJECUTADO', 'Presupuesto ejecutado', CAST(t.ejecutado AS NUMERIC), 'COP'),
-                ('EJECUCION_PRESUPUESTAL', 'Porcentaje de ejecución presupuestal',
-                    CASE WHEN t.aprobado IS NULL OR t.aprobado = 0 THEN NULL ELSE ROUND(100.0 * t.ejecutado / t.aprobado, 2) END, '%')
-            ) AS x(codigo, nombre, valor, unidad)
-            WHERE x.valor IS NOT NULL
-            """, nativeQuery = true)
+    @Query(value = "INSERT INTO indicadores (evento_id, codigo, nombre, valor, unidad, fecha_calculo) "
+            + "SELECT :eventoId, c.codigo, c.nombre, c.valor, c.unidad, :fechaCalculo FROM ("
+            + ConsultasIndicadoresEvento.CALCULO
+            + ") c WHERE c.valor IS NOT NULL ORDER BY c.orden", nativeQuery = true)
     int insertarIndicadores(@Param("eventoId") Long eventoId, @Param("fechaCalculo") LocalDateTime fechaCalculo);
 
     /**
