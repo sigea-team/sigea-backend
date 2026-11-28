@@ -1456,7 +1456,7 @@ Este documento contiene la especificación completa, exhaustiva y estructurada d
 
 ### `indicadores`
 
-**Descripción**: Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento. HU-28 (changeset 26): se calculan y guardan al cierre formal del evento (inscritos, asistentes, tasa de asistencia, actividades, propuestas, encuestas, presupuesto) y forman parte de su memoria histórica.  
+**Descripción**: Métricas, indicadores de gestión y KPIs calculados para evaluar el éxito del evento. HU-28 (changeset 26): se calculan y guardan al cierre formal del evento (inscritos, asistentes, tasa de asistencia, actividades, propuestas, encuestas, presupuesto) y forman parte de su memoria histórica. HU-29: el dashboard del evento calcula los mismos indicadores al vuelo (`ConsultasIndicadoresEvento`, `IndicadorEventoRepository`) y no escribe en esta tabla.  
 **Entidad JPA**: `com.sigea.demosigea_backend.model.Indicador` (anotada con `@Entity @Immutable @Table(name = "indicadores")`)  
 **Clave Primaria**: `indicador_id`
 
